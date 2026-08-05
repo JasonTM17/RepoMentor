@@ -205,6 +205,36 @@ describe("review API", () => {
     assert.equal(ownerDetail.status, 404);
   });
 
+  it("blocks cross-user retry and cancel without leaking review state", async () => {
+    const owner = await createUser();
+    const other = await createUser();
+    const created = await createReview(owner, "const protectedReview = true;");
+
+    const otherRetry = await request(app.getHttpServer())
+      .post(`/api/v1/reviews/${created.id}/retry`)
+      .set("authorization", `Bearer ${other.accessToken}`);
+    const otherCancel = await request(app.getHttpServer())
+      .post(`/api/v1/reviews/${created.id}/cancel`)
+      .set("authorization", `Bearer ${other.accessToken}`);
+    const ownerDetail = await request(app.getHttpServer())
+      .get(`/api/v1/reviews/${created.id}`)
+      .set("authorization", `Bearer ${owner.accessToken}`);
+
+    for (const response of [otherRetry, otherCancel]) {
+      assert.equal(response.status, 404);
+      assert.equal(response.body.error.code, "NOT_FOUND");
+      assert.equal("data" in response.body, false);
+      assert.doesNotMatch(
+        JSON.stringify(response.body),
+        new RegExp(`${created.id}|PENDING|PROCESSING|COMPLETED|FAILED|CANCELLED`, "u"),
+      );
+    }
+
+    assert.equal(ownerDetail.status, 200);
+    assert.equal(ownerDetail.body.data.status, "PENDING");
+    assert.equal(ownerDetail.body.data.source, "const protectedReview = true;");
+  });
+
   it("exposes cancel and retry seams with conflict-safe transitions", async () => {
     const user = await createUser();
     const cancelled = await createReview(user);
