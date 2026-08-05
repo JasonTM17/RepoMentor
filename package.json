@@ -1,7 +1,27 @@
 {
   "name": "repomentor",
   "version": "0.1.0",
+  "description": "Developer-first AI code review and programming tutor workspace.",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JasonTM17/RepoMentor.git"
+  },
+  "homepage": "https://github.com/JasonTM17/RepoMentor#readme",
+  "bugs": {
+    "url": "https://github.com/JasonTM17/RepoMentor/issues"
+  },
+  "keywords": [
+    "ai",
+    "code-review",
+    "programming-tutor",
+    "developer-tools",
+    "typescript",
+    "nextjs",
+    "nestjs",
+    "prisma",
+    "monorepo"
+  ],
   "packageManager": "pnpm@11.0.9",
   "engines": {
     "node": ">=22.0.0",
