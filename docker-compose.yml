@@ -8,8 +8,9 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:?NODE_ENV must be set}
       PORT: "3000"
-      DATABASE_URL: "postgresql://${POSTGRES_USER:?POSTGRES_USER must be set}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB must be set}"
-      REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set}@redis:6379/0"
+      # Supply URL-encoded credentials and use the Compose service names so the API stays inside the local network.
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set to a URL using the postgres service name}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL must be set to a URL using the redis service name}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET must be set}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set}
       COOKIE_SECURE: ${COOKIE_SECURE:?COOKIE_SECURE must be set}
