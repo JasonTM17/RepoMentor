@@ -1,0 +1,17 @@
+{
+  "coordinator": {
+    "model": "gpt-5.6-luna",
+    "reasoning": "max",
+    "workspace": "D:\\RepoMentor"
+  },
+  "manager": {
+    "model": "gpt-5.6-luna",
+    "reasoning": "max",
+    "authority": "review-and-bounded-implementation"
+  },
+  "advisory": {
+    "model": "gpt-5.6-terra",
+    "role": "Kongming read-only counsel",
+    "write_authority": false
+  }
+}

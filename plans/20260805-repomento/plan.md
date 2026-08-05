@@ -90,7 +90,7 @@ or a clearly recorded limitation when browser capture is unavailable.
 | 00 | repository/tooling analysis | none | coordinator | inventory + plan commit |
 | 01 | pnpm/Turbo/TypeScript/ESLint/Prettier foundation | 00 | foundation worker | install, lint, typecheck |
 | 02 | Next.js web, NestJS API, shared package seams, health | 01 | web/API workers, sequenced config owner | both builds + health tests |
-| 03 | Compose, Prisma, PostgreSQL/Redis config and seed | 02 | infra/database worker | schema validation + compose config |
+| 03 | Compose, Prisma tooling, PostgreSQL/Redis config checkpoint | 02 | infra/database worker | schema/config validation + compose config |
 | 04 | secure auth API and web flows | 03 | auth API then auth web | auth integration tests + build |
 | 05 | review persistence, ownership, pagination, status model | 04 | review API worker | domain/integration tests |
 | 06 | Luna provider, prompt isolation, structured output, usage model | 05 | AI worker + security tester | schema/prompt/provider tests |
@@ -172,6 +172,7 @@ without live integration evidence.
 | `main` | 00 | coordinator | `8662b6e` | integrated |
 | `main` | 01 | Luna foundation + manager arbiter | `ec28301`, `9b2b960`, `abea984`, `8072468`, `e3fa107` | integrated |
 | `main` | 02 | Luna API/web/UI workers + manager arbiter + coordinator | `5234b11`, `37f9eb4`, `b311289`, `68140cd`, `1bcaf61`, `692eeef`, `32ae68b`, `3a71c6e`, `f2e19a5`, `85ed97d`, `7a4e8a0`, `fa15804`, `91e3bf7`, `9a11995`, `6178fa2`, `7c18e18` | accepted at `7c18e18`; live infra/auth/domain pending |
+| `main` | 03 | Luna manager/coordinator, sequenced infra/config/database slices | `3e7499a`, `402bde0`, `dd51225`, `721d492`, `f41d92f` | checkpoint accepted at `f41d92f`; domain migration/seed deferred to Phase 04 |
 
 ## Agent/thread ledger
 
@@ -189,6 +190,8 @@ without live integration evidence.
 | phase-02-web-smoke | tester | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-web-shell-smoke` | accepted; 7 assertions | `plans/reports/orchestrate-20260805T192444/report.md` |
 | phase-02-api-contracts | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-api-contract-boundary` | accepted; shared contract consumer | `plans/reports/orchestrate-20260805T192444/report.md` |
 | phase-02-api-boundary | manager/implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-api-error-boundary` | accepted; 5 tests, arbiter pass | `plans/reports/orchestrate-20260805T192444/report.md` |
+| phase-03-infrastructure | sequenced implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-local-infrastructure`, `D:\worktrees\RepoMentor-validated-config`, `D:\worktrees\RepoMentor-prisma-tooling` | checkpoint integrated; Docker runtime unavailable | `plans/reports/orchestrate-20260805T202044/report.md` |
+| phase-03-manager-arbiter | reviewer/implementer | `gpt-5.6-luna` / `max` | manager thread and sequenced worktrees | accepted exact-head gates; no live service claim | `plans/reports/orchestrate-20260805T202044/report.md` |
 
 ## Unresolved questions
 

@@ -1,0 +1,37 @@
+workflow: ak-orchestrate
+project: RepoMentor
+phase: 03-local-infrastructure-checkpoint
+model_policy:
+  implementation: gpt-5.6-luna
+  reasoning: max
+  terra_exception: advisory_only
+jobs:
+  - id: local-infrastructure
+    role: implementer
+    branch: feature/local-infrastructure
+    result: accepted
+    commit: 3e7499a
+  - id: validated-config
+    role: implementer
+    branch: feature/validated-config
+    result: accepted
+    commit: 402bde0
+  - id: config-lock
+    role: coordinator
+    branch: main
+    result: accepted
+    commit: dd51225
+  - id: prisma-tooling
+    role: implementer
+    branch: feature/prisma-tooling
+    result: accepted
+    commit: 721d492
+  - id: prisma-lock
+    role: coordinator
+    branch: main
+    result: accepted
+    commit: f41d92f
+  - id: exact-head-verification
+    role: coordinator-and-luna-reviewer
+    result: accepted-with-runtime-limitation
+    evidence: report.md
