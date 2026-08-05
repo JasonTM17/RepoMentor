@@ -1,11 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-import {
-  Inject,
-  Injectable,
-  Optional,
-  UnauthorizedException,
-} from "@nestjs/common";
+import { Inject, Injectable, Optional, UnauthorizedException } from "@nestjs/common";
 import type { CookieOptions } from "express";
 
 import { isAuthIdentifier } from "./auth-id.js";
@@ -121,7 +116,11 @@ function parseBoundedSeconds(
   return value;
 }
 
-function parseBoolean(variableName: string, rawValue: string | undefined, defaultValue: boolean): boolean {
+function parseBoolean(
+  variableName: string,
+  rawValue: string | undefined,
+  defaultValue: boolean,
+): boolean {
   if (rawValue === undefined || rawValue.trim() === "") {
     return defaultValue;
   }
@@ -154,7 +153,9 @@ function parseSameSite(rawValue: string | undefined): CookieSameSite {
   throw new AuthTokenConfigError();
 }
 
-export function parseAuthTokenConfig(environment: NodeJS.ProcessEnv = process.env): AuthTokenConfig {
+export function parseAuthTokenConfig(
+  environment: NodeJS.ProcessEnv = process.env,
+): AuthTokenConfig {
   const accessSecret = parseSecret("JWT_ACCESS_SECRET", environment);
   const refreshSecret = parseSecret("JWT_REFRESH_SECRET", environment);
 
@@ -279,9 +280,7 @@ function assertJwtPayload(value: unknown): asserts value is JwtPayload {
 export class AuthTokenService {
   private readonly configuredOptions: AuthTokenConfig | undefined;
 
-  constructor(
-    @Optional() @Inject(AUTH_TOKEN_CONFIG) configuredOptions?: AuthTokenConfig,
-  ) {
+  constructor(@Optional() @Inject(AUTH_TOKEN_CONFIG) configuredOptions?: AuthTokenConfig) {
     this.configuredOptions = configuredOptions;
   }
 

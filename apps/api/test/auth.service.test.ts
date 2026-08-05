@@ -119,13 +119,19 @@ describe("authentication service", () => {
 
     assert.equal(await service.logoutAll(userId, now), 2);
     assert.equal(
-      (await repository.findSessionById(tokens.verifyRefreshToken(registered.refreshToken, now).sessionId))
-        ?.status,
+      (
+        await repository.findSessionById(
+          tokens.verifyRefreshToken(registered.refreshToken, now).sessionId,
+        )
+      )?.status,
       "REVOKED",
     );
     assert.equal(
-      (await repository.findSessionById(tokens.verifyRefreshToken(secondLogin.refreshToken, now).sessionId))
-        ?.status,
+      (
+        await repository.findSessionById(
+          tokens.verifyRefreshToken(secondLogin.refreshToken, now).sessionId,
+        )
+      )?.status,
       "REVOKED",
     );
   });

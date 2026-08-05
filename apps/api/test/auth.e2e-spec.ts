@@ -76,13 +76,11 @@ describe("authentication bootstrap", () => {
   });
 
   it("keeps duplicate registration and bad login errors generic", async () => {
-    const duplicate = await request(app.getHttpServer())
-      .post("/api/v1/auth/register")
-      .send({
-        displayName: "Other Name",
-        email: "ADA@example.com",
-        password: "another correct password",
-      });
+    const duplicate = await request(app.getHttpServer()).post("/api/v1/auth/register").send({
+      displayName: "Other Name",
+      email: "ADA@example.com",
+      password: "another correct password",
+    });
     const wrongPassword = await request(app.getHttpServer())
       .post("/api/v1/auth/login")
       .send({ email: "ada@example.com", password: "wrong password" });
@@ -97,13 +95,11 @@ describe("authentication bootstrap", () => {
   });
 
   it("rotates refresh cookies and rejects replay", async () => {
-    const registration = await request(app.getHttpServer())
-      .post("/api/v1/auth/register")
-      .send({
-        displayName: "Refresh User",
-        email: "refresh@example.com",
-        password: "correct horse battery staple",
-      });
+    const registration = await request(app.getHttpServer()).post("/api/v1/auth/register").send({
+      displayName: "Refresh User",
+      email: "refresh@example.com",
+      password: "correct horse battery staple",
+    });
     const firstCookie = cookieHeader(registration);
     const refreshed = await request(app.getHttpServer())
       .post("/api/v1/auth/refresh")
@@ -120,13 +116,11 @@ describe("authentication bootstrap", () => {
   });
 
   it("protects me and revokes every session on logout-all", async () => {
-    const registration = await request(app.getHttpServer())
-      .post("/api/v1/auth/register")
-      .send({
-        displayName: "Session User",
-        email: "sessions@example.com",
-        password: "correct horse battery staple",
-      });
+    const registration = await request(app.getHttpServer()).post("/api/v1/auth/register").send({
+      displayName: "Session User",
+      email: "sessions@example.com",
+      password: "correct horse battery staple",
+    });
     const secondLogin = await request(app.getHttpServer())
       .post("/api/v1/auth/login")
       .send({ email: "sessions@example.com", password: "correct horse battery staple" });

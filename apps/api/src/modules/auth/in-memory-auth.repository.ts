@@ -131,10 +131,7 @@ export class InMemoryAuthRepository implements AuthRepository {
     }
 
     if (session.refreshTokenHash !== input.expectedRefreshTokenHash) {
-      this.sessions.set(
-        session.id,
-        revokeSessionRecord(session, "REFRESH_REUSE", input.now),
-      );
+      this.sessions.set(session.id, revokeSessionRecord(session, "REFRESH_REUSE", input.now));
       return { outcome: "REUSE_DETECTED" };
     }
 

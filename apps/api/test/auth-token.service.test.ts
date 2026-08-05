@@ -40,7 +40,10 @@ describe("authentication token primitives", () => {
     assert.equal(tokens.verifyAccessToken(accessToken.value, issuedAt).subject, userId);
     assert.equal(tokens.verifyRefreshToken(refreshToken.value, issuedAt).sessionId, sessionId);
     assert.notEqual(refreshToken.value, secondRefreshToken.value);
-    assert.equal(isAuthTokenId(tokens.verifyRefreshToken(refreshToken.value, issuedAt).tokenId), true);
+    assert.equal(
+      isAuthTokenId(tokens.verifyRefreshToken(refreshToken.value, issuedAt).tokenId),
+      true,
+    );
     assert.throws(
       () => tokens.verifyAccessToken(refreshToken.value, issuedAt),
       UnauthorizedException,
@@ -57,7 +60,8 @@ describe("authentication token primitives", () => {
       UnauthorizedException,
     );
     assert.throws(
-      () => tokens.verifyAccessToken("not.a.token", issuedAt), (error: unknown) => {
+      () => tokens.verifyAccessToken("not.a.token", issuedAt),
+      (error: unknown) => {
         assert.ok(error instanceof UnauthorizedException);
         assert.equal(error.message, "Unauthorized");
         assert.equal(error.message.includes("not.a.token"), false);
