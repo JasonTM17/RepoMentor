@@ -4,12 +4,15 @@ import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 
 import { AppModule } from "./app.module.js";
+import { ApiExceptionFilter } from "./common/http/api-exception.filter.js";
+import { requestIdMiddleware } from "./common/http/request-id.middleware.js";
 
 const API_PREFIX = "api/v1";
 const SWAGGER_PATH = "api/docs";
 const HEALTH_ROUTES = ["health/live", "health/ready"];
 
 export function configureApp(app: INestApplication): INestApplication {
+  app.use(requestIdMiddleware);
   app.setGlobalPrefix(API_PREFIX, { exclude: HEALTH_ROUTES });
   app.useGlobalPipes(
     new ValidationPipe({
@@ -18,6 +21,7 @@ export function configureApp(app: INestApplication): INestApplication {
       whitelist: true,
     }),
   );
+  app.useGlobalFilters(new ApiExceptionFilter());
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle("RepoMentor API")

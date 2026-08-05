@@ -4,10 +4,12 @@ import { after, before, describe, it } from "node:test";
 import { Test } from "@nestjs/testing";
 import type { INestApplication } from "@nestjs/common";
 import type {
+  ApiErrorEnvelope,
   ApiSuccessEnvelope,
   LivenessHealthPayload,
   ReadinessHealthPayload,
 } from "@repomentor/contracts";
+import { API_PROBLEM_CODES, apiErrorEnvelopeSchema } from "@repomentor/contracts";
 import request from "supertest";
 
 import { AppModule } from "../src/app.module.js";
@@ -21,6 +23,9 @@ const expectedReadinessPayload: ReadinessHealthPayload = {
   scope: "application",
   status: "ok",
 };
+
+const UUID_REQUEST_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface SwaggerResponse {
   info?: {
@@ -71,5 +76,38 @@ describe("health bootstrap", () => {
 
     assert.equal(response.status, 200);
     assert.equal(document.info?.title, "RepoMentor API");
+  });
+
+  it("returns a safe error envelope for an unknown API route", async () => {
+    const requestId = "bootstrap-test-123";
+    const response = await request(app.getHttpServer())
+      .get("/api/v1/does-not-exist")
+      .set("x-request-id", requestId);
+
+    assert.equal(response.status, 404);
+    assert.equal(response.headers["x-request-id"], requestId);
+    assert.deepEqual(response.body as ApiErrorEnvelope, {
+      error: {
+        code: API_PROBLEM_CODES.NOT_FOUND,
+        message: "The requested resource was not found.",
+        requestId,
+      },
+    });
+    assert.equal(apiErrorEnvelopeSchema.safeParse(response.body).success, true);
+    assert.equal(JSON.stringify(response.body).includes("does-not-exist"), false);
+    assert.equal(JSON.stringify(response.body).includes("stack"), false);
+  });
+
+  it("replaces an invalid request id with a bounded UUID", async () => {
+    const invalidRequestId = "request id with spaces";
+    const response = await request(app.getHttpServer())
+      .get("/api/v1/does-not-exist")
+      .set("x-request-id", invalidRequestId);
+    const responseRequestId = response.headers["x-request-id"] as string;
+
+    assert.equal(response.status, 404);
+    assert.notEqual(responseRequestId, invalidRequestId);
+    assert.match(responseRequestId, UUID_REQUEST_ID_PATTERN);
+    assert.equal((response.body as ApiErrorEnvelope).error.requestId, responseRequestId);
   });
 });
