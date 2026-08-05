@@ -2,6 +2,8 @@
 
 ARG NODE_IMAGE=node:24.12.0-alpine3.22@sha256:4f4a059445c5a6ef2b9d169d9afde176301263178141fc05ba657dab1c84f9a7
 
+# The ARG includes an explicit tag and immutable digest; Hadolint cannot infer that through interpolation.
+# hadolint ignore=DL3006
 FROM ${NODE_IMAGE} AS base
 
 ENV PNPM_HOME=/pnpm
@@ -35,6 +37,8 @@ RUN pnpm --filter @repomentor/web build \
   && mkdir -p /prod/web/public \
   && if [ -d apps/web/public ]; then cp -R apps/web/public/. /prod/web/public/; fi
 
+# The ARG includes an explicit tag and immutable digest; Hadolint cannot infer that through interpolation.
+# hadolint ignore=DL3006
 FROM ${NODE_IMAGE} AS runtime
 
 ENV NODE_ENV=production
