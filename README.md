@@ -20,12 +20,14 @@ This checkpoint contains:
   authentication payloads;
 - Prisma schema and forward-only PostgreSQL migrations for users, sessions,
   and reviews;
-- a local Docker Compose definition for PostgreSQL and Redis infrastructure;
+- a local-only Docker Compose application layer for the API and web images,
+  PostgreSQL, and Redis, with localhost-bound ports and health-gated startup;
 - focused unit and in-memory controller tests for the implemented boundaries.
 
 The following are not implemented at this checkpoint: an AI provider or review
-worker, Redis usage, review result generation, streaming, a connected editor,
-production containers, deployment, or package publication.
+worker, Redis-backed application usage, review result generation, streaming, a
+connected editor, production deployment, registry publication, or package
+publication.
 
 ## Architecture
 
@@ -34,7 +36,7 @@ apps/web/       Next.js 16 web shell and auth forms
 apps/api/       NestJS API, auth/session boundary, review service, Prisma adapters
 packages/contracts/  Zod schemas and TypeScript types shared by API/tests
 prisma/         PostgreSQL schema and append-only migrations
-docker-compose.yml   Local PostgreSQL and Redis services only
+docker-compose.yml   Local API/web images plus PostgreSQL and Redis services
 docs/           Architecture decisions, release boundaries, and media capture
 ```
 
@@ -96,8 +98,8 @@ Prerequisites:
 
 - Node.js `>=22.0.0` (the validation runtime was `v24.12.0`);
 - pnpm `11.0.9`, selected by the root `packageManager` field;
-- Docker is optional for the unit/in-memory checks and required for local
-  PostgreSQL/Redis services.
+- Docker is optional for the unit/in-memory checks; a Docker daemon is required
+  for Compose image builds, startup, and live smoke checks.
 
 Install the locked workspace without running third-party lifecycle scripts:
 
@@ -106,21 +108,32 @@ corepack enable
 pnpm run deps:install
 ```
 
-Copy `.env.example` to an untracked `.env` and fill values locally. The API
-requires valid `DATABASE_URL` and `REDIS_URL` outside `NODE_ENV=test`, and it
-requires two different authentication secrets of at least 32 bytes. Generate
-secrets locally instead of copying credentials into a command history or
-commit:
+Copy `.env.example` to an untracked `.env` and fill values locally. Compose
+requires `DATABASE_URL` and `REDIS_URL` to use the `postgres` and `redis`
+service names inside the Compose network; URL-encode credential components
+before placing them in those URLs. The API also requires two different
+authentication secrets of at least 32 bytes. Generate secrets locally instead
+of copying credentials into a command history or commit:
 
 ```bash
 node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
 ```
 
-The web auth client reads the optional `NEXT_PUBLIC_API_ORIGIN` value. When
-web and API run on separate ports, set it to the API origin, for example
-`http://localhost:3000`. This variable is not yet included in the committed
-environment template and must be supplied explicitly for that split-port
-setup.
+For Compose, set `API_HOST_PORT` and `WEB_HOST_PORT` to unused localhost ports.
+`NEXT_PUBLIC_API_ORIGIN` is required as a web image build argument and must be
+browser-reachable, normally `http://localhost:<API_HOST_PORT>`. Do not use the
+internal `api:3000` service URL here: the value is baked into the Next.js
+browser bundle, so changing it requires rebuilding the web image.
+
+The local Compose URL shapes are:
+
+```dotenv
+API_HOST_PORT=18080
+WEB_HOST_PORT=18081
+NEXT_PUBLIC_API_ORIGIN=http://localhost:18080
+DATABASE_URL=postgresql://<user>:<url-encoded-password>@postgres:5432/<db>
+REDIS_URL=redis://:<url-encoded-password>@redis:6379/0
+```
 
 After `DATABASE_URL` is available, prepare generated local artifacts and
 validate the schema:
@@ -132,16 +145,20 @@ pnpm db:validate
 ```
 
 `db:generate` and `db:validate` inspect the Prisma schema; they do not prove
-that PostgreSQL is reachable. To start the existing local infrastructure
-definition, populate the Compose variables first and run:
+that PostgreSQL is reachable. To validate and start the local API/web plus
+PostgreSQL/Redis Compose layer, populate the Compose variables first and run:
 
 ```bash
-docker compose config
-docker compose up -d postgres redis
+docker compose config --quiet
+docker compose up --build -d
 ```
 
-The current Compose file starts infrastructure only. It does not start the
-web app, API, a worker, or an AI service.
+The web is published at `http://localhost:<WEB_HOST_PORT>` and the API
+liveness endpoint is at `http://localhost:<API_HOST_PORT>/health/live`.
+Compose waits for PostgreSQL and Redis container health before starting the
+API, then waits for the API's process-liveness health before starting the web.
+The API healthcheck only tests `/health/live`, and the web healthcheck only
+tests `/`; neither claims dependency-aware readiness.
 
 ## Development commands
 
@@ -161,10 +178,11 @@ Run the commands from the repository root:
 | `pnpm build`                                | Build the contracts, static web app, and API after preparation.                            |
 | `pnpm format:check`                         | Check Prettier formatting.                                                                 |
 
-The API defaults to port `3000`. Next.js also defaults to port `3000`, so use
-separate shells and explicit environment values for local split-port work. A
-typical local arrangement is API on `3000` and web on `3001`, with
-`NEXT_PUBLIC_API_ORIGIN=http://localhost:3000` in the web process environment.
+The API and web images both listen on container port `3000`; Compose publishes
+them on the required `API_HOST_PORT` and `WEB_HOST_PORT` localhost bindings.
+For direct `pnpm` development, use separate shells and set
+`NEXT_PUBLIC_API_ORIGIN` to the browser-reachable API origin for the web
+process.
 
 ## Authentication and review API boundary
 
@@ -203,6 +221,9 @@ the process environment; they did not connect to PostgreSQL.
 | `pnpm test`                                 | Pass: 16 web tests, 5 contract tests, and 40 API tests.                                                                                                            |
 | `pnpm build`                                | Pass: static web routes `/`, `/_not-found`, `/login`, and `/register` plus API and contracts.                                                                      |
 | `pnpm format:check`                         | Pass.                                                                                                                                                              |
+| `docker compose config --quiet`             | Pass with safe URL-safe dummy values; resolved the API/web services, service-DNS URLs, required ports, dependencies, volumes, and internal network.                |
+| Missing required Compose variables          | Pass: config rejected missing `NEXT_PUBLIC_API_ORIGIN`, `API_HOST_PORT`, `WEB_HOST_PORT`, and dependency URL inputs.                                               |
+| Docker daemon and live Compose smoke        | Not available in this environment; no image build, container startup, dependency health, or browser smoke was claimed.                                             |
 | Real UI media capture                       | Pass: Chrome captured the running Next UI at `/`, `/login`, and `/register`; ImageMagick encoded the committed GIF. This is media evidence, not browser visual QA. |
 
 ## Security and environment boundaries
@@ -240,9 +261,13 @@ PostgreSQL, Redis, AI output, or a production deployment._
 - The web shell is not connected to a review dashboard or repository data.
 - The captured GIF is not a browser visual-regression baseline and does not
   claim a live browser session or backend integration.
-- The current Compose definition is local infrastructure only; container
-  packaging, deployment, and CI ownership are documented separately by the
-  release workstream.
+- The Compose definition now covers local API, web, PostgreSQL, and Redis
+  services, but the Docker daemon was unavailable for this checkpoint. Image
+  builds, container startup, dependency health, and browser smoke remain
+  unverified.
+- `NEXT_PUBLIC_API_ORIGIN` is a web build-time value; changing the browser API
+  origin requires rebuilding the web image. The Compose healthchecks do not
+  provide dependency-aware API readiness.
 - No license file or package `license` field is present. Treat licensing as a
   blocker for a public package or public release until the project owner adds
   a license supported by repository evidence.
