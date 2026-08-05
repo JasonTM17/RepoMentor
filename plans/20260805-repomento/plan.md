@@ -1,0 +1,150 @@
+---
+title: RepoMentor end-to-end delivery
+status: in-progress
+priority: P0
+effort: epic
+branch: main
+tags: [repomentor, monorepo, auth, ai, security, orchestration]
+created: 2026-08-05
+---
+
+# RepoMentor delivery plan
+
+## Outcome contract
+
+Build RepoMentor as a production-oriented AI code-review and programming-tutor
+monorepo. The local result must support authenticated code reviews, safe
+GPT-5.6 Luna analysis, persisted structured results, streaming progress,
+history/usage controls, security boundaries, automated tests, Docker local
+development, CI, and maintainer documentation.
+
+This plan is an execution record, not a production certification. Live AI,
+PostgreSQL, Redis, registry, deployment, and external credential checks are
+reported separately and never inferred from unit or build evidence.
+
+## Locked constraints
+
+- Every RepoMentor worker, tester, reviewer, and manager agent uses only
+  `gpt-5.6-luna`; use reasoning `max` whenever the live capability exposes it.
+  A route that cannot verify or pin Luna is blocked rather than silently
+  substituted.
+- Use AgentKit's `understand -> decide -> execute -> verify -> deliver` spine
+  and the orchestration contract in `ak-orchestrate`.
+- Parallel writers use isolated worktrees and disjoint ownership. Shared
+  package manifests, lockfiles, Prisma migration sequence, generated artifacts,
+  and root config are changed by one sequenced owner at a time.
+- Branches are intent-based and never use the `codex/` prefix. Examples:
+  `feature/monorepo-foundation`, `feature/auth-api`, `feature/review-domain`,
+  `fix/security-review-boundary`.
+- Every logical slice is validated before a focused Conventional Commit.
+  Never use `git add .`; never commit secrets, `.env`, local AgentKit/Claude
+  tooling, unrelated artifacts, or incomplete code.
+- Preserve existing `.claude/` and `engineer/` tooling. The local
+  `.git/info/exclude` hides them from product status without deleting them.
+- User code is untrusted data and is never executed. AI output is untrusted
+  until schema validation and domain checks succeed.
+
+## Starting evidence
+
+| Fact | Evidence | Consequence |
+| --- | --- | --- |
+| Workspace was not a Git repository | `git status` failed before setup | Initialized local `main` only; worktrees now possible |
+| Product source was absent | root contained `.claude/` and `engineer/` only | Start from foundation; do not sweep tooling into product commits |
+| Root is a standalone repo | `ak-worktree ... info --json` | Use sibling worktrees under `D:\worktrees` |
+| AgentKit wrapper has a broken relative require | wrapper execution failed with `MODULE_NOT_FOUND` | Use canonical skill script; preserve wrapper and report limitation |
+| Luna is exposed by the live subagent/thread tool schemas | live tool inventory lists `gpt-5.6-luna`, reasoning through `max` | Pin Luna for all delegated project work and record route evidence |
+
+## Phase map and dependency graph
+
+| Phase | Deliverable | Depends on | Primary ownership | Exit evidence |
+| --- | --- | --- | --- | --- |
+| 00 | repository/tooling analysis | none | coordinator | inventory + plan commit |
+| 01 | pnpm/Turbo/TypeScript/ESLint/Prettier foundation | 00 | foundation worker | install, lint, typecheck |
+| 02 | Next.js web, NestJS API, shared package seams, health | 01 | web/API workers, sequenced config owner | both builds + health tests |
+| 03 | Compose, Prisma, PostgreSQL/Redis config and seed | 02 | infra/database worker | schema validation + compose config |
+| 04 | secure auth API and web flows | 03 | auth API then auth web | auth integration tests + build |
+| 05 | review persistence, ownership, pagination, status model | 04 | review API worker | domain/integration tests |
+| 06 | Luna provider, prompt isolation, structured output, usage model | 05 | AI worker + security tester | schema/prompt/provider tests |
+| 07 | processing pipeline, SSE, cancellation, retry, idempotency | 06 | processing worker | transition/stream tests |
+| 08 | editor and result experience | 07 | web feature workers | component/E2E slices + web build |
+| 09 | history, dashboard, quota, usage | 08 | web/API usage workers | quota/authorization tests |
+| 10 | security hardening and threat-model evidence | 09 | security worker | security tests + audit |
+| 11 | logs, request IDs, metrics, readiness | 10 | observability worker | health/metrics tests |
+| 12 | full unit/integration/E2E quality pass | 11 | Luna tester | reproducible test report |
+| 13 | production Docker, CI, docs, ADRs | 12 | DevOps/docs workers, sequenced CI owner | Docker/CI/docs checks |
+| 14 | final arbiter and handoff | 13 | Luna manager/coordinator | clean reviewed HEAD + final report |
+
+Implementation is phase-sequential. Within a phase, concurrency is allowed
+only where the ownership table is disjoint and the integration point is
+explicit. The coordinator owns merge/cherry-pick decisions and conflict
+resolution.
+
+## Commit and validation contract
+
+Each worker reports one task per commit using:
+
+```text
+<type>(<scope>): <imperative description>
+```
+
+Before each commit:
+
+1. Inspect `git status`, `git diff`, and the staged file list.
+2. Run a secret scan over the staged diff.
+3. Run the narrowest relevant test, then lint/typecheck/build when shared
+   contracts, config, or production behavior are affected.
+4. Stage explicit paths only and commit the smallest coherent slice.
+5. Record hash, files, commands, result, limitations, and next task.
+
+The coordinator accepts a branch only after reviewing its diff, commit list,
+test output, and report. Failed worktrees are preserved for diagnosis. No
+test, lint rule, type check, or security gate may be weakened to obtain a pass.
+
+## Acceptance traceability
+
+| Acceptance group | Primary proof |
+| --- | --- |
+| Auth/session/ownership | API integration tests, cookie/token assertions, authorization tests |
+| Review editor/result/history | React tests, Playwright journey, API contract tests |
+| Luna safety and correctness | provider contract tests, Zod schema tests, injection fixtures |
+| Persistence/usage/quota | Prisma migration/schema validation, transaction and quota tests |
+| Streaming/retry/cancel | SSE lifecycle and status-transition tests |
+| Security/observability | security checklist, redaction tests, health/metrics assertions |
+| Operability | Docker Compose validation, image build, CI workflow syntax and local checks |
+| Maintainability | README, architecture/API/security/testing/deployment docs, ADRs, focused history |
+
+## Report and state locations
+
+- Durable plan: `plans/20260805-repomento/plan.md` and `phase-*.md`.
+- Orchestration captures: `plans/reports/orchestrate-<timestamp>/`.
+- Per-task reports: `plans/reports/<phase-or-job>.md`.
+- Branch/commit ledger: update this plan after every accepted branch.
+- Agent/thread ledger: update this plan with resolved Luna model, reasoning,
+  branch, worktree, status, and report path.
+
+## Stop and escalation rules
+
+Stop at a phase boundary when a product/security/architecture decision cannot
+be inferred safely, when required Luna/worktree capability is unavailable, or
+when the same blocker has failed three reasonable attempts. Preserve evidence
+and state the smallest unblock action. Do not call the result production-ready
+without live integration evidence.
+
+## Branch and commit ledger
+
+| Branch | Phase | Worker/thread | Commits | State |
+| --- | --- | --- | --- | --- |
+| `main` | 00 | coordinator | pending | plan setup |
+
+## Agent/thread ledger
+
+| Job | Role | Model/reasoning | Worktree | Status | Report |
+| --- | --- | --- | --- | --- | --- |
+| coordinator | merge/controller | Luna-only constraint | `D:\RepoMentor` | active | this plan |
+
+## Unresolved questions
+
+- External OpenAI/PostgreSQL/Redis credentials and deployment targets are not
+  present; local deterministic tests proceed, live checks remain explicit.
+- Package versions and API details must be resolved from the installed runtime
+  and current official documentation at the implementation point.
