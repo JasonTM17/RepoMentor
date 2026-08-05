@@ -114,6 +114,12 @@ foundation checkpoint, not a production or live-integration claim. Its full
 orchestration evidence is in
 `plans/reports/orchestrate-20260805T192444/report.md`.
 
+Phase 04 is in progress. Its first independent checkpoints are the accepted
+transport contract commit `b22d1c7` and the accepted web-auth sequence through
+`3c4252a`. These checkpoints do not claim backend/session integration; the
+Luna API manager is still completing the auth persistence and route boundary
+in `D:\worktrees\RepoMentor-auth-api`.
+
 ## Commit and validation contract
 
 Each worker reports one task per commit using:
@@ -173,6 +179,7 @@ without live integration evidence.
 | `main` | 01 | Luna foundation + manager arbiter | `ec28301`, `9b2b960`, `abea984`, `8072468`, `e3fa107` | integrated |
 | `main` | 02 | Luna API/web/UI workers + manager arbiter + coordinator | `5234b11`, `37f9eb4`, `b311289`, `68140cd`, `1bcaf61`, `692eeef`, `32ae68b`, `3a71c6e`, `f2e19a5`, `85ed97d`, `7a4e8a0`, `fa15804`, `91e3bf7`, `9a11995`, `6178fa2`, `7c18e18` | accepted at `7c18e18`; live infra/auth/domain pending |
 | `main` | 03 | Luna manager/coordinator, sequenced infra/config/database slices | `3e7499a`, `402bde0`, `dd51225`, `721d492`, `f41d92f` | checkpoint accepted at `f41d92f`; domain migration/seed deferred to Phase 04 |
+| `main` | 04 | Luna contracts + ak frontend workers, coordinator | `b22d1c7`, `5c1bae6`, `c1d3d9f`, `c274f4f`, `3c4252a` | transport/UI checkpoints accepted; API/session integration pending |
 
 ## Agent/thread ledger
 
@@ -192,6 +199,10 @@ without live integration evidence.
 | phase-02-api-boundary | manager/implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-api-error-boundary` | accepted; 5 tests, arbiter pass | `plans/reports/orchestrate-20260805T192444/report.md` |
 | phase-03-infrastructure | sequenced implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-local-infrastructure`, `D:\worktrees\RepoMentor-validated-config`, `D:\worktrees\RepoMentor-prisma-tooling` | checkpoint integrated; Docker runtime unavailable | `plans/reports/orchestrate-20260805T202044/report.md` |
 | phase-03-manager-arbiter | reviewer/implementer | `gpt-5.6-luna` / `max` | manager thread and sequenced worktrees | accepted exact-head gates; no live service claim | `plans/reports/orchestrate-20260805T202044/report.md` |
+| phase-04-contracts | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-auth-contracts` | accepted; commit `6dd2195`, 5 contract tests | Phase 04 report pending |
+| phase-04-web-auth | ak frontend implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-feature-web-auth` | accepted; commits through `1e75bde`, 13 web tests | Phase 04 report pending |
+| phase-04-api-worker | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-auth-api` | errored at usage limit after partial commits; worktree preserved | takeover by Phase 04 manager in progress |
+| phase-04-api-manager | reviewer/implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-auth-api` | active takeover; no acceptance yet | manager thread `019fd14f-e844-7f83-988f-7a27e3639fe2` |
 
 ## Unresolved questions
 
