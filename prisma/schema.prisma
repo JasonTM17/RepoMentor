@@ -30,6 +30,20 @@ enum SessionRevocationReason {
   ADMIN
 }
 
+enum ReviewStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ReviewMode {
+  QUICK
+  STANDARD
+  DEEP
+}
+
 model User {
   id           String     @id @default(cuid()) @db.VarChar(25)
   email        String     @unique @db.VarChar(320)
@@ -40,6 +54,7 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
   sessions     Session[]
+  reviews      Review[]
 
   @@map("users")
 }
@@ -64,4 +79,21 @@ model Session {
   @@index([userId, createdAt])
   @@index([status, refreshTokenExpiresAt])
   @@map("sessions")
+}
+
+model Review {
+  id        String       @id @default(cuid()) @db.VarChar(25)
+  userId    String       @map("user_id") @db.VarChar(25)
+  source    String       @db.VarChar(100000)
+  language  String       @db.VarChar(32)
+  mode      ReviewMode   @default(STANDARD)
+  status    ReviewStatus @default(PENDING)
+  deletedAt DateTime?    @map("deleted_at")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deletedAt, createdAt])
+  @@index([userId, status, deletedAt, createdAt])
+  @@map("reviews")
 }

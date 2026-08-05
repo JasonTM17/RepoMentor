@@ -13,6 +13,10 @@ export class PrismaService implements OnModuleDestroy {
     return this.getClient().session;
   }
 
+  get review(): PrismaClient["review"] {
+    return this.getClient().review;
+  }
+
   async transaction<T>(callback: (client: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     return this.getClient().$transaction(callback);
   }

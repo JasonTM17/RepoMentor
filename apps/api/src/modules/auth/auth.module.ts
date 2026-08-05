@@ -26,6 +26,13 @@ import { PrismaService } from "./prisma.service.js";
       useExisting: PrismaAuthRepository,
     },
   ],
-  exports: [AuthAccessGuard, AuthRateLimitGuard, AuthRateLimiter, AuthService, AuthTokenService],
+  exports: [
+    AuthAccessGuard,
+    AuthRateLimitGuard,
+    AuthRateLimiter,
+    AuthService,
+    AuthTokenService,
+    PrismaService,
+  ],
 })
 export class AuthModule {}
