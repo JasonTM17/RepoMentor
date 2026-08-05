@@ -2,36 +2,39 @@
 
 import type { FC } from "react";
 
+import LineIcon from "@/components/line-icon";
+
 interface ErrorPageProps {
   readonly error: Error & { digest?: string };
   readonly reset: () => void;
 }
 
 const ErrorPage: FC<ErrorPageProps> = ({ reset }) => (
-  <main
-    id="main-content"
-    className="mx-auto flex w-full max-w-6xl flex-1 items-center px-6 py-20 sm:px-8 lg:px-10"
-  >
+  <main id="main-content" className="shell-container shell-status-page">
     <section
-      className="surface-panel w-full rounded-3xl p-8 sm:p-12"
+      className="state-panel"
       role="alert"
       aria-labelledby="error-heading"
+      aria-describedby="error-copy"
     >
-      <p className="eyebrow">Route boundary</p>
-      <h1 id="error-heading" className="mt-6 text-3xl font-semibold tracking-[-0.04em] text-white">
-        We couldn’t render this page.
-      </h1>
-      <p className="mt-3 max-w-xl text-base leading-7 text-slate-400">
-        The application caught an unexpected rendering error. Try the route again or return to the
-        scaffold home.
-      </p>
-      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-        <button className="button-primary" type="button" onClick={reset}>
-          Try again
-        </button>
-        <a className="button-secondary" href="/">
-          Return home
-        </a>
+      <div className="state-panel-body">
+        <p className="section-kicker">Route boundary</p>
+        <h1 id="error-heading" className="state-title">
+          The workspace could not render.
+        </h1>
+        <p id="error-copy" className="state-copy">
+          RepoMentor caught an unexpected rendering error. Try the route again or return to the
+          application shell.
+        </p>
+        <div className="state-actions">
+          <button className="action-primary" type="button" onClick={reset}>
+            Try again
+            <LineIcon name="refresh" />
+          </button>
+          <a className="action-secondary" href="/">
+            Return home
+          </a>
+        </div>
       </div>
     </section>
   </main>
