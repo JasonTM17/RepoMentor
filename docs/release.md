@@ -6,7 +6,7 @@ claim.
 
 ## Current checkpoint
 
-- Base implementation: [`5ccb4cb`](https://github.com/JasonTM17/RepoMentor/commit/5ccb4cb)
+- Base implementation: [`7a4961e`](https://github.com/JasonTM17/RepoMentor/commit/7a4961e)
 - Root version: `0.1.0`
 - Suggested release posture: prerelease only, for example `v0.1.0-alpha.1`
 - Root package: `private: true`
@@ -14,9 +14,10 @@ claim.
 - Deployment status: no deployment is performed or certified by this worker
 
 The checkpoint has a working web shell, API auth/review boundaries, shared
-contracts, Prisma migrations, and deterministic tests. It does not include a
+contracts, Prisma migrations, deterministic tests, local API/web Compose
+services, and credential-free container validation. It does not include a
 live PostgreSQL or Redis proof, a live AI provider, a worker, review results,
-CI publication, or deployment evidence.
+registry publication, or deployment evidence.
 
 ## Tag and prerelease boundaries
 
@@ -75,8 +76,12 @@ Results were successful after the generated Prisma client and shared contract
 package were prepared: 16 web tests, 5 contract tests, 40 API tests, static
 web routes for `/`, `/_not-found`, `/login`, and `/register`, and a valid
 Prisma schema. Prisma checks used a local-only URL and did not connect to a
-database. No live PostgreSQL, Redis, AI, deployment, or authenticated browser
-session was verified.
+database. GitHub Actions run
+[`31030844884`](https://github.com/JasonTM17/RepoMentor/actions/runs/31030844884)
+also passed workflow/Dockerfile lint, Compose config, API/web image builds,
+and HTTP smoke for `/health/live` and `/`. No live PostgreSQL, Redis, AI,
+deployment, registry publication, or authenticated browser session was
+verified.
 
 The UI GIF in `docs/media/repomentor-ui.gif` is a real capture of the running
 Next UI shell at `/`, `/login`, and `/register`. It is not a visual-regression

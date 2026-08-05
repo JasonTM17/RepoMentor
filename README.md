@@ -5,7 +5,7 @@ programming practice. It is a production-oriented monorepo, but the current
 repository checkpoint is an application slice, not a production release.
 
 The documentation below describes the implemented checkpoint at
-[`5ccb4cb`](https://github.com/JasonTM17/RepoMentor/commit/5ccb4cb), which is
+[`7a4961e`](https://github.com/JasonTM17/RepoMentor/commit/7a4961e), which is
 the base of the `docs/release-media` worktree. It does not describe planned
 features as if they were available.
 
@@ -27,7 +27,8 @@ This checkpoint contains:
 The following are not implemented at this checkpoint: an AI provider or review
 worker, Redis-backed application usage, review result generation, streaming, a
 connected editor, production deployment, registry publication, or package
-publication.
+publication. The container build workflow is implemented and validated on
+GitHub-hosted runners, but it is not a registry publication or deployment.
 
 ## Architecture
 
@@ -210,21 +211,22 @@ The following checks were run in this worktree on Node `v24.12.0` and pnpm
 `11.0.9`. The Prisma commands used a syntactically valid local-only URL in
 the process environment; they did not connect to PostgreSQL.
 
-| Check                                       | Result and evidence                                                                                                                                                |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm run deps:install`                     | Pass, frozen install with scripts disabled.                                                                                                                        |
-| `pnpm db:generate`                          | Pass, generated Prisma Client `6.19.0`; no database connection.                                                                                                    |
-| `pnpm --filter @repomentor/contracts build` | Pass.                                                                                                                                                              |
-| `pnpm db:validate`                          | Pass; schema accepted by Prisma `6.19.0`.                                                                                                                          |
-| `pnpm lint`                                 | Pass for root, API, web, and contracts.                                                                                                                            |
-| `pnpm typecheck`                            | Pass after generated Prisma and contracts artifacts were prepared.                                                                                                 |
-| `pnpm test`                                 | Pass: 16 web tests, 5 contract tests, and 40 API tests.                                                                                                            |
-| `pnpm build`                                | Pass: static web routes `/`, `/_not-found`, `/login`, and `/register` plus API and contracts.                                                                      |
-| `pnpm format:check`                         | Pass.                                                                                                                                                              |
-| `docker compose config --quiet`             | Pass with safe URL-safe dummy values; resolved the API/web services, service-DNS URLs, required ports, dependencies, volumes, and internal network.                |
-| Missing required Compose variables          | Pass: config rejected missing `NEXT_PUBLIC_API_ORIGIN`, `API_HOST_PORT`, `WEB_HOST_PORT`, and dependency URL inputs.                                               |
-| Docker daemon and live Compose smoke        | Not available in this environment; no image build, container startup, dependency health, or browser smoke was claimed.                                             |
-| Real UI media capture                       | Pass: Chrome captured the running Next UI at `/`, `/login`, and `/register`; ImageMagick encoded the committed GIF. This is media evidence, not browser visual QA. |
+| Check                                       | Result and evidence                                                                                                                                                                                   |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm run deps:install`                     | Pass, frozen install with scripts disabled.                                                                                                                                                           |
+| `pnpm db:generate`                          | Pass, generated Prisma Client `6.19.0`; no database connection.                                                                                                                                       |
+| `pnpm --filter @repomentor/contracts build` | Pass.                                                                                                                                                                                                 |
+| `pnpm db:validate`                          | Pass; schema accepted by Prisma `6.19.0`.                                                                                                                                                             |
+| `pnpm lint`                                 | Pass for root, API, web, and contracts.                                                                                                                                                               |
+| `pnpm typecheck`                            | Pass after generated Prisma and contracts artifacts were prepared.                                                                                                                                    |
+| `pnpm test`                                 | Pass: 16 web tests, 5 contract tests, and 40 API tests.                                                                                                                                               |
+| `pnpm build`                                | Pass: static web routes `/`, `/_not-found`, `/login`, and `/register` plus API and contracts.                                                                                                         |
+| `pnpm format:check`                         | Pass.                                                                                                                                                                                                 |
+| `docker compose config --quiet`             | Pass with safe URL-safe dummy values; resolved the API/web services, service-DNS URLs, required ports, dependencies, volumes, and internal network.                                                   |
+| Missing required Compose variables          | Pass: config rejected missing `NEXT_PUBLIC_API_ORIGIN`, `API_HOST_PORT`, `WEB_HOST_PORT`, and dependency URL inputs.                                                                                  |
+| GitHub Actions container validation         | Pass: run [`31030844884`](https://github.com/JasonTM17/RepoMentor/actions/runs/31030844884) linted workflows/Dockerfiles, validated Compose, built API/web images, and smoked `/health/live` and `/`. |
+| Local Docker daemon and live Compose smoke  | Not available in this environment; local Compose startup and PostgreSQL/Redis dependency health remain unverified.                                                                                    |
+| Real UI media capture                       | Pass: Chrome captured the running Next UI at `/`, `/login`, and `/register`; ImageMagick encoded the committed GIF. This is media evidence, not browser visual QA.                                    |
 
 ## Security and environment boundaries
 
@@ -262,9 +264,9 @@ PostgreSQL, Redis, AI output, or a production deployment._
 - The captured GIF is not a browser visual-regression baseline and does not
   claim a live browser session or backend integration.
 - The Compose definition now covers local API, web, PostgreSQL, and Redis
-  services, but the Docker daemon was unavailable for this checkpoint. Image
-  builds, container startup, dependency health, and browser smoke remain
-  unverified.
+  services. GitHub Actions validated image builds and HTTP smoke, but the
+  local Docker daemon was unavailable, so local Compose startup and
+  PostgreSQL/Redis dependency health remain unverified.
 - `NEXT_PUBLIC_API_ORIGIN` is a web build-time value; changing the browser API
   origin requires rebuilding the web image. The Compose healthchecks do not
   provide dependency-aware API readiness.
