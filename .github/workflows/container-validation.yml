@@ -81,6 +81,8 @@ jobs:
               exit 1
             fi
           done
+          grep -q '^ARG NEXT_PUBLIC_API_ORIGIN=' apps/web/Dockerfile
+          grep -q '^ENV NEXT_PUBLIC_API_ORIGIN=' apps/web/Dockerfile
           grep -q '^\.env$' .dockerignore
           grep -q '^\.git$' .dockerignore
 
@@ -125,3 +127,57 @@ jobs:
           push: false
           cache-from: type=gha,scope=repomentor-validation-${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=repomentor-validation-${{ matrix.name }}
+
+      - name: Smoke-test API liveness
+        if: matrix.name == 'api'
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="repomentor/api:validation-${GITHUB_SHA}"
+          container="repomentor-api-smoke-${GITHUB_RUN_ID}"
+          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
+
+          # NODE_ENV=test intentionally checks only the HTTP liveness route.
+          docker run --detach \
+            --name "$container" \
+            --publish 127.0.0.1:18080:3000 \
+            --env NODE_ENV=test \
+            "$image" >/dev/null
+
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error --max-time 2 \
+              http://127.0.0.1:18080/health/live; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "::error::API liveness smoke test timed out"
+          docker logs "$container" || true
+          exit 1
+
+      - name: Smoke-test web shell
+        if: matrix.name == 'web'
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="repomentor/web:validation-${GITHUB_SHA}"
+          container="repomentor-web-smoke-${GITHUB_RUN_ID}"
+          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
+
+          docker run --detach \
+            --name "$container" \
+            --publish 127.0.0.1:18081:3000 \
+            "$image" >/dev/null
+
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error --max-time 2 \
+              http://127.0.0.1:18081/; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "::error::Web shell smoke test timed out"
+          docker logs "$container" || true
+          exit 1
