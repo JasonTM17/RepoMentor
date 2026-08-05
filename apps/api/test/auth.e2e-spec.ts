@@ -157,6 +157,9 @@ describe("authentication bootstrap", () => {
     const repeatedLogout = await request(app.getHttpServer())
       .post("/api/v1/auth/logout")
       .set("cookie", refreshCookie);
+    const malformedLogout = await request(app.getHttpServer())
+      .post("/api/v1/auth/logout")
+      .set("cookie", "repomentor_refresh_token=malformed.token.value");
 
     assert.equal(logout.status, 201);
     assert.equal(logout.body.data.loggedOut, true);
@@ -165,6 +168,9 @@ describe("authentication bootstrap", () => {
     assert.equal(revokedMe.status, 401);
     assert.equal(repeatedLogout.status, 201);
     assert.equal(repeatedLogout.body.data.loggedOut, true);
+    assert.equal(malformedLogout.status, 201);
+    assert.equal(malformedLogout.body.data.loggedOut, true);
+    assert.match(malformedLogout.headers["set-cookie"]?.[0] ?? "", /Expires=Thu, 01 Jan 1970/u);
   });
 
   it("protects me and revokes every session on logout-all", async () => {
