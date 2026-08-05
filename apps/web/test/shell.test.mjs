@@ -23,6 +23,15 @@ const source = Object.freeze({
   styles: readTrackedSource("app/globals.css"),
   icons: readTrackedSource("components/line-icon.tsx"),
   preview: readTrackedSource("components/review-preview.tsx"),
+  login: readTrackedSource("app/login/page.tsx"),
+  register: readTrackedSource("app/register/page.tsx"),
+  authPage: readTrackedSource("features/auth/components/AuthPage.tsx"),
+  authField: readTrackedSource("features/auth/components/AuthField.tsx"),
+  passwordField: readTrackedSource("features/auth/components/PasswordField.tsx"),
+  authClient: readTrackedSource("features/auth/api/authClient.ts"),
+  authHook: readTrackedSource("features/auth/hooks/useAuthForm.ts"),
+  authTypes: readTrackedSource("features/auth/types/index.ts"),
+  validation: readTrackedSource("features/auth/helpers/validation.ts"),
 });
 
 const shellTsxSources = Object.freeze({
@@ -200,5 +209,81 @@ test("shell icons use the single decorative LineIcon component", () => {
 test("visible shell copy contains no em dash", () => {
   for (const [filePath, text] of Object.entries(shellTsxSources)) {
     assert.doesNotMatch(text, /—/u, `${filePath} contains an em dash in shell copy.`);
+  }
+});
+
+test("auth routes expose the intended mode and API endpoint seam", () => {
+  assert.match(source.login, /<AuthPage\s+mode="login"\s*\/>/u);
+  assert.match(source.register, /<AuthPage\s+mode="register"\s*\/>/u);
+  assert.match(source.authPage, /apiPath:\s*"POST \/api\/v1\/auth\/login"/u);
+  assert.match(source.authPage, /apiPath:\s*"POST \/api\/v1\/auth\/register"/u);
+  assert.match(source.authPage, /data-api-endpoint=\{copy\.apiPath\}/u);
+  assert.match(source.authClient, /credentials:\s*"include"/u);
+  assert.match(source.authClient, /Pending server seam/u);
+  assert.match(source.authClient, /\/api\/v1\/auth\/\$\{endpoint\}/u);
+});
+
+test("auth form fields keep labels, descriptions, errors, and password controls associated", () => {
+  assert.match(source.authField, /<label[^>]+htmlFor=\{fieldId\}/u);
+  assert.match(source.authField, /aria-describedby=\{describedBy\}/u);
+  assert.match(source.authField, /aria-invalid=\{error \? true : undefined\}/u);
+  assert.match(source.authField, /role="alert"/u);
+  assert.match(source.passwordField, /aria-controls=\{fieldId\}/u);
+  assert.match(source.passwordField, /aria-pressed=\{isVisible\}/u);
+  assert.match(source.passwordField, /type="button"/u);
+  assert.match(source.authPage, /<form[\s\S]*noValidate/u);
+  assert.match(source.authPage, /aria-describedby="auth-api-note"/u);
+});
+
+test("auth form keeps validation and network states safe and visible", () => {
+  assert.match(source.validation, /Passwords must match\./u);
+  assert.match(source.validation, /Use at least/u);
+  assert.match(source.authPage, /status === "error"/u);
+  assert.match(source.authPage, /status === "success"/u);
+  assert.match(source.authHook, /setStatus\("loading"\)/u);
+  assert.match(source.authHook, /setStatus\("error"\)/u);
+  assert.match(source.authPage, /aria-busy=\{isSubmitting\}/u);
+  assert.match(source.authPage, /disabled=\{fieldsDisabled\}/u);
+  assert.match(source.authPage, /role="alert"/u);
+  assert.match(source.authPage, /role="status"/u);
+  assert.match(
+    source.authClient,
+    /Authentication request failed\./u,
+    "The client must keep low-level API failures out of visible form copy.",
+  );
+  assert.match(
+    source.authTypes,
+    /We could not complete that request\. Check your details and try again\./u,
+    "The form must use generic safe error copy.",
+  );
+});
+
+test("auth CSS preserves 44px controls, focus-visible states, and narrow composition", () => {
+  assert.match(source.styles, /\.auth-input(?:,|\s*\{)[\s\S]*min-height:\s*var\(--touch-target\)/u);
+  assert.match(
+    source.styles,
+    /\.auth-password-toggle\s*\{[\s\S]*min-height:\s*var\(--touch-target\)/u,
+  );
+  assert.match(source.styles, /\.auth-input:focus-visible\s*\{[\s\S]*outline:/u);
+  assert.match(source.styles, /\.auth-password-toggle:focus-visible\s*\{[\s\S]*outline:/u);
+  assert.match(source.styles, /\.auth-layout\s*\{[\s\S]*grid-template-columns:/u);
+  assert.match(source.styles, /@media\s*\(max-width:\s*62rem\)[\s\S]*\.auth-layout/u);
+  assert.match(source.styles, /@media\s*\(max-width:\s*30rem\)[\s\S]*\.auth-panel/u);
+  assert.doesNotMatch(source.styles, /transition:\s*all/u);
+  assert.doesNotMatch(source.styles, /overflow-x:\s*hidden/u);
+});
+
+test("auth source contains no emoji or em dash in visible UI copy", () => {
+  const authSources = [
+    source.login,
+    source.register,
+    source.authPage,
+    source.authField,
+    source.passwordField,
+  ];
+
+  for (const authSource of authSources) {
+    assert.doesNotMatch(authSource, /—/u);
+    assert.doesNotMatch(authSource, /[\u{1F300}-\u{1FAFF}]/u);
   }
 });
