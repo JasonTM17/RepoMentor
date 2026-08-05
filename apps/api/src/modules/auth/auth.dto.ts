@@ -10,12 +10,13 @@ const normalizeEmail = ({ value }: { readonly value: unknown }): unknown =>
 export class RegisterDto {
   @Transform(normalizeEmail)
   @IsEmail()
+  @MaxLength(254)
   email!: string;
 
   @Transform(trimValue)
   @IsString()
   @MinLength(1)
-  @MaxLength(100)
+  @MaxLength(80)
   displayName!: string;
 
   @IsString()
@@ -27,10 +28,11 @@ export class RegisterDto {
 export class LoginDto {
   @Transform(normalizeEmail)
   @IsEmail()
+  @MaxLength(254)
   email!: string;
 
   @IsString()
-  @MinLength(1)
+  @MinLength(12)
   @MaxLength(128)
   password!: string;
 }

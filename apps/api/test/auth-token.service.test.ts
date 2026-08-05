@@ -129,6 +129,16 @@ describe("authentication token primitives", () => {
         }),
       AuthTokenConfigError,
     );
+    assert.throws(
+      () =>
+        parseAuthTokenConfig({
+          COOKIE_SECURE: "false",
+          JWT_ACCESS_SECRET: config.accessSecret,
+          JWT_REFRESH_SECRET: config.refreshSecret,
+          NODE_ENV: "production",
+        }),
+      AuthTokenConfigError,
+    );
   });
 
   it("keeps the public token metadata names stable", () => {

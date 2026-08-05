@@ -33,25 +33,50 @@ function createFixture() {
 }
 
 describe("authentication service", () => {
-  it("normalizes registration and stores only a hashed refresh token", async () => {
-    const { repository, service, tokens } = createFixture();
+  it("normalizes registration and stores only a hashed password", async () => {
+    const { repository, service } = createFixture();
     const result = await service.register(
       "  Ada@Example.COM ",
       "  Ada Lovelace  ",
       "correct horse battery staple",
-      { ipAddress: "192.0.2.10", userAgent: "test-agent" },
       now,
     );
-    const claims = tokens.verifyRefreshToken(result.refreshToken, now);
-    const session = await repository.findSessionById(claims.sessionId);
+    const user = await repository.findUserByEmail("ada@example.com");
 
-    assert.equal(result.user.email, "ada@example.com");
-    assert.equal(result.user.displayName, "Ada Lovelace");
-    assert.equal("passwordHash" in result.user, false);
-    assert.ok(session);
-    assert.notEqual(session.refreshTokenHash, result.refreshToken);
-    assert.match(session.ipHash ?? "", /^[0-9a-f]{64}$/);
-    assert.equal(session.userAgent, "test-agent");
+    assert.deepEqual(result, { accepted: true });
+    assert.equal(user?.email, "ada@example.com");
+    assert.equal(user?.displayName, "Ada Lovelace");
+    assert.equal(user?.passwordHash, "hash:correct horse battery staple");
+  });
+
+  it("hashes duplicate registration input before returning the same acceptance", async () => {
+    let hashCalls = 0;
+    const hasher = {
+      hashPassword: async (password: string) => {
+        hashCalls += 1;
+        return `hash:${password}`;
+      },
+      verifyPassword: async () => false,
+    } as unknown as PasswordHasherService;
+    const repository = new InMemoryAuthRepository();
+    const service = new AuthService(repository, hasher, new AuthTokenService(tokenConfig));
+
+    const first = await service.register(
+      "existing@example.com",
+      "Existing User",
+      "correct horse battery staple",
+      now,
+    );
+    const duplicate = await service.register(
+      "EXISTING@example.com",
+      "Other User",
+      "another correct password",
+      now,
+    );
+
+    assert.deepEqual(first, { accepted: true });
+    assert.deepEqual(duplicate, first);
+    assert.equal(hashCalls, 2);
   });
 
   it("uses one generic credential failure for unknown and wrong passwords", async () => {
@@ -61,13 +86,7 @@ describe("authentication service", () => {
       service.login("missing@example.com", "wrong password", {}, now),
       UnauthorizedException,
     );
-    await service.register(
-      "known@example.com",
-      "Known User",
-      "correct horse battery staple",
-      {},
-      now,
-    );
+    await service.register("known@example.com", "Known User", "correct horse battery staple", now);
     await assert.rejects(
       service.login("known@example.com", "wrong password", {}, now),
       UnauthorizedException,
@@ -76,21 +95,23 @@ describe("authentication service", () => {
 
   it("rotates refresh tokens and revokes a session on replay", async () => {
     const { repository, service, tokens } = createFixture();
-    const registered = await service.register(
+    await service.register(
       "rotate@example.com",
       "Rotate User",
+      "correct horse battery staple",
+      now,
+    );
+    const login = await service.login(
+      "rotate@example.com",
       "correct horse battery staple",
       {},
       now,
     );
-    const rotated = await service.refresh(
-      registered.refreshToken,
-      new Date("2026-08-05T12:00:01.000Z"),
-    );
+    const rotated = await service.refresh(login.refreshToken, new Date("2026-08-05T12:00:01.000Z"));
 
-    assert.notEqual(rotated.refreshToken, registered.refreshToken);
+    assert.notEqual(rotated.refreshToken, login.refreshToken);
     await assert.rejects(
-      service.refresh(registered.refreshToken, new Date("2026-08-05T12:00:02.000Z")),
+      service.refresh(login.refreshToken, new Date("2026-08-05T12:00:02.000Z")),
       UnauthorizedException,
     );
 
@@ -102,9 +123,14 @@ describe("authentication service", () => {
 
   it("revokes every session for logout-all", async () => {
     const { repository, service, tokens } = createFixture();
-    const registered = await service.register(
+    await service.register(
       "logout@example.com",
       "Logout User",
+      "correct horse battery staple",
+      now,
+    );
+    const firstLogin = await service.login(
+      "logout@example.com",
       "correct horse battery staple",
       {},
       now,
@@ -115,13 +141,13 @@ describe("authentication service", () => {
       {},
       now,
     );
-    const userId = tokens.verifyAccessToken(registered.accessToken, now).subject;
+    const userId = tokens.verifyAccessToken(secondLogin.accessToken, now).subject;
 
     assert.equal(await service.logoutAll(userId, now), 2);
     assert.equal(
       (
         await repository.findSessionById(
-          tokens.verifyRefreshToken(registered.refreshToken, now).sessionId,
+          tokens.verifyRefreshToken(firstLogin.refreshToken, now).sessionId,
         )
       )?.status,
       "REVOKED",

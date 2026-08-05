@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Inject,
-  Injectable,
-  UnauthorizedException,
-} from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 
 import { createAuthId } from "./auth-id.js";
 import { AuthTokenService } from "./auth-token.service.js";
@@ -21,7 +15,8 @@ import { PasswordHasherService } from "./password-hasher.service.js";
 
 const MIN_PASSWORD_LENGTH = 12;
 const MAX_PASSWORD_LENGTH = 128;
-const MAX_DISPLAY_NAME_LENGTH = 100;
+const MAX_DISPLAY_NAME_LENGTH = 80;
+const MAX_EMAIL_LENGTH = 254;
 const MAX_USER_AGENT_LENGTH = 512;
 
 export interface PublicAuthUser {
@@ -36,9 +31,14 @@ export interface PublicAuthUser {
 
 export interface AuthResult {
   readonly accessToken: string;
-  readonly accessTokenExpiresAt: string;
+  readonly tokenType: "Bearer";
+  readonly expiresInSeconds: number;
   readonly refreshToken: string;
   readonly user: PublicAuthUser;
+}
+
+export interface RegistrationResult {
+  readonly accepted: true;
 }
 
 function invalidCredentials(): UnauthorizedException {
@@ -88,51 +88,43 @@ export class AuthService {
     email: string,
     displayName: string,
     password: string,
-    metadata: AuthSessionMetadata,
     now = new Date(),
-  ): Promise<AuthResult> {
+  ): Promise<RegistrationResult> {
     const normalizedEmail = normalizeEmail(email);
     const normalizedDisplayName = normalizeDisplayName(displayName);
+
+    if (normalizedEmail.length > MAX_EMAIL_LENGTH) {
+      throw new BadRequestException();
+    }
+
     assertRegistrationInput(password, normalizedDisplayName);
 
+    const passwordHash = await this.passwordHasher.hashPassword(password);
+
     if (await this.repository.findUserByEmail(normalizedEmail)) {
-      throw new ConflictException();
+      return { accepted: true };
     }
 
     const userId = createAuthId(now.getTime());
-    const sessionId = createAuthId(now.getTime());
-    const refreshToken = this.tokens.issueRefreshToken(userId, sessionId, now);
-    const accessToken = this.tokens.issueAccessToken(userId, sessionId, now);
-    const passwordHash = await this.passwordHasher.hashPassword(password);
 
     try {
-      const result = await this.repository.createUserWithSession({
-        session: this.createSessionInput(
-          userId,
-          sessionId,
-          refreshToken.value,
-          refreshToken.expiresAt,
-          metadata,
-          now,
-        ),
-        user: {
-          displayName: normalizedDisplayName,
-          email: normalizedEmail,
-          id: userId,
-          passwordHash,
-          role: "USER",
-          status: "ACTIVE",
-        },
+      await this.repository.createUser({
+        displayName: normalizedDisplayName,
+        email: normalizedEmail,
+        id: userId,
+        passwordHash,
+        role: "USER",
+        status: "ACTIVE",
       });
-
-      return this.toAuthResult(result.user, accessToken, refreshToken);
     } catch (error: unknown) {
       if (error instanceof AuthUserConflictError) {
-        throw new ConflictException();
+        return { accepted: true };
       }
 
       throw error;
     }
+
+    return { accepted: true };
   }
 
   async login(
@@ -289,13 +281,14 @@ export class AuthService {
 
   private toAuthResult(
     user: AuthUserRecord,
-    accessToken: { readonly value: string; readonly expiresAt: Date },
+    accessToken: Pick<import("./auth-token.service.js").IssuedToken, "value" | "expiresInSeconds">,
     refreshToken: { readonly value: string },
   ): AuthResult {
     return {
       accessToken: accessToken.value,
-      accessTokenExpiresAt: accessToken.expiresAt.toISOString(),
+      expiresInSeconds: accessToken.expiresInSeconds,
       refreshToken: refreshToken.value,
+      tokenType: "Bearer",
       user: safeUser(user),
     };
   }

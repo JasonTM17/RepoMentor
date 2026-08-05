@@ -90,10 +90,7 @@ export type RefreshRotationResult =
 export interface AuthRepository {
   findUserByEmail(email: string): Promise<AuthUserRecord | null>;
   findUserById(id: string): Promise<AuthUserRecord | null>;
-  createUserWithSession(input: {
-    readonly user: CreateUserInput;
-    readonly session: CreateSessionInput;
-  }): Promise<{ readonly user: AuthUserRecord; readonly session: AuthSessionRecord }>;
+  createUser(input: CreateUserInput): Promise<AuthUserRecord>;
   createSession(input: CreateSessionInput): Promise<AuthSessionRecord>;
   findSessionById(id: string): Promise<AuthSessionRecord | null>;
   rotateRefreshToken(input: RotateRefreshTokenInput): Promise<RefreshRotationResult>;

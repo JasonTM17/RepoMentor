@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AuthAccessGuard } from "./auth-access.guard.js";
 import { AuthController } from "./auth.controller.js";
+import { AuthRateLimitGuard, AuthRateLimiter } from "./auth-rate-limiter.js";
 import { AuthService } from "./auth.service.js";
 import { AuthTokenService } from "./auth-token.service.js";
 import { AUTH_REPOSITORY } from "./auth.types.js";
@@ -13,6 +14,8 @@ import { PrismaService } from "./prisma.service.js";
   controllers: [AuthController],
   providers: [
     AuthAccessGuard,
+    AuthRateLimitGuard,
+    AuthRateLimiter,
     AuthService,
     AuthTokenService,
     PasswordHasherService,
@@ -23,6 +26,6 @@ import { PrismaService } from "./prisma.service.js";
       useExisting: PrismaAuthRepository,
     },
   ],
-  exports: [AuthAccessGuard, AuthService, AuthTokenService],
+  exports: [AuthAccessGuard, AuthRateLimitGuard, AuthRateLimiter, AuthService, AuthTokenService],
 })
 export class AuthModule {}

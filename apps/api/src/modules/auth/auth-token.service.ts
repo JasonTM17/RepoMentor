@@ -22,7 +22,7 @@ const DEFAULT_ACCESS_TTL_SECONDS = 15 * 60;
 const DEFAULT_REFRESH_TTL_SECONDS = 30 * 24 * 60 * 60;
 const MIN_SECRET_BYTES = 32;
 const MIN_ACCESS_TTL_SECONDS = 60;
-const MAX_ACCESS_TTL_SECONDS = 24 * 60 * 60;
+const MAX_ACCESS_TTL_SECONDS = 60 * 60;
 const MIN_REFRESH_TTL_SECONDS = 60 * 60;
 const MAX_REFRESH_TTL_SECONDS = 90 * 24 * 60 * 60;
 const CLOCK_SKEW_SECONDS = 30;
@@ -182,6 +182,11 @@ export function parseAuthTokenConfig(
     environment.COOKIE_SECURE,
     environment.NODE_ENV === "production",
   );
+
+  if (environment.NODE_ENV === "production" && !cookieSecure) {
+    throw new AuthTokenConfigError();
+  }
+
   const cookieSameSite = parseSameSite(environment.COOKIE_SAME_SITE);
 
   if (cookieSameSite === "none" && !cookieSecure) {

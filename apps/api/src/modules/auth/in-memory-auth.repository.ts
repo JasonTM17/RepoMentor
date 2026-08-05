@@ -46,51 +46,28 @@ export class InMemoryAuthRepository implements AuthRepository {
     return user ? copyUser(user) : null;
   }
 
-  async createUserWithSession(input: {
-    readonly user: CreateUserInput;
-    readonly session: CreateSessionInput;
-  }): Promise<{ readonly user: AuthUserRecord; readonly session: AuthSessionRecord }> {
+  async createUser(input: CreateUserInput): Promise<AuthUserRecord> {
     if (
-      this.users.has(input.user.id) ||
-      [...this.users.values()].some((user) => user.email === input.user.email)
+      this.users.has(input.id) ||
+      [...this.users.values()].some((user) => user.email === input.email)
     ) {
       throw new AuthUserConflictError();
     }
 
-    if (input.session.userId !== input.user.id || this.sessions.has(input.session.id)) {
-      throw new AuthUserConflictError();
-    }
-
+    const now = new Date();
     const user: AuthUserRecord = {
-      createdAt: new Date(),
-      displayName: input.user.displayName,
-      email: input.user.email,
-      id: input.user.id,
-      passwordHash: input.user.passwordHash,
-      role: input.user.role,
-      status: input.user.status,
-      updatedAt: new Date(),
-    };
-    const session: AuthSessionRecord = {
-      createdAt: input.session.refreshTokenIssuedAt,
-      id: input.session.id,
-      ipHash: input.session.ipHash ?? null,
-      lastUsedAt: null,
-      refreshTokenExpiresAt: input.session.refreshTokenExpiresAt,
-      refreshTokenHash: input.session.refreshTokenHash,
-      refreshTokenIssuedAt: input.session.refreshTokenIssuedAt,
-      revocationReason: null,
-      revokedAt: null,
-      status: "ACTIVE",
-      updatedAt: input.session.refreshTokenIssuedAt,
-      userAgent: input.session.userAgent ?? null,
-      userId: input.session.userId,
+      createdAt: now,
+      displayName: input.displayName,
+      email: input.email,
+      id: input.id,
+      passwordHash: input.passwordHash,
+      role: input.role,
+      status: input.status,
+      updatedAt: now,
     };
 
     this.users.set(user.id, user);
-    this.sessions.set(session.id, session);
-
-    return { session: copySession(session), user: copyUser(user) };
+    return copyUser(user);
   }
 
   async createSession(input: CreateSessionInput): Promise<AuthSessionRecord> {

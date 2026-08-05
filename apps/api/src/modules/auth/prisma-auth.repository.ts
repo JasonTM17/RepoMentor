@@ -109,30 +109,20 @@ export class PrismaAuthRepository implements AuthRepository {
     return user ? mapUser(user) : null;
   }
 
-  async createUserWithSession(input: {
-    readonly user: CreateUserInput;
-    readonly session: CreateSessionInput;
-  }): Promise<{ readonly user: AuthUserRecord; readonly session: AuthSessionRecord }> {
+  async createUser(input: CreateUserInput): Promise<AuthUserRecord> {
     try {
-      const result = await this.prisma.transaction(async (client) => {
-        const user = await client.user.create({
-          data: {
-            displayName: input.user.displayName,
-            email: input.user.email,
-            id: input.user.id,
-            passwordHash: input.user.passwordHash,
-            role: input.user.role,
-            status: input.user.status,
-          },
-        });
-        const session = await client.session.create({
-          data: createSessionData(input.session),
-        });
-
-        return { session, user };
+      const user = await this.prisma.user.create({
+        data: {
+          displayName: input.displayName,
+          email: input.email,
+          id: input.id,
+          passwordHash: input.passwordHash,
+          role: input.role,
+          status: input.status,
+        },
       });
 
-      return { session: mapSession(result.session), user: mapUser(result.user) };
+      return mapUser(user);
     } catch (error: unknown) {
       if (isUniqueViolation(error)) {
         throw new AuthUserConflictError();

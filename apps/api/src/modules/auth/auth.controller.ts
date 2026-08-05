@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Post,
   Req,
   Res,
@@ -12,6 +14,7 @@ import type { Request, Response } from "express";
 
 import { AuthAccessGuard, type AuthenticatedRequest } from "./auth-access.guard.js";
 import { LoginDto, RegisterDto } from "./auth.dto.js";
+import { authRateLimit, AuthRateLimitGuard } from "./auth-rate-limiter.js";
 import { AuthService, type AuthResult } from "./auth.service.js";
 import { AuthTokenService, REFRESH_COOKIE_NAME } from "./auth-token.service.js";
 import { readCookie } from "./cookie.util.js";
@@ -27,12 +30,12 @@ function getSessionMetadata(request: Request) {
 }
 
 function publicResult(result: AuthResult) {
-  const response = { ...result } as Omit<AuthResult, "refreshToken"> & {
-    refreshToken?: string;
+  return {
+    accessToken: result.accessToken,
+    expiresInSeconds: result.expiresInSeconds,
+    tokenType: result.tokenType,
+    user: result.user,
   };
-
-  delete response.refreshToken;
-  return response;
 }
 
 @Controller("auth")
@@ -43,22 +46,16 @@ export class AuthController {
   ) {}
 
   @Post("register")
-  async register(
-    @Body() body: RegisterDto,
-    @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    const result = await this.auth.register(
-      body.email,
-      body.displayName,
-      body.password,
-      getSessionMetadata(request),
-    );
-    this.setRefreshCookie(response, result.refreshToken);
-    return publicResult(result);
+  @UseGuards(AuthRateLimitGuard)
+  @authRateLimit("register")
+  @HttpCode(HttpStatus.ACCEPTED)
+  async register(@Body() body: RegisterDto) {
+    return this.auth.register(body.email, body.displayName, body.password);
   }
 
   @Post("login")
+  @UseGuards(AuthRateLimitGuard)
+  @authRateLimit("login")
   async login(
     @Body() body: LoginDto,
     @Req() request: Request,
@@ -70,6 +67,8 @@ export class AuthController {
   }
 
   @Post("refresh")
+  @UseGuards(AuthRateLimitGuard)
+  @authRateLimit("refresh")
   async refresh(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
     const refreshToken = readCookie(request.headers.cookie, REFRESH_COOKIE_NAME);
 
