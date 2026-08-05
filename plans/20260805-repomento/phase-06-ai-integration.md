@@ -26,3 +26,20 @@ Only GPT-5.6 Luna is selectable; QUICK/STANDARD/DEEP map to low/medium/max;
 source is delimited as untrusted data; system/developer/user/schema concerns
 remain separated; output is validated with bounded retry and typed errors;
 secrets/source are not logged; fake tests never call live AI.
+
+## Deferred optional RAG capability
+
+The user requested DeepSeek V4 Flash for chatbot/RAG suggestions. This does
+not change the Phase 06 code-review contract: agent workers, reviewers, and
+the critical code-review provider remain Luna-only. Any future DeepSeek use is
+a separate server-side `rag_suggestion` capability, disabled by default and
+never selected by a public `provider` or `model` field.
+
+Before enabling it, a later security/observability gate must prove strict
+bounded suggestion output, tenant/project ACL-filtered citations, trust labels,
+prompt-injection isolation, source redaction, retention/deletion behavior,
+quota/concurrency limits, typed provider-unavailable errors, and safe logs.
+An ADR/legal/privacy review must also cover provider data handling, consent,
+data location, subprocessors, licensing, and cost limits. The supplied API key
+is not stored in the repository, plan, prompt, or logs; local runtime secrets
+must be rotated and supplied through an approved secret mechanism.
