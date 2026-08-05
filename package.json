@@ -8,7 +8,7 @@
     "pnpm": ">=11.0.0 <12"
   },
   "scripts": {
-    "install": "pnpm install --frozen-lockfile --ignore-scripts",
+    "deps:install": "pnpm install --frozen-lockfile --ignore-scripts",
     "dev": "pnpm --recursive --if-present run dev",
     "lint": "eslint . && pnpm --recursive --if-present run lint",
     "typecheck": "pnpm --recursive --if-present run typecheck",

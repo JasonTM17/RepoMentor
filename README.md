@@ -65,17 +65,17 @@ contains blank variable names and `.env` files are ignored by Git.
 
 ## Commands
 
-| Command             | Purpose                                                            |
-| ------------------- | ------------------------------------------------------------------ |
-| `pnpm install`      | Install the locked workspace dependencies                          |
-| `pnpm run install`  | Explicit frozen-lockfile install with lifecycle scripts disabled   |
-| `pnpm dev`          | Run present workspace `dev` scripts                                |
-| `pnpm lint`         | Lint the root configuration, then present workspace `lint` scripts |
-| `pnpm typecheck`    | Run present workspace `typecheck` scripts                          |
-| `pnpm test`         | Run present workspace `test` scripts                               |
-| `pnpm build`        | Run present workspace `build` scripts                              |
-| `pnpm format`       | Format supported repository files with Prettier                    |
-| `pnpm format:check` | Verify Prettier formatting without writing                         |
+| Command                 | Purpose                                                            |
+| ----------------------- | ------------------------------------------------------------------ |
+| `pnpm install`          | Install the locked workspace dependencies                          |
+| `pnpm run deps:install` | Explicit frozen-lockfile install with lifecycle scripts disabled   |
+| `pnpm dev`              | Run present workspace `dev` scripts                                |
+| `pnpm lint`             | Lint the root configuration, then present workspace `lint` scripts |
+| `pnpm typecheck`        | Run present workspace `typecheck` scripts                          |
+| `pnpm test`             | Run present workspace `test` scripts                               |
+| `pnpm build`            | Run present workspace `build` scripts                              |
+| `pnpm format`           | Format supported repository files with Prettier                    |
+| `pnpm format:check`     | Verify Prettier formatting without writing                         |
 
 The root workspace commands use pnpm's recursive `--if-present` strategy while
 the workspace has no application packages. They therefore do not fabricate
