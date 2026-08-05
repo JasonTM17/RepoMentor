@@ -14,14 +14,19 @@
     "typecheck": "pnpm --recursive --if-present run typecheck",
     "test": "pnpm --recursive --if-present run test",
     "build": "pnpm --recursive --if-present run build",
+    "db:format": "prisma format --schema prisma/schema.prisma",
+    "db:validate": "prisma validate --schema prisma/schema.prisma",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
     "format": "prettier . --write",
     "format:check": "prettier . --check"
   },
   "devDependencies": {
     "@repomentor/eslint-config": "workspace:*",
     "@repomentor/typescript-config": "workspace:*",
+    "@prisma/client": "6.19.0",
     "eslint": "^10.8.0",
     "prettier": "^3.9.6",
+    "prisma": "6.19.0",
     "turbo": "^2.10.8",
     "typescript": "^6.0.3"
   }
