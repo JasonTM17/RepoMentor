@@ -252,6 +252,8 @@ test("auth client matches the integrated response envelopes and token boundary",
   assert.doesNotMatch(source.authTypes, /refreshToken/u);
   assert.doesNotMatch(source.authClient, /localStorage|sessionStorage|document\.cookie/u);
   assert.doesNotMatch(source.authHook, /localStorage|sessionStorage|document\.cookie/u);
+  assert.match(source.authHook, /Registration does not sign you in automatically\./u);
+  assert.match(source.authPage, /does not write access or\s+refresh tokens to browser storage/u);
 });
 
 test("auth form fields keep labels, descriptions, errors, and password controls associated", () => {

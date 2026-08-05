@@ -109,8 +109,8 @@ export const useAuthForm = (mode: AuthMode): UseAuthFormResult => {
       setStatus("success");
       setServerMessage(
         mode === "login"
-          ? "The server accepted the request. The workspace handoff is ready for the session boundary."
-          : "The server accepted the account request. Continue to sign in when you are ready.",
+          ? "The server accepted the credentials. Session handoff remains at the API boundary."
+          : "Your account request was accepted. Sign in to continue. Registration does not sign you in automatically.",
       );
       return true;
     } catch {

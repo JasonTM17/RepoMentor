@@ -36,7 +36,7 @@ const authCopy: Record<AuthMode, AuthCopy> = {
     submitLabel: "Sign in",
     successAction: "Return to workspace",
     successHref: "/",
-    successTitle: "Request acknowledged",
+    successTitle: "Credentials accepted",
     switchHref: "/register",
     switchLabel: "Create an account",
     switchPrompt: "New to RepoMentor?",
@@ -51,7 +51,7 @@ const authCopy: Record<AuthMode, AuthCopy> = {
     submitLabel: "Create account",
     successAction: "Go to sign in",
     successHref: "/login",
-    successTitle: "Account request acknowledged",
+    successTitle: "Registration accepted",
     switchHref: "/login",
     switchLabel: "Sign in",
     switchPrompt: "Already have an account?",
@@ -252,8 +252,8 @@ const AuthPage: FC<AuthPageProps> = ({ mode }): ReactElement => {
             ) : null}
 
             <p className="auth-api-note" id="auth-api-note">
-              Server handoff target: <code>{copy.apiPath}</code>. Session tokens remain outside this
-              form until the application session owner is connected.
+              Server handoff target: <code>{copy.apiPath}</code>. This form does not write access or
+              refresh tokens to browser storage; the API owns the refresh cookie.
             </p>
           </form>
 
