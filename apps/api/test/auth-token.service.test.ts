@@ -6,11 +6,13 @@ import { UnauthorizedException } from "@nestjs/common";
 import {
   AUTH_TOKEN_AUDIENCE,
   AUTH_TOKEN_ISSUER,
+  AUTH_TOKEN_ID_PATTERN,
   AUTH_IDENTIFIER_PATTERN,
   AuthTokenConfigError,
   AuthTokenService,
   REFRESH_COOKIE_PATH,
   isAuthIdentifier,
+  isAuthTokenId,
   parseAuthTokenConfig,
 } from "../src/modules/auth/auth-token.service.js";
 
@@ -33,9 +35,12 @@ describe("authentication token primitives", () => {
   it("issues and verifies typed access and refresh tokens", () => {
     const accessToken = tokens.issueAccessToken(userId, sessionId, issuedAt);
     const refreshToken = tokens.issueRefreshToken(userId, sessionId, issuedAt);
+    const secondRefreshToken = tokens.issueRefreshToken(userId, sessionId, issuedAt);
 
     assert.equal(tokens.verifyAccessToken(accessToken.value, issuedAt).subject, userId);
     assert.equal(tokens.verifyRefreshToken(refreshToken.value, issuedAt).sessionId, sessionId);
+    assert.notEqual(refreshToken.value, secondRefreshToken.value);
+    assert.equal(isAuthTokenId(tokens.verifyRefreshToken(refreshToken.value, issuedAt).tokenId), true);
     assert.throws(
       () => tokens.verifyAccessToken(refreshToken.value, issuedAt),
       UnauthorizedException,
@@ -75,6 +80,14 @@ describe("authentication token primitives", () => {
       sameSite: "lax",
       secure: true,
     });
+    assert.deepEqual(tokens.getRefreshCookieClearOptions(), {
+      httpOnly: true,
+      path: REFRESH_COOKIE_PATH,
+      sameSite: "lax",
+      secure: true,
+    });
+    assert.match(tokens.hashIpAddress("192.0.2.10"), /^[0-9a-f]{64}$/);
+    assert.equal(tokens.hashIpAddress("192.0.2.10").includes("192.0.2.10"), false);
   });
 
   it("requires distinct high-entropy secrets and validates cookie settings", () => {
@@ -120,5 +133,6 @@ describe("authentication token primitives", () => {
     assert.equal(isAuthIdentifier("11111111-1111-4111-8111-111111111111"), false);
     assert.equal(AUTH_TOKEN_ISSUER, "repomentor-api");
     assert.equal(AUTH_TOKEN_AUDIENCE, "repomentor-web");
+    assert.match("abcdefghijklmnopqrstuv", AUTH_TOKEN_ID_PATTERN);
   });
 });

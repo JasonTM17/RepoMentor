@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 import {
   Inject,
@@ -8,15 +8,20 @@ import {
 } from "@nestjs/common";
 import type { CookieOptions } from "express";
 
-import { AUTH_IDENTIFIER_PATTERN, isAuthIdentifier } from "./auth-id.js";
+import { isAuthIdentifier } from "./auth-id.js";
 
 export { AUTH_IDENTIFIER_PATTERN, isAuthIdentifier } from "./auth-id.js";
+
+export function isAuthTokenId(value: unknown): value is string {
+  return typeof value === "string" && AUTH_TOKEN_ID_PATTERN.test(value);
+}
 
 export const AUTH_TOKEN_CONFIG = Symbol("AUTH_TOKEN_CONFIG");
 export const REFRESH_COOKIE_NAME = "repomentor_refresh_token";
 export const REFRESH_COOKIE_PATH = "/api/v1/auth";
 export const AUTH_TOKEN_ISSUER = "repomentor-api";
 export const AUTH_TOKEN_AUDIENCE = "repomentor-web";
+export const AUTH_TOKEN_ID_PATTERN = /^[A-Za-z0-9_-]{22}$/;
 
 const DEFAULT_ACCESS_TTL_SECONDS = 15 * 60;
 const DEFAULT_REFRESH_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -47,11 +52,12 @@ export interface IssuedToken {
 export interface AccessTokenClaims {
   readonly subject: string;
   readonly sessionId: string;
+  readonly tokenId: string;
   readonly issuedAt: Date;
   readonly expiresAt: Date;
 }
 
-export interface RefreshTokenClaims extends AccessTokenClaims {}
+export type RefreshTokenClaims = AccessTokenClaims;
 
 interface JwtHeader {
   readonly alg: "HS256";
@@ -63,6 +69,7 @@ interface JwtPayload {
   readonly exp: number;
   readonly iat: number;
   readonly iss: typeof AUTH_TOKEN_ISSUER;
+  readonly jti: string;
   readonly sid: string;
   readonly sub: string;
   readonly typ: "access" | "refresh";
@@ -260,6 +267,10 @@ function assertJwtPayload(value: unknown): asserts value is JwtPayload {
     throw invalidToken();
   }
 
+  if (!isAuthTokenId(value.jti)) {
+    throw invalidToken();
+  }
+
   assertTokenIdentifier(value.sid);
   assertTokenIdentifier(value.sub);
 }
@@ -293,7 +304,9 @@ export class AuthTokenService {
   }
 
   hashRefreshToken(token: string): string {
-    return createHash("sha256").update(token, "utf8").digest("hex");
+    return createHmac("sha256", this.resolveConfig().refreshSecret)
+      .update(token, "utf8")
+      .digest("hex");
   }
 
   getRefreshCookieOptions(): CookieOptions {
@@ -306,6 +319,23 @@ export class AuthTokenService {
       sameSite: config.cookieSameSite,
       secure: config.cookieSecure,
     };
+  }
+
+  getRefreshCookieClearOptions(): CookieOptions {
+    const config = this.resolveConfig();
+
+    return {
+      httpOnly: true,
+      path: REFRESH_COOKIE_PATH,
+      sameSite: config.cookieSameSite,
+      secure: config.cookieSecure,
+    };
+  }
+
+  hashIpAddress(ipAddress: string): string {
+    return createHmac("sha256", this.resolveConfig().refreshSecret)
+      .update(ipAddress, "utf8")
+      .digest("hex");
   }
 
   private issueToken(
@@ -325,6 +355,7 @@ export class AuthTokenService {
       exp: issuedAtSeconds + expiresInSeconds,
       iat: issuedAtSeconds,
       iss: AUTH_TOKEN_ISSUER,
+      jti: encodeBase64Url(randomBytes(16)),
       sid: sessionId,
       sub: subject,
       typ: type,
@@ -416,6 +447,7 @@ export class AuthTokenService {
       issuedAt: new Date(payload.iat * 1000),
       sessionId: payload.sid,
       subject: payload.sub,
+      tokenId: payload.jti,
     };
   }
 
