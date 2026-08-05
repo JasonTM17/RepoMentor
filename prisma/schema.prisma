@@ -6,3 +6,59 @@ datasource db {
 generator client {
   provider = "prisma-client-js"
 }
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum SessionStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum SessionRevocationReason {
+  LOGOUT
+  LOGOUT_ALL
+  REFRESH_REUSE
+  EXPIRED
+  ADMIN
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique @db.VarChar(320)
+  passwordHash String     @map("password_hash") @db.VarChar(255)
+  role         UserRole   @default(USER)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  sessions     Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  userId                String                   @map("user_id") @db.Uuid
+  refreshTokenHash      String                   @map("refresh_token_hash") @db.VarChar(64)
+  refreshTokenIssuedAt  DateTime                 @map("refresh_token_issued_at")
+  refreshTokenExpiresAt DateTime                 @map("refresh_token_expires_at")
+  lastUsedAt            DateTime?                @map("last_used_at")
+  status                SessionStatus            @default(ACTIVE)
+  revokedAt             DateTime?                @map("revoked_at")
+  revocationReason      SessionRevocationReason? @map("revocation_reason")
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
+  user                  User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@map("sessions")
+}
