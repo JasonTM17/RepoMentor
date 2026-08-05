@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build and test output
+.next/
+.turbo/
+coverage/
+dist/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Local tooling and editor state
+.agentkit/
+.claude/
+engineer/
+
+# Operating system files
+.DS_Store
+Thumbs.db

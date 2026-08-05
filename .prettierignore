@@ -1,0 +1,12 @@
+.git/
+.agentkit/
+.claude/
+.next/
+.pnpm-store/
+.turbo/
+coverage/
+dist/
+engineer/
+node_modules/
+plans/
+pnpm-lock.yaml

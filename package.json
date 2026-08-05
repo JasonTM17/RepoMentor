@@ -1,0 +1,27 @@
+{
+  "name": "repomentor",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.0.9",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=11.0.0 <12"
+  },
+  "scripts": {
+    "install": "pnpm install --frozen-lockfile --ignore-scripts",
+    "dev": "pnpm --recursive --if-present run dev",
+    "lint": "eslint . && pnpm --recursive --if-present run lint",
+    "typecheck": "pnpm --recursive --if-present run typecheck",
+    "test": "pnpm --recursive --if-present run test",
+    "build": "pnpm --recursive --if-present run build",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0",
+    "prettier": "^3.9.6",
+    "turbo": "^2.10.8",
+    "typescript": "^7.0.2"
+  }
+}
