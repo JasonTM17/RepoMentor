@@ -1,0 +1,127 @@
+name: Container validation
+
+on:
+  pull_request:
+    paths:
+      - .dockerignore
+      - apps/api/Dockerfile
+      - apps/web/Dockerfile
+      - docker-compose.yml
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - apps/**
+      - packages/**
+      - prisma/schema.prisma
+      - .github/workflows/container-release.yml
+      - .github/workflows/container-validation.yml
+  push:
+    branches:
+      - main
+    paths:
+      - .dockerignore
+      - apps/api/Dockerfile
+      - apps/web/Dockerfile
+      - docker-compose.yml
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - apps/**
+      - packages/**
+      - prisma/schema.prisma
+      - .github/workflows/container-release.yml
+      - .github/workflows/container-validation.yml
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    name: Validate workflow, Dockerfiles, and Compose
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Validate GitHub Actions workflow syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --volume "${GITHUB_WORKSPACE}:/repo:ro" \
+            --workdir /repo \
+            rhysd/actionlint:1.7.7
+
+      - name: Lint API Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: apps/api/Dockerfile
+          failure-threshold: warning
+          ignore: DL3018
+
+      - name: Lint web Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: apps/web/Dockerfile
+          failure-threshold: warning
+          ignore: DL3018
+
+      - name: Check Dockerfile release contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dockerfile in apps/api/Dockerfile apps/web/Dockerfile; do
+            test "$(grep -c '^FROM ' "$dockerfile")" -ge 2
+            grep -q 'pnpm install --frozen-lockfile' "$dockerfile"
+            grep -q '^USER node$' "$dockerfile"
+            grep -q '^HEALTHCHECK ' "$dockerfile"
+            grep -q '^EXPOSE 3000$' "$dockerfile"
+            if grep -Eiq '(^|[[:space:]])(COPY|ADD)[^#]*(\.env|credentials|secret)' "$dockerfile"; then
+              echo "::error::Secret-bearing input is copied by ${dockerfile}"
+              exit 1
+            fi
+          done
+          grep -q '^\.env$' .dockerignore
+          grep -q '^\.git$' .dockerignore
+
+      - name: Validate local-only Compose configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          export POSTGRES_DB=repomentor_ci
+          export POSTGRES_USER=repomentor_ci
+          export POSTGRES_PASSWORD="compose-check-${GITHUB_RUN_ID}"
+          export POSTGRES_HOST_PORT=55432
+          export REDIS_PASSWORD="compose-check-${GITHUB_RUN_ID}"
+          export REDIS_HOST_PORT=56379
+          docker compose config --quiet
+
+  build:
+    name: Build ${{ matrix.name }} image without publishing
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            dockerfile: apps/api/Dockerfile
+          - name: web
+            dockerfile: apps/web/Dockerfile
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image without registry credentials or push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          tags: repomentor/${{ matrix.name }}:validation-${{ github.sha }}
+          load: true
+          push: false
+          cache-from: type=gha,scope=repomentor-validation-${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=repomentor-validation-${{ matrix.name }}

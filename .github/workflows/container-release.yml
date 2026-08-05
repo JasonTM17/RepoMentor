@@ -1,0 +1,263 @@
+name: Container release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: container-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.name }} image
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            dockerfile: apps/api/Dockerfile
+          - name: web
+            dockerfile: apps/web/Dockerfile
+    env:
+      # The two published image names are derived from this requested GHCR root.
+      GHCR_ROOT: ghcr.io/JasonTM17/repomento
+      IMAGE_NAME: ${{ matrix.name }}
+      DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v4
+
+      - name: Validate release identity and registry configuration
+        id: release
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Release tags must be strict semantic versions such as v1.2.3 or v1.2.3-rc.1"
+            exit 1
+          fi
+          if [[ ! "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::GITHUB_SHA is not a full 40-character commit SHA"
+            exit 1
+          fi
+          if [[ -z "$DOCKERHUB_NAMESPACE" ]]; then
+            echo "::error::Repository variable DOCKERHUB_NAMESPACE is required; no Docker Hub push will be attempted"
+            exit 1
+          fi
+          if [[ ! "$DOCKERHUB_NAMESPACE" =~ ^[a-z0-9]+([._-][a-z0-9]+)*$ ]]; then
+            echo "::error::DOCKERHUB_NAMESPACE must be a lowercase Docker Hub namespace"
+            exit 1
+          fi
+          if [[ -z "$DOCKERHUB_USERNAME" || -z "$DOCKERHUB_TOKEN" ]]; then
+            echo "::error::DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets are required; no registry push will be attempted"
+            exit 1
+          fi
+
+          version="${TAG_NAME#v}"
+          sha_tag="sha-${COMMIT_SHA}"
+          staging_tag="staging-${COMMIT_SHA}"
+          ghcr_image="${GHCR_ROOT}-${IMAGE_NAME}"
+          dockerhub_image="docker.io/${DOCKERHUB_NAMESPACE}/repomento-${IMAGE_NAME}"
+
+          {
+            echo "version=${version}"
+            echo "sha_tag=${sha_tag}"
+            echo "staging_tag=${staging_tag}"
+            echo "ghcr_image=${ghcr_image}"
+            echo "dockerhub_image=${dockerhub_image}"
+            echo "ghcr_staging_ref=${ghcr_image}:${staging_tag}"
+            echo "dockerhub_staging_ref=${dockerhub_image}:${staging_tag}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR with GITHUB_TOKEN
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub with explicit release secrets
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Refuse to overwrite immutable release tags
+        shell: bash
+        env:
+          GHCR_IMAGE: ${{ steps.release.outputs.ghcr_image }}
+          DOCKERHUB_IMAGE: ${{ steps.release.outputs.dockerhub_image }}
+          VERSION: ${{ steps.release.outputs.version }}
+          SHA_TAG: ${{ steps.release.outputs.sha_tag }}
+        run: |
+          set -euo pipefail
+          for ref in \
+            "${GHCR_IMAGE}:${VERSION}" \
+            "${GHCR_IMAGE}:${SHA_TAG}" \
+            "${DOCKERHUB_IMAGE}:${VERSION}" \
+            "${DOCKERHUB_IMAGE}:${SHA_TAG}"; do
+            if docker buildx imagetools inspect "$ref" > /dev/null 2>&1; then
+              echo "::error::Refusing to overwrite existing release tag ${ref}"
+              exit 1
+            fi
+          done
+
+      - name: Build and push scan-only staging references
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.release.outputs.ghcr_staging_ref }}
+            ${{ steps.release.outputs.dockerhub_staging_ref }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=repomentor-${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=repomentor-${{ matrix.name }}
+
+      - name: Verify staging digests match across registries
+        id: staging
+        shell: bash
+        env:
+          GHCR_STAGING_REF: ${{ steps.release.outputs.ghcr_staging_ref }}
+          DOCKERHUB_STAGING_REF: ${{ steps.release.outputs.dockerhub_staging_ref }}
+        run: |
+          set -euo pipefail
+          ghcr_digest="$(docker buildx imagetools inspect "$GHCR_STAGING_REF" | awk '$1 == "Digest:" { print $2; exit }')"
+          dockerhub_digest="$(docker buildx imagetools inspect "$DOCKERHUB_STAGING_REF" | awk '$1 == "Digest:" { print $2; exit }')"
+          if [[ -z "$ghcr_digest" || -z "$dockerhub_digest" ]]; then
+            echo "::error::A staging registry digest could not be resolved"
+            exit 1
+          fi
+          if [[ "$ghcr_digest" != "$dockerhub_digest" ]]; then
+            echo "::error::GHCR and Docker Hub staging digests differ"
+            exit 1
+          fi
+          echo "source_digest=${ghcr_digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Scan GHCR staging image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.release.outputs.ghcr_staging_ref }}
+          format: table
+          vuln-type: os,library
+          scanners: vuln
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Scan Docker Hub staging image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.release.outputs.dockerhub_staging_ref }}
+          format: table
+          vuln-type: os,library
+          scanners: vuln
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Promote the scanned digest to semantic and full-SHA tags
+        shell: bash
+        env:
+          GHCR_IMAGE: ${{ steps.release.outputs.ghcr_image }}
+          DOCKERHUB_IMAGE: ${{ steps.release.outputs.dockerhub_image }}
+          GHCR_STAGING_REF: ${{ steps.release.outputs.ghcr_staging_ref }}
+          DOCKERHUB_STAGING_REF: ${{ steps.release.outputs.dockerhub_staging_ref }}
+          VERSION: ${{ steps.release.outputs.version }}
+          SHA_TAG: ${{ steps.release.outputs.sha_tag }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create --tag "${GHCR_IMAGE}:${VERSION}" "$GHCR_STAGING_REF"
+          docker buildx imagetools create --tag "${GHCR_IMAGE}:${SHA_TAG}" "$GHCR_STAGING_REF"
+          docker buildx imagetools create --tag "${DOCKERHUB_IMAGE}:${VERSION}" "$DOCKERHUB_STAGING_REF"
+          docker buildx imagetools create --tag "${DOCKERHUB_IMAGE}:${SHA_TAG}" "$DOCKERHUB_STAGING_REF"
+
+      - name: Verify promoted digests and write release evidence
+        id: digest
+        shell: bash
+        env:
+          GHCR_IMAGE: ${{ steps.release.outputs.ghcr_image }}
+          DOCKERHUB_IMAGE: ${{ steps.release.outputs.dockerhub_image }}
+          VERSION: ${{ steps.release.outputs.version }}
+          SHA_TAG: ${{ steps.release.outputs.sha_tag }}
+          SOURCE_DIGEST: ${{ steps.staging.outputs.source_digest }}
+        run: |
+          set -euo pipefail
+          ghcr_semver="$(docker buildx imagetools inspect "${GHCR_IMAGE}:${VERSION}" | awk '$1 == "Digest:" { print $2; exit }')"
+          ghcr_sha="$(docker buildx imagetools inspect "${GHCR_IMAGE}:${SHA_TAG}" | awk '$1 == "Digest:" { print $2; exit }')"
+          dockerhub_semver="$(docker buildx imagetools inspect "${DOCKERHUB_IMAGE}:${VERSION}" | awk '$1 == "Digest:" { print $2; exit }')"
+          dockerhub_sha="$(docker buildx imagetools inspect "${DOCKERHUB_IMAGE}:${SHA_TAG}" | awk '$1 == "Digest:" { print $2; exit }')"
+          for digest in "$ghcr_semver" "$ghcr_sha" "$dockerhub_semver" "$dockerhub_sha"; do
+            if [[ -z "$digest" ]]; then
+              echo "::error::A promoted registry digest could not be resolved"
+              exit 1
+            fi
+          done
+          if [[ "$ghcr_semver" != "$ghcr_sha" || "$ghcr_semver" != "$dockerhub_semver" || "$ghcr_semver" != "$dockerhub_sha" ]]; then
+            echo "::error::Promoted semantic and full-SHA tags are not digest-aligned across registries"
+            exit 1
+          fi
+          if [[ "$ghcr_semver" != "$SOURCE_DIGEST" ]]; then
+            echo "::error::Promoted digest differs from the scanned staging digest"
+            exit 1
+          fi
+
+          evidence_file="$RUNNER_TEMP/repomentor-${IMAGE_NAME}-digests.txt"
+          {
+            echo "image=${IMAGE_NAME}"
+            echo "version=${VERSION}"
+            echo "source_digest=${SOURCE_DIGEST}"
+            echo "ghcr_semver=${GHCR_IMAGE}:${VERSION}@${ghcr_semver}"
+            echo "ghcr_sha=${GHCR_IMAGE}:${SHA_TAG}@${ghcr_sha}"
+            echo "dockerhub_semver=${DOCKERHUB_IMAGE}:${VERSION}@${dockerhub_semver}"
+            echo "dockerhub_sha=${DOCKERHUB_IMAGE}:${SHA_TAG}@${dockerhub_sha}"
+          } > "$evidence_file"
+
+          {
+            echo "### ${IMAGE_NAME} container release"
+            echo
+            echo "| registry | semantic tag | full-SHA tag | digest |"
+            echo "| --- | --- | --- | --- |"
+            echo "| GHCR | \`${GHCR_IMAGE}:${VERSION}\` | \`${GHCR_IMAGE}:${SHA_TAG}\` | \`${ghcr_semver}\` |"
+            echo "| Docker Hub | \`${DOCKERHUB_IMAGE}:${VERSION}\` | \`${DOCKERHUB_IMAGE}:${SHA_TAG}\` | \`${dockerhub_semver}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload digest evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: repomentor-${{ matrix.name }}-release-digests
+          path: ${{ runner.temp }}/repomentor-${{ matrix.name }}-digests.txt
+          if-no-files-found: error
