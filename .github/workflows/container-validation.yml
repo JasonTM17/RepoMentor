@@ -90,6 +90,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export NODE_ENV=test
           export POSTGRES_DB=repomentor_ci
           export POSTGRES_USER=repomentor_ci
           export POSTGRES_PASSWORD="compose-check-${GITHUB_RUN_ID}"
