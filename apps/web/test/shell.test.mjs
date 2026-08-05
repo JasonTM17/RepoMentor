@@ -221,6 +221,8 @@ test("auth routes expose the intended mode and API endpoint seam", () => {
   assert.match(source.authClient, /credentials:\s*"include"/u);
   assert.match(source.authClient, /Pending server seam/u);
   assert.match(source.authClient, /\/api\/v1\/auth\/\$\{endpoint\}/u);
+  assert.doesNotMatch(source.authClient, /localStorage|sessionStorage|document\.cookie/u);
+  assert.match(source.authClient, /does not persist tokens/u);
 });
 
 test("auth form fields keep labels, descriptions, errors, and password controls associated", () => {
@@ -231,6 +233,10 @@ test("auth form fields keep labels, descriptions, errors, and password controls 
   assert.match(source.passwordField, /aria-controls=\{fieldId\}/u);
   assert.match(source.passwordField, /aria-pressed=\{isVisible\}/u);
   assert.match(source.passwordField, /type="button"/u);
+  assert.match(source.authPage, /name="displayName"/u);
+  assert.match(source.authPage, /name="email"/u);
+  assert.match(source.authPage, /name="password"/u);
+  assert.match(source.authPage, /name="passwordConfirmation"/u);
   assert.match(source.authPage, /<form[\s\S]*noValidate/u);
   assert.match(source.authPage, /aria-describedby="auth-api-note"/u);
 });
