@@ -32,8 +32,9 @@ enum SessionRevocationReason {
 }
 
 model User {
-  id           String     @id @default(uuid()) @db.Uuid
+  id           String     @id @default(cuid()) @db.VarChar(25)
   email        String     @unique @db.VarChar(320)
+  displayName  String     @map("display_name") @db.VarChar(100)
   passwordHash String     @map("password_hash") @db.VarChar(255)
   role         UserRole   @default(USER)
   status       UserStatus @default(ACTIVE)
@@ -45,12 +46,14 @@ model User {
 }
 
 model Session {
-  id                    String                   @id @default(uuid()) @db.Uuid
-  userId                String                   @map("user_id") @db.Uuid
-  refreshTokenHash      String                   @map("refresh_token_hash") @db.VarChar(64)
+  id                    String                   @id @default(cuid()) @db.VarChar(25)
+  userId                String                   @map("user_id") @db.VarChar(25)
+  refreshTokenHash      String                   @unique @map("refresh_token_hash") @db.Char(64)
   refreshTokenIssuedAt  DateTime                 @map("refresh_token_issued_at")
   refreshTokenExpiresAt DateTime                 @map("refresh_token_expires_at")
   lastUsedAt            DateTime?                @map("last_used_at")
+  userAgent             String?                  @map("user_agent") @db.VarChar(512)
+  ipHash                String?                  @map("ip_hash") @db.Char(64)
   status                SessionStatus            @default(ACTIVE)
   revokedAt             DateTime?                @map("revoked_at")
   revocationReason      SessionRevocationReason? @map("revocation_reason")
