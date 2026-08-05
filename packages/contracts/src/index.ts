@@ -20,3 +20,20 @@ export {
   readinessHealthPayloadSchema,
 } from "./health.js";
 export type { HealthStatus, LivenessHealthPayload, ReadinessHealthPayload } from "./health.js";
+
+export {
+  accessTokenAuthResultSchema,
+  authLoginInputSchema,
+  authRegisterInputSchema,
+  authUserRoleSchema,
+  authUserStatusSchema,
+  publicUserSchema,
+} from "./auth.js";
+export type {
+  AccessTokenAuthResult,
+  AuthLoginInput,
+  AuthRegisterInput,
+  AuthUserRole,
+  AuthUserStatus,
+  PublicUser,
+} from "./auth.js";
