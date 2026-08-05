@@ -1,0 +1,35 @@
+{
+  "name": "@repomentor/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist",
+    "package.json"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:test": "tsc -p tsconfig.test.json",
+    "format:check": "prettier . --check",
+    "lint": "eslint .",
+    "test": "pnpm run build:test && node --test ./dist/.test-dist/test/contracts.test.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@repomentor/eslint-config": "workspace:*",
+    "@repomentor/typescript-config": "workspace:*",
+    "@types/node": "26.1.2",
+    "eslint": "^10.8.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3"
+  }
+}
