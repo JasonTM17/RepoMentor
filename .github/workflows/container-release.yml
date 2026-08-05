@@ -227,7 +227,9 @@ jobs:
               exit 1
             fi
           done
-          if [[ "$ghcr_semver" != "$ghcr_sha" || "$ghcr_semver" != "$dockerhub_semver" || "$ghcr_semver" != "$dockerhub_sha" ]]; then
+          if [[ "$ghcr_semver" == "$ghcr_sha" && "$ghcr_semver" == "$dockerhub_semver" && "$ghcr_semver" == "$dockerhub_sha" ]]; then
+            :
+          else
             echo "::error::Promoted semantic and full-SHA tags are not digest-aligned across registries"
             exit 1
           fi
