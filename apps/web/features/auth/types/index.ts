@@ -24,21 +24,32 @@ export interface RegisterRequest {
   readonly password: string;
 }
 
+export type AuthUserRole = "USER" | "ADMIN";
+
+export type AuthUserStatus = "ACTIVE" | "DISABLED";
+
 export interface AuthUser {
   readonly id: string;
   readonly email: string;
   readonly displayName: string;
-  readonly role?: "USER" | "ADMIN";
+  readonly role: AuthUserRole;
+  readonly status: AuthUserStatus;
+  readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
-/**
- * Expected response shape for the auth API seam. The form intentionally does
- * not store the access token until the application session owner is connected.
- */
-export interface AuthResponse {
-  readonly accessToken?: string;
-  readonly user?: AuthUser;
+export interface RegisterResponse {
+  readonly accepted: true;
 }
+
+export interface LoginResponse {
+  readonly accessToken: string;
+  readonly tokenType: "Bearer";
+  readonly expiresInSeconds: number;
+  readonly user: AuthUser;
+}
+
+export type AuthResponse = LoginResponse | RegisterResponse;
 
 export const AUTH_GENERIC_ERROR =
   "We could not complete that request. Check your details and try again.";

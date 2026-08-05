@@ -219,10 +219,39 @@ test("auth routes expose the intended mode and API endpoint seam", () => {
   assert.match(source.authPage, /apiPath:\s*"POST \/api\/v1\/auth\/register"/u);
   assert.match(source.authPage, /data-api-endpoint=\{copy\.apiPath\}/u);
   assert.match(source.authClient, /credentials:\s*"include"/u);
-  assert.match(source.authClient, /Pending server seam/u);
+  assert.match(source.authClient, /validates the response envelope/u);
   assert.match(source.authClient, /\/api\/v1\/auth\/\$\{endpoint\}/u);
   assert.doesNotMatch(source.authClient, /localStorage|sessionStorage|document\.cookie/u);
-  assert.match(source.authClient, /does not persist tokens/u);
+  assert.match(source.authClient, /never writes access or refresh tokens to browser storage/u);
+});
+
+test("auth client matches the integrated response envelopes and token boundary", () => {
+  assert.match(source.authTypes, /interface RegisterResponse[\s\S]*accepted:\s*true/u);
+  assert.match(
+    source.authTypes,
+    /interface LoginResponse[\s\S]*accessToken:\s*string[\s\S]*tokenType:\s*"Bearer"[\s\S]*expiresInSeconds:\s*number[\s\S]*user:\s*AuthUser/u,
+  );
+  assert.match(source.authTypes, /status:\s*AuthUserStatus/u);
+  assert.match(source.authTypes, /createdAt:\s*string/u);
+  assert.match(source.authTypes, /updatedAt:\s*string/u);
+  assert.match(
+    source.authClient,
+    /postAuth\("register",\s*payload,\s*202,\s*isRegisterResponse\)/u,
+  );
+  assert.match(source.authClient, /postAuth\("login",\s*payload,\s*201,\s*isLoginResponse\)/u);
+  assert.match(source.authClient, /response\.status\s*!==\s*expectedStatus/u);
+  assert.match(source.authClient, /hasOwn\(body,\s*"data"\)/u);
+  assert.match(source.authClient, /hasExactKeys\(value,\s*\[\s*"accessToken"/u);
+  assert.match(source.authClient, /hasExactKeys\(value,\s*\["accepted"\]\)/u);
+  assert.match(source.authClient, /!parseData\(body\.data\)/u);
+  assert.match(source.authClient, /value\.tokenType\s*===\s*"Bearer"/u);
+  assert.match(source.authClient, /Number\.isInteger\(value\.expiresInSeconds\)/u);
+  assert.match(source.authClient, /value\.expiresInSeconds\s*<=\s*3_600/u);
+  assert.match(source.authClient, /!hasOwn\(value,\s*"refreshToken"\)/u);
+  assert.doesNotMatch(source.authClient, /as\s+TResponse/u);
+  assert.doesNotMatch(source.authTypes, /refreshToken/u);
+  assert.doesNotMatch(source.authClient, /localStorage|sessionStorage|document\.cookie/u);
+  assert.doesNotMatch(source.authHook, /localStorage|sessionStorage|document\.cookie/u);
 });
 
 test("auth form fields keep labels, descriptions, errors, and password controls associated", () => {

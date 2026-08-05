@@ -7,6 +7,11 @@ export type {
   AuthFormValues,
   AuthMode,
   AuthResponse,
+  AuthUser,
+  AuthUserRole,
+  AuthUserStatus,
+  LoginResponse,
   LoginRequest,
+  RegisterResponse,
   RegisterRequest,
 } from "@/features/auth/types";
