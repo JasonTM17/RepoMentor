@@ -138,7 +138,7 @@ jobs:
           trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
 
           # NODE_ENV=test intentionally checks only the HTTP liveness route.
-          docker run --detach \
+          docker run --pull=never --detach \
             --name "$container" \
             --publish 127.0.0.1:18080:3000 \
             --env NODE_ENV=test \
@@ -165,7 +165,7 @@ jobs:
           container="repomentor-web-smoke-${GITHUB_RUN_ID}"
           trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
 
-          docker run --detach \
+          docker run --pull=never --detach \
             --name "$container" \
             --publish 127.0.0.1:18081:3000 \
             "$image" >/dev/null
