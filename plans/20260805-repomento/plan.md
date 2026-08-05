@@ -133,11 +133,14 @@ and requires later security, privacy, quota, and secret-governance gates.
 The current local main checkpoint includes the accepted web-auth contract
 integration at `5ccb4cb`, review-domain integration through `b33d7d6`, truthful
 README/package/GitHub About/media updates through `4673295`, and the Docker
-slice through local `2cb9c9d`. The Docker slice is deliberately not called
-published: its CI workflows require a GitHub `workflow` OAuth scope, the local
-Docker daemon is unavailable, and Docker Hub namespace/credentials have not
-been supplied. Static Compose, Dockerfile, workflow, SBOM/provenance contract,
-and loaded-image smoke steps are prepared for GitHub Actions validation.
+slice through local `3d98a4d`. GitHub Actions run `31030844884` passed the
+workflow lint, Hadolint, Dockerfile contract, Compose config, API/web image
+builds, API `/health/live` smoke, and web `/` smoke. The Docker slice is
+deliberately not called registry-published: the local Docker daemon is
+unavailable, and Docker Hub namespace/credentials have not been supplied.
+The release workflow is prepared with immutable tags, digest checks, SBOM,
+provenance, and scan gates; a protected release ref and registry evidence are
+still required.
 
 ## Commit and validation contract
 
@@ -204,7 +207,7 @@ without live integration evidence.
 | `main` | 04 | Luna web-auth integration + manager arbiter | `db6a85f`, `5e5f89f`, `5ccb4cb` | accepted; strict success envelope and 16 web tests; live browser/API unverified |
 | `main` | 05 | Luna review-domain worker + manager arbiter | `2ea3732`, `a2f8761`, `272310e`, `84f5e92`, `b33d7d6` | accepted; 40 API tests and ownership/lifecycle gates; live DB unverified |
 | `main` | docs/release | Faraday Luna + manager arbiter | `54c039f`, `d7e873c`, `2da1bd5`, `4673295` | accepted; README/release metadata and real UI GIF; no production/public-package claim |
-| `main` | 13 | Raman Luna + manager arbiter | `014c5e7`, `9456850`, `cf2e62b`, `16a81d1`, `69f83ab`, `d910080`, `10f1b71`, `6448e67` | accepted bounded Docker/CI slice; local build/registry publication pending |
+| `main` | 13 | Raman Luna + manager arbiter | `014c5e7`, `9456850`, `cf2e62b`, `16a81d1`, `69f83ab`, `d910080`, `10f1b71`, `6448e67`, `952bbc5`, `dc238d3`, `14f0c3e`, `3d98a4d` | accepted; CI run `31030844884` passed Docker/Compose/build/smoke gates; registry publication pending |
 | `main` | 13 | Volta Luna + manager arbiter | `eab4557`, `6e90530`, `8c0f0c0`, `86a1c69`, `2cb9c9d` | accepted Compose/env/docs slice; local startup and live smoke pending |
 
 ## Agent/thread ledger
@@ -234,7 +237,7 @@ without live integration evidence.
 | phase-05-review-domain | review API/database implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-review-domain` | accepted; worker `019fd27e-5344-70f2-bcef-a2909bb895f0`; merged through `b33d7d6` | manager arbiter pass; live migration DB unavailable |
 | phase-06-deepseek-advisor | advisory architecture/security | `gpt-5.6-terra` / `max` | read-only counsel | completed; no edits; DeepSeek deferred behind ADR | advisory delivered to coordinator/manager |
 | phase-13-docs-release-media | documentation/media implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docs-release-media` | accepted; worker `019fd2ac-2034-7752-83ef-e2d7cefda10e`; merged through `4673295` | Faraday report; real 3-frame UI GIF |
-| phase-13-docker-release | Docker/CI implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-release` | accepted; worker `019fd2b1-daad-7302-824c-adef31c220ff`; merged through `6448e67` | Raman report; GitHub Actions/live registry pending |
+| phase-13-docker-release | Docker/CI implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-release` | accepted; worker `019fd2b1-daad-7302-824c-adef31c220ff`; merged through `3d98a4d` | Raman report; CI `31030844884` green; live registry pending |
 | phase-13-docker-compose-runtime | Compose/env/docs implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-compose-runtime` | accepted; worker `019fd2d1-eb9d-7fd0-ab68-4f5f2b44073f`; merged through `2cb9c9d` | Volta report; Docker daemon/live startup unavailable |
 | phase-13-container-advisor | supply-chain advisor | `gpt-5.6-terra` / `max` | read-only counsel | completed; worker `019fd2b2-1664-7780-9d71-72f8b7f4582c`; no edits | hold findings resolved statically; live publish still gated |
 
