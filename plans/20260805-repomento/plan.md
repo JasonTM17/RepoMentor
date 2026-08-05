@@ -108,6 +108,12 @@ only where the ownership table is disjoint and the integration point is
 explicit. The coordinator owns merge/cherry-pick decisions and conflict
 resolution.
 
+Phase 02 is accepted at the integrated application checkpoint
+`7c18e187d4d37601687e9e9373a28fb44eee7d6c`. It is an application and UI
+foundation checkpoint, not a production or live-integration claim. Its full
+orchestration evidence is in
+`plans/reports/orchestrate-20260805T192444/report.md`.
+
 ## Commit and validation contract
 
 Each worker reports one task per commit using:
@@ -165,7 +171,7 @@ without live integration evidence.
 | --- | --- | --- | --- | --- |
 | `main` | 00 | coordinator | `8662b6e` | integrated |
 | `main` | 01 | Luna foundation + manager arbiter | `ec28301`, `9b2b960`, `abea984`, `8072468`, `e3fa107` | integrated |
-| `main` | 02 | Luna API/web workers + coordinator | `5234b11`, `37f9eb4`, `b311289`, `68140cd`, `1bcaf61`, `5472785` | scaffold integrated; contracts and UI foundation pending |
+| `main` | 02 | Luna API/web/UI workers + manager arbiter + coordinator | `5234b11`, `37f9eb4`, `b311289`, `68140cd`, `1bcaf61`, `692eeef`, `32ae68b`, `3a71c6e`, `f2e19a5`, `85ed97d`, `7a4e8a0`, `fa15804`, `91e3bf7`, `9a11995`, `6178fa2`, `7c18e18` | accepted at `7c18e18`; live infra/auth/domain pending |
 
 ## Agent/thread ledger
 
@@ -177,6 +183,12 @@ without live integration evidence.
 | phase-02-api | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-api-scaffold` | integrated; 3 focused commits | pending Phase 02 report |
 | phase-02-web | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-web-scaffold` | integrated; 2 focused commits | pending Phase 02 report |
 | phase-02-kongming-counsel | advisory architecture | `gpt-5.6-terra` / `max` | read-only counsel thread | completed; no edits | advisory notes in coordinator log |
+| phase-02-contracts | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-transport-contracts` | accepted; 2 commits, 3 tests | `plans/reports/orchestrate-20260805T192444/report.md` |
+| phase-02-ui-foundation | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-ui-foundation` | accepted; ak-fe design + shell | `plans/reports/orchestrate-20260805T192444/report.md` |
+| phase-02-ui-arbiter | manager/reviewer | `gpt-5.6-luna` / `max` | manager thread; Chrome/CDP | accepted after mobile fix | `plans/reports/orchestrate-20260805T192444/report.md` |
+| phase-02-web-smoke | tester | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-web-shell-smoke` | accepted; 7 assertions | `plans/reports/orchestrate-20260805T192444/report.md` |
+| phase-02-api-contracts | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-api-contract-boundary` | accepted; shared contract consumer | `plans/reports/orchestrate-20260805T192444/report.md` |
+| phase-02-api-boundary | manager/implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-api-error-boundary` | accepted; 5 tests, arbiter pass | `plans/reports/orchestrate-20260805T192444/report.md` |
 
 ## Unresolved questions
 
@@ -184,5 +196,6 @@ without live integration evidence.
   present; local deterministic tests proceed, live checks remain explicit.
 - Package versions and API details must be resolved from the installed runtime
   and current official documentation at the implementation point.
-- Phase 01 checks prove an empty workspace foundation only; application
-  coverage begins after Phase 02 scaffolding.
+- Phase 02 checks prove the application/UI foundation and transport boundary;
+  readiness is still application-only, Swagger production exposure remains a
+  hardening follow-up, and full browser E2E begins in the later quality phase.

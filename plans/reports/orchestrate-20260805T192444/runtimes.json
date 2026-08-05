@@ -1,0 +1,30 @@
+{
+  "route": "build-feature",
+  "size": "epic",
+  "risk": "high",
+  "domains": [
+    "frontend",
+    "backend",
+    "contracts",
+    "testing",
+    "security",
+    "orchestration"
+  ],
+  "implementationModel": "gpt-5.6-luna",
+  "implementationReasoning": "max",
+  "advisoryException": {
+    "role": "Kongming architecture counsel",
+    "model": "gpt-5.6-terra",
+    "reasoning": "max",
+    "writeAccess": false,
+    "mergeAuthority": false
+  },
+  "managerThread": {
+    "threadId": "019fd14f-e844-7f83-988f-7a27e3639fe2",
+    "model": "gpt-5.6-luna",
+    "reasoning": "max",
+    "roles": ["UI arbiter", "API boundary implementer", "Phase 02 arbiter"]
+  },
+  "worktreeRoot": "D:\\worktrees",
+  "mainWorktree": "D:\\RepoMentor"
+}

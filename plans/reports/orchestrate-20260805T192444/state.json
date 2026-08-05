@@ -1,0 +1,116 @@
+{
+  "runId": "orchestrate-20260805T192444",
+  "specPath": "jobs.yaml",
+  "status": "success",
+  "integratedHead": "7c18e187d4d37601687e9e9373a28fb44eee7d6c",
+  "jobs": {
+    "phase-02-api-scaffold": {
+      "status": "success",
+      "model": "gpt-5.6-luna",
+      "agentId": "019fd173-fc8d-7230-981e-4b3c9f8cbb90",
+      "branch": "feature/api-scaffold",
+      "worktree": "D:\\worktrees\\RepoMentor-api-scaffold",
+      "commits": ["c4de7f9", "cb2714f", "ab2182b"],
+      "integrated": true,
+      "note": "Worker completed with root lockfile and root format concerns owned by coordinator."
+    },
+    "phase-02-web-scaffold": {
+      "status": "success",
+      "model": "gpt-5.6-luna",
+      "agentId": "019fd173-fbda-7eb0-8e1f-01c59122eea5",
+      "branch": "feature/web-scaffold",
+      "worktree": "D:\\worktrees\\RepoMentor-web-scaffold",
+      "commits": ["9b642c27", "65084c69"],
+      "integrated": true,
+      "note": "App-level checks passed; root format was normalized later by coordinator-owned fix."
+    },
+    "phase-02-format": {
+      "status": "success",
+      "model": "gpt-5.6-luna",
+      "agentId": "019fd18d-8004-7730-92d2-257f6cfd55b1",
+      "branch": "fix/format-line-endings",
+      "worktree": "D:\\worktrees\\RepoMentor-format-line-endings",
+      "commit": "692eeef4c961f2a97d25430ea63502b80b1744b3",
+      "integrated": true
+    },
+    "phase-02-ui-foundation": {
+      "status": "success",
+      "model": "gpt-5.6-luna",
+      "agentId": "019fd193-d248-7982-967a-910cdacbb97d",
+      "branch": "feat/ui-foundation",
+      "worktree": "D:\\worktrees\\RepoMentor-ui-foundation",
+      "commits": ["fab4b81", "b78d25b"],
+      "integrated": true,
+      "arbiter": "manager UI review initially found mobile overflow; fixed by phase-02-mobile-fix"
+    },
+    "phase-02-mobile-fix": {
+      "status": "success",
+      "model": "gpt-5.6-luna",
+      "agentId": "019fd1af-878c-7221-ab22-3b0144b0bd46",
+      "branch": "fix/mobile-shell",
+      "worktree": "D:\\worktrees\\RepoMentor-mobile-shell",
+      "commit": "803453c",
+      "integrated": true,
+      "arbiter": "pass",
+      "evidence": "Chrome/CDP 375px no overflow; compact CTA 90.86px; 1440px desktop no overflow."
+    },
+    "phase-02-web-smoke": {
+      "status": "success",
+      "model": "gpt-5.6-luna",
+      "agentId": "019fd1b9-6045-78c2-8cfc-26935ddcf0c1",
+      "branch": "test/web-shell-smoke",
+      "worktree": "D:\\worktrees\\RepoMentor-web-shell-smoke",
+      "commit": "85ed97d",
+      "integrated": true,
+      "evidence": "Seven structural web smoke assertions pass."
+    },
+    "phase-02-contracts": {
+      "status": "success",
+      "model": "gpt-5.6-luna",
+      "agentId": "019fd1a7-a371-7de3-b9bd-f9292a909102",
+      "branch": "feat/transport-contracts",
+      "worktree": "D:\\worktrees\\RepoMentor-transport-contracts",
+      "commits": ["454649f6c9b2439dfdca1ce792db614dd646727c", "e26d4303440c8a853bf694cdaa374d6946f42a47"],
+      "integrated": true,
+      "evidence": "Three runtime contract tests pass; Zod dependency locked by coordinator."
+    },
+    "phase-02-api-contract-consumer": {
+      "status": "success",
+      "model": "gpt-5.6-luna",
+      "agentId": "019fd1b5-632b-79b2-8cb7-67f991b1e71d",
+      "branch": "feat/api-contract-boundary",
+      "worktree": "D:\\worktrees\\RepoMentor-api-contract-boundary",
+      "commit": "bbbc4ac",
+      "integrated": true,
+      "note": "Worker stopped before final response after commit; clean branch and coordinator/manager evidence preserved."
+    },
+    "phase-02-api-error-boundary": {
+      "status": "success",
+      "runtime": "manager-thread",
+      "model": "gpt-5.6-luna",
+      "threadId": "019fd14f-e844-7f83-988f-7a27e3639fe2",
+      "branch": "fix/api-error-boundary",
+      "worktree": "D:\\worktrees\\RepoMentor-api-error-boundary",
+      "commit": "3d4d3d002f2644a3bb14df969547256855d64904",
+      "integrated": true,
+      "arbiter": "pass",
+      "evidence": "Five API tests pass, including 404 safe envelope and invalid request-id replacement."
+    },
+    "phase-02-kongming-counsel": {
+      "status": "success",
+      "model": "gpt-5.6-terra",
+      "agentId": "019fd183-73b2-7930-903b-92f644ef019d",
+      "runtime": "advisory-only",
+      "writeAccess": false,
+      "integrated": false,
+      "note": "Recommended small contracts, app-only readiness, serialized ownership and no placeholder Prisma migration."
+    }
+  },
+  "arbiter": {
+    "status": "pass",
+    "threadId": "019fd14f-e844-7f83-988f-7a27e3639fe2",
+    "model": "gpt-5.6-luna",
+    "reasoning": "max",
+    "verdict": "UI Chrome QA pass after mobile fix; API boundary pass; exact-head controller checks pass."
+  }
+}

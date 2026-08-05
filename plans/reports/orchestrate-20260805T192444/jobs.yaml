@@ -1,0 +1,124 @@
+version: 1
+concurrency: 3
+defaults:
+  timeout: 30m
+  effect: scoped-write
+  approval: inherit
+  capture: true
+jobs:
+  - id: phase-02-api-scaffold
+    runtime: internal
+    agent: multi_agent_v1__spawn_agent
+    task: implement
+    importance: high
+    model: gpt-5.6-luna
+    reasoning: max
+    cwd: D:\\worktrees\\RepoMentor-api-scaffold
+    branch: feature/api-scaffold
+    prompt: "Initialize NestJS API, health routes, Swagger and bootstrap tests."
+    isolation: worktree
+    expected_output: "Three focused API scaffold commits with package-level evidence."
+    destructive: false
+  - id: phase-02-web-scaffold
+    runtime: internal
+    agent: multi_agent_v1__spawn_agent
+    task: implement
+    importance: high
+    model: gpt-5.6-luna
+    reasoning: max
+    cwd: D:\\worktrees\\RepoMentor-web-scaffold
+    branch: feature/web-scaffold
+    prompt: "Initialize Next.js App Router web shell with strict build evidence."
+    isolation: worktree
+    expected_output: "Two focused web scaffold commits with package-level evidence."
+    destructive: false
+  - id: phase-02-contracts
+    runtime: internal
+    agent: multi_agent_v1__spawn_agent
+    task: implement
+    importance: high
+    model: gpt-5.6-luna
+    reasoning: max
+    cwd: D:\\worktrees\\RepoMentor-transport-contracts
+    branch: feat/transport-contracts
+    prompt: "Add transport-only Zod contracts for envelopes, problems and app-only health."
+    isolation: worktree
+    expected_output: "Two focused contract commits; lockfile remains coordinator-owned."
+    destructive: false
+  - id: phase-02-ui-foundation
+    runtime: internal
+    agent: multi_agent_v1__spawn_agent
+    task: implement
+    importance: high
+    model: gpt-5.6-luna
+    reasoning: max
+    cwd: D:\\worktrees\\RepoMentor-ui-foundation
+    branch: feat/ui-foundation
+    prompt: "Apply ak:frontend-design and ak:frontend-development to a tokenized, responsive RepoMentor shell."
+    isolation: worktree
+    expected_output: "Design brief plus visual system and developer review shell commits."
+    destructive: false
+  - id: phase-02-mobile-fix
+    runtime: internal
+    agent: multi_agent_v1__spawn_agent
+    task: fix
+    importance: high
+    model: gpt-5.6-luna
+    reasoning: max
+    cwd: D:\\worktrees\\RepoMentor-mobile-shell
+    branch: fix/mobile-shell
+    prompt: "Fix verified 375px navigation overflow and fragment aria-current semantics."
+    isolation: worktree
+    expected_output: "Focused responsive/accessibility fix with measured evidence."
+    destructive: false
+  - id: phase-02-web-smoke
+    runtime: internal
+    agent: multi_agent_v1__spawn_agent
+    task: test
+    importance: high
+    model: gpt-5.6-luna
+    reasoning: max
+    cwd: D:\\worktrees\\RepoMentor-web-shell-smoke
+    branch: test/web-shell-smoke
+    prompt: "Add deterministic web shell structural accessibility and responsive smoke coverage."
+    isolation: worktree
+    expected_output: "Web package test script with seven passing structural assertions."
+    destructive: false
+  - id: phase-02-api-contract-consumer
+    runtime: internal
+    agent: multi_agent_v1__spawn_agent
+    task: implement
+    importance: high
+    model: gpt-5.6-luna
+    reasoning: max
+    cwd: D:\\worktrees\\RepoMentor-api-contract-boundary
+    branch: feat/api-contract-boundary
+    prompt: "Replace local transport types with @repomentor/contracts and update API health tests."
+    isolation: worktree
+    expected_output: "Focused API contract-consumption commit; lockfile coordinator-owned."
+    destructive: false
+  - id: phase-02-api-error-boundary
+    runtime: manager-thread
+    agent: codex_app__send_message_to_thread
+    task: implement-review
+    importance: high
+    model: gpt-5.6-luna
+    reasoning: max
+    cwd: D:\\worktrees\\RepoMentor-api-error-boundary
+    branch: fix/api-error-boundary
+    prompt: "Add bounded request IDs, safe global API problem filter and 404 regression tests."
+    isolation: worktree
+    expected_output: "One focused API boundary commit with manager arbiter pass."
+    destructive: false
+  - id: phase-02-kongming-counsel
+    runtime: internal
+    agent: multi_agent_v1__spawn_agent
+    task: advise
+    importance: medium
+    model: gpt-5.6-terra
+    reasoning: max
+    cwd: D:\\RepoMentor
+    prompt: "Read-only Kongming architecture counsel; no edits, merge or arbiter authority."
+    isolation: observe
+    expected_output: "Advisory architecture notes only."
+    destructive: false
