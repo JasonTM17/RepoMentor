@@ -115,6 +115,31 @@ describe("authentication bootstrap", () => {
     assert.equal(JSON.stringify(replay.body).includes(firstCookie), false);
   });
 
+  it("logs out one session, clears the cookie, and is idempotent", async () => {
+    const registration = await request(app.getHttpServer()).post("/api/v1/auth/register").send({
+      displayName: "Single Logout User",
+      email: "single-logout@example.com",
+      password: "correct horse battery staple",
+    });
+    const refreshCookie = cookieHeader(registration);
+    const logout = await request(app.getHttpServer())
+      .post("/api/v1/auth/logout")
+      .set("cookie", refreshCookie);
+    const revokedRefresh = await request(app.getHttpServer())
+      .post("/api/v1/auth/refresh")
+      .set("cookie", refreshCookie);
+    const repeatedLogout = await request(app.getHttpServer())
+      .post("/api/v1/auth/logout")
+      .set("cookie", refreshCookie);
+
+    assert.equal(logout.status, 201);
+    assert.equal(logout.body.data.loggedOut, true);
+    assert.match(logout.headers["set-cookie"]?.[0] ?? "", /Expires=Thu, 01 Jan 1970/u);
+    assert.equal(revokedRefresh.status, 401);
+    assert.equal(repeatedLogout.status, 201);
+    assert.equal(repeatedLogout.body.data.loggedOut, true);
+  });
+
   it("protects me and revokes every session on logout-all", async () => {
     const registration = await request(app.getHttpServer()).post("/api/v1/auth/register").send({
       displayName: "Session User",
