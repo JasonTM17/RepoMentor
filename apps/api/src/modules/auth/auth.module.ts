@@ -32,6 +32,7 @@ import { PrismaService } from "./prisma.service.js";
     AuthRateLimiter,
     AuthService,
     AuthTokenService,
+    AUTH_REPOSITORY,
     PrismaService,
   ],
 })
