@@ -12,6 +12,8 @@
     "lint": "eslint .",
     "start": "node dist/main.js",
     "start:prod": "node dist/main.js",
+    "build:test": "tsc -p tsconfig.test.json",
+    "test": "pnpm run build:test && node --test ./dist/.test-dist/test/health.e2e-spec.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -27,9 +29,12 @@
   "devDependencies": {
     "@repomentor/eslint-config": "workspace:*",
     "@repomentor/typescript-config": "workspace:*",
+    "@nestjs/testing": "^11.1.28",
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.2",
+    "@types/supertest": "^7.2.1",
     "eslint": "^10.8.0",
+    "supertest": "^7.2.2",
     "tsx": "^4.23.7",
     "typescript": "^6.0.3"
   }
