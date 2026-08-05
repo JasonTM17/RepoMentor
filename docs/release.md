@@ -97,12 +97,11 @@ release record.
 
 ## GitHub About metadata
 
-These values are prepared for manual entry. This worker does not call GitHub
-APIs or mutate repository settings.
+These settings are already applied externally. This note records the applied
+values and keeps them aligned with the root package metadata.
 
-| Field              | Value                                                                                                               |
+| GitHub About field | Applied value                                                                                                       |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------- |
 | Description        | `Developer-first AI code review and programming tutor workspace.`                                                   |
-| Website            | Leave blank until a real deployed URL exists.                                                                       |
+| Homepage / website | `https://github.com/JasonTM17/RepoMentor#readme`                                                                    |
 | Topics             | `ai`, `code-review`, `programming-tutor`, `developer-tools`, `typescript`, `nextjs`, `nestjs`, `prisma`, `monorepo` |
-| Homepage reference | `https://github.com/JasonTM17/RepoMentor`                                                                           |
