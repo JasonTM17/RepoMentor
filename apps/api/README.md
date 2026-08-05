@@ -17,17 +17,15 @@ Successful responses use the shared envelope shape:
 ```json
 {
   "data": {
-    "status": "ok",
-    "service": "api",
-    "checks": {
-      "application": "up"
-    }
+    "status": "ok"
   }
 }
 ```
 
-Readiness is application-only in Phase 02. It does not probe PostgreSQL or
-Redis; those dependency checks are intentionally reserved for Phase 03.
+Readiness is application-only in Phase 02 and returns `scope: "application"`.
+It does not probe PostgreSQL, Redis, or OpenAI; those dependency checks are
+intentionally reserved for later phases. Health payloads are sourced from
+`@repomentor/contracts` and do not expose service metadata or credentials.
 
 ## Development
 

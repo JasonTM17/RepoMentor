@@ -3,16 +3,22 @@ import { after, before, describe, it } from "node:test";
 
 import { Test } from "@nestjs/testing";
 import type { INestApplication } from "@nestjs/common";
+import type {
+  ApiSuccessEnvelope,
+  LivenessHealthPayload,
+  ReadinessHealthPayload,
+} from "@repomentor/contracts";
 import request from "supertest";
 
 import { AppModule } from "../src/app.module.js";
 import { configureApp } from "../src/app.js";
-import type { ApiResponse } from "../src/common/http/api-response.js";
-import type { HealthPayload } from "../src/modules/health/health.service.js";
 
-const expectedHealthPayload: HealthPayload = {
-  checks: { application: "up" },
-  service: "api",
+const expectedLivenessPayload: LivenessHealthPayload = {
+  status: "ok",
+};
+
+const expectedReadinessPayload: ReadinessHealthPayload = {
+  scope: "application",
   status: "ok",
 };
 
@@ -42,16 +48,21 @@ describe("health bootstrap", () => {
     const response = await request(app.getHttpServer()).get("/health/live");
 
     assert.equal(response.status, 200);
-    assert.deepEqual(response.body as ApiResponse<HealthPayload>, { data: expectedHealthPayload });
+    assert.deepEqual(response.body as ApiSuccessEnvelope<LivenessHealthPayload>, {
+      data: expectedLivenessPayload,
+    });
   });
 
   it("returns application-only readiness with dependency scope", async () => {
     const response = await request(app.getHttpServer()).get("/health/ready");
 
     assert.equal(response.status, 200);
-    assert.deepEqual(response.body as ApiResponse<HealthPayload>, { data: expectedHealthPayload });
+    assert.deepEqual(response.body as ApiSuccessEnvelope<ReadinessHealthPayload>, {
+      data: expectedReadinessPayload,
+    });
     assert.equal(JSON.stringify(response.body).includes("DATABASE_URL"), false);
     assert.equal(JSON.stringify(response.body).includes("REDIS_URL"), false);
+    assert.equal(JSON.stringify(response.body).includes("OPENAI_API_KEY"), false);
   });
 
   it("serves the configured Swagger document", async () => {

@@ -1,24 +1,14 @@
 import { Injectable } from "@nestjs/common";
 
-export interface HealthPayload {
-  status: "ok";
-  service: "api";
-  checks: {
-    application: "up";
-  };
-}
+import type { LivenessHealthPayload, ReadinessHealthPayload } from "@repomentor/contracts";
 
 @Injectable()
 export class HealthService {
-  getLiveness(): HealthPayload {
-    return {
-      checks: { application: "up" },
-      service: "api",
-      status: "ok",
-    };
+  getLiveness(): LivenessHealthPayload {
+    return { status: "ok" };
   }
 
-  getReadiness(): HealthPayload {
-    return this.getLiveness();
+  getReadiness(): ReadinessHealthPayload {
+    return { scope: "application", status: "ok" };
   }
 }
