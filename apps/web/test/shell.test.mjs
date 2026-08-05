@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import typescript from "typescript";
 
 /*
  * This is a structural smoke gate: it reads tracked shell source files directly
@@ -33,6 +34,40 @@ const source = Object.freeze({
   authTypes: readTrackedSource("features/auth/types/index.ts"),
   validation: readTrackedSource("features/auth/helpers/validation.ts"),
 });
+
+const authClientRuntime = import(
+  `data:text/javascript,${encodeURIComponent(
+    typescript.transpileModule(source.authClient, {
+      compilerOptions: {
+        module: typescript.ModuleKind.ESNext,
+        target: typescript.ScriptTarget.ES2022,
+      },
+    }).outputText,
+  )}`
+);
+
+const createJsonResponse = (status, body) => ({
+  ok: status >= 200 && status < 300,
+  status,
+  json: async () => body,
+});
+
+const validLoginData = Object.freeze({
+  accessToken: "t",
+  tokenType: "Bearer",
+  expiresInSeconds: 900,
+  user: Object.freeze({
+    id: "user-1",
+    email: "user@example.com",
+    displayName: "Test User",
+    role: "USER",
+    status: "ACTIVE",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  }),
+});
+
+const authRequest = Object.freeze({ email: "user@example.com", password: "x" });
 
 const shellTsxSources = Object.freeze({
   "app/layout.tsx": source.layout,
@@ -240,7 +275,17 @@ test("auth client matches the integrated response envelopes and token boundary",
   );
   assert.match(source.authClient, /postAuth\("login",\s*payload,\s*201,\s*isLoginResponse\)/u);
   assert.match(source.authClient, /response\.status\s*!==\s*expectedStatus/u);
-  assert.match(source.authClient, /hasOwn\(body,\s*"data"\)/u);
+  assert.match(source.authClient, /hasOwn\(value,\s*"data"\)/u);
+  assert.match(source.authClient, /const isApiMeta/u);
+  assert.match(source.authClient, /const isSuccessEnvelope/u);
+  assert.match(
+    source.authClient,
+    /hasOnlyKeys\(value,\s*\["requestId",\s*"page",\s*"pageSize",\s*"total"\]\)/u,
+  );
+  assert.match(source.authClient, /hasOnlyKeys\(value,\s*\["data",\s*"meta"\]\)/u);
+  assert.match(source.authClient, /isApiMeta\(value\.meta\)/u);
+  assert.match(source.authClient, /value\.pageSize\s*<=\s*maxPageSize/u);
+  assert.match(source.authClient, /value\.total\s*>=\s*0/u);
   assert.match(source.authClient, /hasExactKeys\(value,\s*\[\s*"accessToken"/u);
   assert.match(source.authClient, /hasExactKeys\(value,\s*\["accepted"\]\)/u);
   assert.match(source.authClient, /!parseData\(body\.data\)/u);
@@ -254,6 +299,48 @@ test("auth client matches the integrated response envelopes and token boundary",
   assert.doesNotMatch(source.authHook, /localStorage|sessionStorage|document\.cookie/u);
   assert.match(source.authHook, /Registration does not sign you in automatically\./u);
   assert.match(source.authPage, /does not write access or\s+refresh tokens to browser storage/u);
+});
+
+test("auth client accepts valid metadata and rejects extra envelope keys at runtime", async () => {
+  const { authClient, AuthClientError } = await authClientRuntime;
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () =>
+      createJsonResponse(201, {
+        data: validLoginData,
+        meta: { requestId: "request-1", page: 1, pageSize: 20, total: 1 },
+      });
+
+    await assert.doesNotReject(() => authClient.login(authRequest));
+
+    globalThis.fetch = async () =>
+      createJsonResponse(201, { data: validLoginData, trace: "unexpected" });
+
+    await assert.rejects(
+      () => authClient.login(authRequest),
+      (error) => error instanceof AuthClientError && error.status === 201,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("auth client rejects invalid success metadata at runtime", async () => {
+  const { authClient, AuthClientError } = await authClientRuntime;
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () =>
+      createJsonResponse(201, { data: validLoginData, meta: { page: 0, unknown: true } });
+
+    await assert.rejects(
+      () => authClient.login(authRequest),
+      (error) => error instanceof AuthClientError && error.status === 201,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("auth form fields keep labels, descriptions, errors, and password controls associated", () => {

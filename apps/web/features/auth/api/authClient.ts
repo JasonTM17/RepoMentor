@@ -13,6 +13,8 @@ const maxAccessTokenLength = 4_096;
 const maxDisplayNameLength = 80;
 const maxEmailLength = 254;
 const maxUserIdLength = 64;
+const maxRequestIdLength = 128;
+const maxPageSize = 100;
 
 export class AuthClientError extends Error {
   public readonly status: number;
@@ -33,6 +35,9 @@ const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
 const hasExactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
   Object.keys(value).length === keys.length && keys.every((key) => hasOwn(value, key));
 
+const hasOnlyKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
+  Object.keys(value).every((key) => keys.includes(key));
+
 const isBoundedString = (value: unknown, maximum: number): value is string =>
   typeof value === "string" &&
   value.length > 0 &&
@@ -46,6 +51,43 @@ const isAuthEmail = (value: unknown): value is string =>
 
 const isAuthTimestamp = (value: unknown): value is string =>
   typeof value === "string" && timestampPattern.test(value) && !Number.isNaN(Date.parse(value));
+
+interface AuthApiMeta {
+  readonly requestId?: string;
+  readonly page?: number;
+  readonly pageSize?: number;
+  readonly total?: number;
+}
+
+interface AuthSuccessEnvelope {
+  readonly data: unknown;
+  readonly meta?: AuthApiMeta;
+}
+
+const isApiMeta = (value: unknown): value is AuthApiMeta => {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["requestId", "page", "pageSize", "total"])) {
+    return false;
+  }
+
+  return (
+    (!hasOwn(value, "requestId") || isBoundedString(value.requestId, maxRequestIdLength)) &&
+    (!hasOwn(value, "page") ||
+      (typeof value.page === "number" && Number.isInteger(value.page) && value.page > 0)) &&
+    (!hasOwn(value, "pageSize") ||
+      (typeof value.pageSize === "number" &&
+        Number.isInteger(value.pageSize) &&
+        value.pageSize > 0 &&
+        value.pageSize <= maxPageSize)) &&
+    (!hasOwn(value, "total") ||
+      (typeof value.total === "number" && Number.isInteger(value.total) && value.total >= 0))
+  );
+};
+
+const isSuccessEnvelope = (value: unknown): value is AuthSuccessEnvelope =>
+  isRecord(value) &&
+  hasOwn(value, "data") &&
+  hasOnlyKeys(value, ["data", "meta"]) &&
+  (!hasOwn(value, "meta") || isApiMeta(value.meta));
 
 const isAuthUser = (value: unknown): value is LoginResponse["user"] => {
   if (!isRecord(value)) {
@@ -91,7 +133,7 @@ const parseSuccessEnvelope = <TResponse>(
   body: unknown,
   parseData: (value: unknown) => value is TResponse,
 ): TResponse | undefined => {
-  if (!isRecord(body) || !hasOwn(body, "data") || !parseData(body.data)) {
+  if (!isSuccessEnvelope(body) || !parseData(body.data)) {
     return undefined;
   }
 
