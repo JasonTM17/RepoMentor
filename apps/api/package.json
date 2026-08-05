@@ -13,15 +13,17 @@
     "start": "node dist/main.js",
     "start:prod": "node dist/main.js",
     "build:test": "tsc -p tsconfig.test.json",
-    "test": "pnpm run build:test && node --test ./dist/.test-dist/test/health.e2e-spec.js ./dist/.test-dist/test/environment-config.test.js",
+    "test": "pnpm run build:test && node --test ./dist/.test-dist/test/*.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@repomentor/contracts": "workspace:*",
+    "@prisma/client": "6.19.0",
     "@nestjs/common": "^11.1.28",
     "@nestjs/core": "^11.1.28",
     "@nestjs/platform-express": "^11.1.28",
     "@nestjs/swagger": "^11.4.6",
+    "argon2": "0.45.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "reflect-metadata": "^0.2.2",
