@@ -32,7 +32,7 @@ jobs:
             dockerfile: apps/web/Dockerfile
     env:
       # The two published image names are derived from this requested GHCR root.
-      GHCR_ROOT: ghcr.io/JasonTM17/repomento
+      GHCR_ROOT: ghcr.io/jasontm17/repomento
       IMAGE_NAME: ${{ matrix.name }}
       DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -235,6 +235,9 @@ jobs:
             exit 1
           fi
 
+          echo "ghcr_digest=${ghcr_semver}" >> "$GITHUB_OUTPUT"
+          echo "dockerhub_digest=${dockerhub_semver}" >> "$GITHUB_OUTPUT"
+
           evidence_file="$RUNNER_TEMP/repomentor-${IMAGE_NAME}-digests.txt"
           {
             echo "image=${IMAGE_NAME}"
@@ -254,6 +257,54 @@ jobs:
             echo "| GHCR | \`${GHCR_IMAGE}:${VERSION}\` | \`${GHCR_IMAGE}:${SHA_TAG}\` | \`${ghcr_semver}\` |"
             echo "| Docker Hub | \`${DOCKERHUB_IMAGE}:${VERSION}\` | \`${DOCKERHUB_IMAGE}:${SHA_TAG}\` | \`${dockerhub_semver}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate final SPDX SBOM
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.release.outputs.ghcr_image }}:${{ steps.release.outputs.version }}
+          format: spdx-json
+          output: ${{ runner.temp }}/repomentor-${{ matrix.name }}-sbom.spdx.json
+          vuln-type: os,library
+          scanners: vuln
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Verify final SPDX SBOM exists
+        shell: bash
+        run: test -s "${{ runner.temp }}/repomentor-${{ matrix.name }}-sbom.spdx.json"
+
+      # Promotion copies the staging image index, including native BuildKit
+      # attestations. These explicit final-digest attestations make the
+      # semantic and full-SHA release references independently verifiable.
+      - name: Attach provenance to final GHCR digest
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.release.outputs.ghcr_image }}
+          subject-digest: ${{ steps.digest.outputs.ghcr_digest }}
+          push-to-registry: true
+
+      - name: Attach provenance to final Docker Hub digest
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.release.outputs.dockerhub_image }}
+          subject-digest: ${{ steps.digest.outputs.dockerhub_digest }}
+          push-to-registry: true
+
+      - name: Attach SBOM to final GHCR digest
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.release.outputs.ghcr_image }}
+          subject-digest: ${{ steps.digest.outputs.ghcr_digest }}
+          sbom-path: ${{ runner.temp }}/repomentor-${{ matrix.name }}-sbom.spdx.json
+          push-to-registry: true
+
+      - name: Attach SBOM to final Docker Hub digest
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ steps.release.outputs.dockerhub_image }}
+          subject-digest: ${{ steps.digest.outputs.dockerhub_digest }}
+          sbom-path: ${{ runner.temp }}/repomentor-${{ matrix.name }}-sbom.spdx.json
+          push-to-registry: true
 
       - name: Upload digest evidence
         uses: actions/upload-artifact@v4
