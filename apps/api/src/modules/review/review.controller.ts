@@ -42,7 +42,6 @@ export class ReviewController {
       limit: query.limit,
       page: query.page,
       ...(query.status ? { status: query.status } : {}),
-      userId: getUserId(request),
     });
   }
 

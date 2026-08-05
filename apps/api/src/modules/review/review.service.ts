@@ -11,7 +11,7 @@ import {
   REVIEW_MAX_LANGUAGE_LENGTH,
   REVIEW_MAX_SOURCE_LENGTH,
   REVIEW_REPOSITORY,
-  type ReviewListInput,
+  type ReviewListQuery,
   type ReviewMode,
   type ReviewRecord,
   type ReviewRepository,
@@ -107,7 +107,7 @@ export class ReviewService {
     return toSummary(review);
   }
 
-  async list(userId: string, input: ReviewListInput): Promise<ReviewListResponse> {
+  async list(userId: string, input: ReviewListQuery): Promise<ReviewListResponse> {
     const result = await this.repository.listForUser({ ...input, userId });
     const totalPages = result.total === 0 ? 0 : Math.ceil(result.total / input.limit);
 

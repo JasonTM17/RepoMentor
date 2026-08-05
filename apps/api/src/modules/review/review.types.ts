@@ -37,11 +37,14 @@ export interface CreateReviewInput {
   readonly mode: ReviewMode;
 }
 
-export interface ReviewListInput {
-  readonly userId: string;
+export interface ReviewListQuery {
   readonly page: number;
   readonly limit: number;
   readonly status?: ReviewStatus;
+}
+
+export interface ReviewListInput extends ReviewListQuery {
+  readonly userId: string;
 }
 
 export interface ReviewListResult {
