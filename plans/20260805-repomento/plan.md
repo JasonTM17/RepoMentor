@@ -132,7 +132,7 @@ and requires later security, privacy, quota, and secret-governance gates.
 
 The current local main checkpoint includes the accepted web-auth contract
 integration at `5ccb4cb`, review-domain integration through `b33d7d6`, truthful
-README/package/GitHub About/media updates through `4673295`, and the Docker
+README/package/GitHub About/media updates through `3b1f3b1`, and the Docker
 slice through local `3d98a4d`. GitHub Actions run `31030844884` passed the
 workflow lint, Hadolint, Dockerfile contract, Compose config, API/web image
 builds, API `/health/live` smoke, and web `/` smoke. The Docker slice is
@@ -206,7 +206,7 @@ without live integration evidence.
 | `main` | planning | coordinator + Kongming/Terra advisory | `1443274` | optional RAG provider boundary recorded; no secret/live provider |
 | `main` | 04 | Luna web-auth integration + manager arbiter | `db6a85f`, `5e5f89f`, `5ccb4cb` | accepted; strict success envelope and 16 web tests; live browser/API unverified |
 | `main` | 05 | Luna review-domain worker + manager arbiter | `2ea3732`, `a2f8761`, `272310e`, `84f5e92`, `b33d7d6` | accepted; 40 API tests and ownership/lifecycle gates; live DB unverified |
-| `main` | docs/release | Faraday Luna + manager arbiter | `54c039f`, `d7e873c`, `2da1bd5`, `4673295` | accepted; README/release metadata and real UI GIF; no production/public-package claim |
+| `main` | docs/release | Faraday Luna + coordinator follow-up | `54c039f`, `d7e873c`, `2da1bd5`, `4673295`, `3b1f3b1` | accepted; README/release metadata, real UI GIF, and CI evidence; no production/public-package claim |
 | `main` | 13 | Raman Luna + manager arbiter | `014c5e7`, `9456850`, `cf2e62b`, `16a81d1`, `69f83ab`, `d910080`, `10f1b71`, `6448e67`, `952bbc5`, `dc238d3`, `14f0c3e`, `3d98a4d` | accepted; CI run `31030844884` passed Docker/Compose/build/smoke gates; registry publication pending |
 | `main` | 13 | Volta Luna + manager arbiter | `eab4557`, `6e90530`, `8c0f0c0`, `86a1c69`, `2cb9c9d` | accepted Compose/env/docs slice; local startup and live smoke pending |
 
