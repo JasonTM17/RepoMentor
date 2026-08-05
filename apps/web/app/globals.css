@@ -127,12 +127,18 @@ button {
     gap: var(--space-4);
   }
 
+  .site-header-inner > * {
+    min-width: 0;
+  }
+
   .brand-link {
     display: inline-flex;
+    min-width: 0;
     min-height: var(--touch-target);
     align-items: center;
     gap: var(--space-3);
     color: var(--color-ink-strong);
+    white-space: nowrap;
   }
 
   .brand-link:hover .brand-mark {
@@ -142,6 +148,7 @@ button {
 
   .brand-mark {
     display: inline-flex;
+    flex: 0 0 auto;
     width: 2.25rem;
     height: 2.25rem;
     align-items: center;
@@ -155,17 +162,22 @@ button {
   }
 
   .brand-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-family: var(--font-display);
     font-size: 1.5rem;
     font-weight: 600;
     letter-spacing: 0.01em;
     line-height: 1;
+    white-space: nowrap;
   }
 
   .primary-nav {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     gap: var(--space-2);
+    white-space: nowrap;
   }
 
   .nav-link {
@@ -178,6 +190,7 @@ button {
     font-size: var(--text-sm);
     font-weight: 600;
     transition: color var(--duration-standard) var(--ease-out-quart);
+    white-space: nowrap;
   }
 
   .nav-link::after {
@@ -193,13 +206,11 @@ button {
     transition: transform var(--duration-standard) var(--ease-out-quart);
   }
 
-  .nav-link:hover,
-  .nav-link[aria-current="page"] {
+  .nav-link:hover {
     color: var(--color-ink-strong);
   }
 
-  .nav-link:hover::after,
-  .nav-link[aria-current="page"]::after {
+  .nav-link:hover::after {
     transform: scaleX(1);
   }
 
@@ -221,6 +232,15 @@ button {
       border-color var(--duration-quick) var(--ease-out-quart),
       color var(--duration-quick) var(--ease-out-quart),
       transform var(--duration-quick) var(--ease-out-quart);
+  }
+
+  .header-action {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .header-action-label-compact {
+    display: none;
   }
 
   .header-action,
@@ -277,6 +297,7 @@ button {
     font-weight: 700;
     transform: translateY(calc(-100% - var(--space-4)));
     transition: transform var(--duration-standard) var(--ease-out-quart);
+    white-space: nowrap;
   }
 
   .skip-link:focus {
@@ -978,19 +999,24 @@ button {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-2);
   }
-}
 
-@media (max-width: 47.999rem) {
-  .header-action {
+  .header-action-label-full {
     display: none;
   }
 
+  .header-action-label-compact {
+    display: inline;
+  }
+}
+
+@media (max-width: 47.999rem) {
   .primary-nav {
-    gap: 0;
+    display: none;
   }
 
-  .nav-link {
-    padding-inline: var(--space-2);
+  .header-action {
+    display: inline-flex;
+    padding-inline: var(--space-3);
   }
 
   .site-footer-inner {

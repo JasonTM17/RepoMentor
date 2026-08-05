@@ -34,7 +34,7 @@ const RootLayout = ({ children }: RootLayoutProps): ReactElement => (
             </a>
 
             <nav className="primary-nav" aria-label="Primary navigation">
-              <a className="nav-link" href="/#review-preview" aria-current="page">
+              <a className="nav-link" href="/#review-preview">
                 Workspace
               </a>
               <a className="nav-link" href="/#learning-loop">
@@ -45,8 +45,11 @@ const RootLayout = ({ children }: RootLayoutProps): ReactElement => (
               </a>
             </nav>
 
-            <a className="header-action" href="/#review-preview">
-              Review workspace
+            <a className="header-action" href="/#review-preview" aria-label="Review workspace">
+              <span className="header-action-label header-action-label-full">Review workspace</span>
+              <span className="header-action-label header-action-label-compact" aria-hidden="true">
+                Review
+              </span>
               <LineIcon name="arrow-up-right" />
             </a>
           </div>
