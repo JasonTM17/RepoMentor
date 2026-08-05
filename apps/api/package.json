@@ -13,7 +13,7 @@
     "start": "node dist/main.js",
     "start:prod": "node dist/main.js",
     "build:test": "tsc -p tsconfig.test.json",
-    "test": "pnpm run build:test && node --test ./dist/.test-dist/test/health.e2e-spec.js",
+    "test": "pnpm run build:test && node --test ./dist/.test-dist/test/health.e2e-spec.js ./dist/.test-dist/test/environment-config.test.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -25,7 +25,8 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@repomentor/eslint-config": "workspace:*",
