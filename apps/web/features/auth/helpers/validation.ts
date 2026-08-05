@@ -7,7 +7,7 @@ import type {
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const maxDisplayNameLength = 80;
-const minimumPasswordLength = 8;
+const minimumPasswordLength = 12;
 
 export const validateAuthField = (
   field: AuthFieldName,

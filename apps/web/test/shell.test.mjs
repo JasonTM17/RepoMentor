@@ -264,6 +264,21 @@ test("auth form keeps validation and network states safe and visible", () => {
   );
 });
 
+test("auth password validation matches the shared 12-character policy", () => {
+  const minimumLengthMatch = source.validation.match(
+    /const\s+minimumPasswordLength\s*=\s*(\d+)\s*;/u,
+  );
+
+  assert.ok(minimumLengthMatch, "The auth validator must declare a password minimum.");
+  const minimumLength = Number(minimumLengthMatch[1]);
+
+  assert.equal(minimumLength, 12);
+  assert.match(source.validation, /value\.length\s*<\s*minimumPasswordLength/u);
+  assert.equal("x".repeat(11).length < minimumLength, true, "11 characters must be rejected.");
+  assert.equal("x".repeat(12).length < minimumLength, false, "12 characters must be accepted.");
+  assert.match(source.authPage, /Use at least 12 characters for your account\./u);
+});
+
 test("auth CSS preserves 44px controls, focus-visible states, and narrow composition", () => {
   assert.match(source.styles, /\.auth-input(?:,|\s*\{)[\s\S]*min-height:\s*var\(--touch-target\)/u);
   assert.match(

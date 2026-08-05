@@ -190,7 +190,7 @@ const AuthPage: FC<AuthPageProps> = ({ mode }): ReactElement => {
               description={
                 mode === "login"
                   ? "Enter the password for this session."
-                  : "Use at least 8 characters for your account."
+                  : "Use at least 12 characters for your account."
               }
               error={fieldError("password", errors, touched)}
               label="Password"
