@@ -116,9 +116,19 @@ orchestration evidence is in
 
 Phase 04 is in progress. Its first independent checkpoints are the accepted
 transport contract commit `b22d1c7` and the accepted web-auth sequence through
-`3c4252a`. These checkpoints do not claim backend/session integration; the
-Luna API manager is still completing the auth persistence and route boundary
-in `D:\worktrees\RepoMentor-auth-api`.
+`3c4252a`. The Luna API manager checkpoint is now integrated at `9413493`
+after the P1/P2 security review: 32/32 auth tests, API gates, Prisma checks,
+registration enumeration protection, production cookie invariant, bounded
+rate limits, contract-shaped login/refresh payloads, and logout idempotence.
+The web worker must still reconcile the `202 accepted` registration contract
+with the UI/client seam before Phase 04 is fully accepted. This is not a live
+PostgreSQL/Redis integration claim.
+
+The user-requested DeepSeek V4 Flash integration is recorded in
+`docs/architecture/adr-001-optional-rag-suggestion-provider.md` and
+`phase-06-ai-integration.md`: it is a disabled-by-default server-side
+`rag_suggestion` capability only, never a Luna code-review/worker substitute,
+and requires later security, privacy, quota, and secret-governance gates.
 
 ## Commit and validation contract
 
@@ -180,6 +190,8 @@ without live integration evidence.
 | `main` | 02 | Luna API/web/UI workers + manager arbiter + coordinator | `5234b11`, `37f9eb4`, `b311289`, `68140cd`, `1bcaf61`, `692eeef`, `32ae68b`, `3a71c6e`, `f2e19a5`, `85ed97d`, `7a4e8a0`, `fa15804`, `91e3bf7`, `9a11995`, `6178fa2`, `7c18e18` | accepted at `7c18e18`; live infra/auth/domain pending |
 | `main` | 03 | Luna manager/coordinator, sequenced infra/config/database slices | `3e7499a`, `402bde0`, `dd51225`, `721d492`, `f41d92f` | checkpoint accepted at `f41d92f`; domain migration/seed deferred to Phase 04 |
 | `main` | 04 | Luna contracts + ak frontend workers, coordinator | `b22d1c7`, `5c1bae6`, `c1d3d9f`, `c274f4f`, `3c4252a` | transport/UI checkpoints accepted; API/session integration pending |
+| `main` | 04 | Luna auth API manager + coordinator replay | `9fdfd31`, `2469808`, `e0966f4`, `d6227c4`, `0caabf9`, `04f829d`, `79f2aa7`, `7d2ab3f`, `476bd7a`, `a9eb7f0`, `75b5a3a`, `07eb2c8`, `9413493` | API integrated; web contract reconciliation pending; live DB/Redis unverified |
+| `main` | planning | coordinator + Kongming/Terra advisory | `1443274` | optional RAG provider boundary recorded; no secret/live provider |
 
 ## Agent/thread ledger
 
@@ -203,6 +215,10 @@ without live integration evidence.
 | phase-04-web-auth | ak frontend implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-feature-web-auth` | accepted; commits through `1e75bde`, 13 web tests | Phase 04 report pending |
 | phase-04-api-worker | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-auth-api` | errored at usage limit after partial commits; worktree preserved | takeover by Phase 04 manager in progress |
 | phase-04-api-manager | reviewer/implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-auth-api` | active takeover; no acceptance yet | manager thread `019fd14f-e844-7f83-988f-7a27e3639fe2` |
+| phase-04-api-manager | reviewer/implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-auth-api` | accepted locally; integrated at `9413493` with live DB concern | manager thread `019fd14f-e844-7f83-988f-7a27e3639fe2` |
+| phase-04-web-auth-contract-integration | ak frontend implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-web-auth-contract-integration` | active; worker `019fd27a-cb59-7731-9ec6-425b7a18eac8`; base `9413493` | pending worker report |
+| phase-05-review-domain | review API/database implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-review-domain` | active; worker `019fd27e-5344-70f2-bcef-a2909bb895f0`; base `9413493` | pending worker report |
+| phase-06-deepseek-advisor | advisory architecture/security | `gpt-5.6-terra` / `max` | read-only counsel | completed; no edits; DeepSeek deferred behind ADR | advisory delivered to coordinator/manager |
 
 ## Unresolved questions
 
