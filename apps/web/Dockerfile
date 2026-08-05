@@ -14,6 +14,9 @@ WORKDIR /workspace
 
 FROM base AS build
 
+ARG NEXT_PUBLIC_API_ORIGIN=
+ENV NEXT_PUBLIC_API_ORIGIN=${NEXT_PUBLIC_API_ORIGIN}
+
 RUN apk add --no-cache libc6-compat
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./

@@ -39,4 +39,3 @@ docker-compose.yml
 **/tests/**
 prisma/migrations
 prisma/migrations/**
-
