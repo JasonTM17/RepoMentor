@@ -63,5 +63,6 @@ model Session {
 
   @@index([userId, status])
   @@index([userId, createdAt])
+  @@index([status, refreshTokenExpiresAt])
   @@map("sessions")
 }

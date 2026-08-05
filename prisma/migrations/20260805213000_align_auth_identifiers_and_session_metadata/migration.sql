@@ -1,4 +1,4 @@
--- Change identifiers to bounded text so new records use Prisma CUID values.
+-- Change identifiers to bounded text so new records use Prisma CUID-compatible values.
 -- Existing UUID identifiers are deterministically remapped to CUID-shaped values
 -- before the foreign key is restored, so this append-only migration is data-safe.
 ALTER TABLE "sessions" DROP CONSTRAINT "sessions_user_id_fkey";
@@ -33,8 +33,9 @@ ALTER TABLE "sessions" RENAME COLUMN "user_id_cuid" TO "user_id";
 ALTER TABLE "users" ADD CONSTRAINT "users_pkey" PRIMARY KEY ("id");
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_pkey" PRIMARY KEY ("id");
 
-CREATE INDEX "sessions_user_id_status_idx" ON "sessions"("user_id", "status");
-CREATE INDEX "sessions_user_id_created_at_idx" ON "sessions"("user_id", "created_at");
+CREATE INDEX IF NOT EXISTS "sessions_user_id_status_idx" ON "sessions"("user_id", "status");
+CREATE INDEX IF NOT EXISTS "sessions_user_id_created_at_idx" ON "sessions"("user_id", "created_at");
+CREATE INDEX IF NOT EXISTS "sessions_status_refresh_token_expires_at_idx" ON "sessions"("status", "refresh_token_expires_at");
 
 ALTER TABLE "users" ADD COLUMN "display_name" VARCHAR(100) NOT NULL DEFAULT 'User';
 ALTER TABLE "users" ALTER COLUMN "display_name" DROP DEFAULT;
