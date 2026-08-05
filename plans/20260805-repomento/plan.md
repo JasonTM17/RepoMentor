@@ -28,6 +28,10 @@ reported separately and never inferred from unit or build evidence.
   `gpt-5.6-luna`; use reasoning `max` whenever the live capability exposes it.
   A route that cannot verify or pin Luna is blocked rather than silently
   substituted.
+- Kongming architecture counsel is the only exception: the user explicitly
+  allows a Terra counsel thread for advisory analysis only. Terra counsel may
+  not edit files, run implementation work, merge branches, or act as an
+  arbiter; all project changes and acceptance decisions remain Luna-owned.
 - Use AgentKit's `understand -> decide -> execute -> verify -> deliver` spine
   and the orchestration contract in `ak-orchestrate`.
 - Parallel writers use isolated worktrees and disjoint ownership. Shared
@@ -43,6 +47,31 @@ reported separately and never inferred from unit or build evidence.
   `.git/info/exclude` hides them from product status without deleting them.
 - User code is untrusted data and is never executed. AI output is untrusted
   until schema validation and domain checks succeed.
+
+## Frontend and UI/UX quality contract
+
+The requested `ak-fe` route is satisfied by the installed AgentKit frontend
+skills `ak:frontend-design` and `ak:frontend-development`; the exact
+capability is selected from the live skill catalog, not from an absent alias.
+Every web slice must record and follow:
+
+- a short Design Read, seeded aesthetic variation, and one-sentence aesthetic
+  thesis before implementation; the RepoMentor product surface is treated as
+  a focused product UI, not a generic landing-page template;
+- token-first styling for colors, typography, spacing, radii, elevation, and
+  motion, with a deliberate direction and no ad-hoc palette or magic values;
+- complete interaction states: default, hover, focus-visible, active,
+  disabled, loading, empty, error, and success where applicable;
+- responsive composition verified at 375px, desktop widths, and keyboard
+  navigation, including visible focus rings, semantic controls, 44px minimum
+  targets, readable contrast, reduced-motion behavior, and no horizontal
+  overflow;
+- one consistent icon family with no emoji used as structural UI, realistic
+  domain-specific copy, and a frontend self-review gate before acceptance.
+
+UI code may not be accepted on a green build alone. The report must include
+the design-system decision, state/accessibility checks, and a visual QA result
+or a clearly recorded limitation when browser capture is unavailable.
 
 ## Starting evidence
 
@@ -136,6 +165,7 @@ without live integration evidence.
 | --- | --- | --- | --- | --- |
 | `main` | 00 | coordinator | `8662b6e` | integrated |
 | `main` | 01 | Luna foundation + manager arbiter | `ec28301`, `9b2b960`, `abea984`, `8072468`, `e3fa107` | integrated |
+| `main` | 02 | Luna API/web workers + coordinator | `5234b11`, `37f9eb4`, `b311289`, `68140cd`, `1bcaf61`, `5472785` | scaffold integrated; contracts and UI foundation pending |
 
 ## Agent/thread ledger
 
@@ -144,6 +174,9 @@ without live integration evidence.
 | coordinator | merge/controller | Luna-only constraint | `D:\RepoMentor` | active | this plan |
 | phase-01-foundation | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-monorepo-foundation` | accepted | `plans/reports/orchestrate-20260805T164200/report.md` |
 | phase-01-manager-arbiter | reviewer/fix | `gpt-5.6-luna` / `max` | manager worktree; merge handoff unsupported | accepted with limitation | `plans/reports/orchestrate-20260805T164200/report.md` |
+| phase-02-api | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-api-scaffold` | integrated; 3 focused commits | pending Phase 02 report |
+| phase-02-web | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-web-scaffold` | integrated; 2 focused commits | pending Phase 02 report |
+| phase-02-kongming-counsel | advisory architecture | `gpt-5.6-terra` / `max` | read-only counsel thread | completed; no edits | advisory notes in coordinator log |
 
 ## Unresolved questions
 
