@@ -43,6 +43,9 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      # This is baked into browser assets; use http://localhost:<API_HOST_PORT>, not api:3000.
+      args:
+        NEXT_PUBLIC_API_ORIGIN: ${NEXT_PUBLIC_API_ORIGIN:?NEXT_PUBLIC_API_ORIGIN must be set}
     image: repomentor-web:local
     ports:
       - "127.0.0.1:${WEB_HOST_PORT:?WEB_HOST_PORT must be set}:3000"
