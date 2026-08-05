@@ -1,0 +1,30 @@
+# Normalize text files to LF in the repository and on checkout.
+* text=auto eol=lf
+
+# Keep binary assets byte-for-byte and out of text normalization.
+*.7z binary
+*.bmp binary
+*.class binary
+*.dll binary
+*.doc binary
+*.docx binary
+*.gif binary
+*.ico binary
+*.jar binary
+*.jpeg binary
+*.jpg binary
+*.mov binary
+*.mp3 binary
+*.mp4 binary
+*.pdf binary
+*.png binary
+*.so binary
+*.tar binary
+*.tif binary
+*.tiff binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.xls binary
+*.xlsx binary
+*.zip binary
