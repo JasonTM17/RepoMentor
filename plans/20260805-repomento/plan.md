@@ -134,13 +134,16 @@ without live integration evidence.
 
 | Branch | Phase | Worker/thread | Commits | State |
 | --- | --- | --- | --- | --- |
-| `main` | 00 | coordinator | pending | plan setup |
+| `main` | 00 | coordinator | `8662b6e` | integrated |
+| `main` | 01 | Luna foundation + manager arbiter | `ec28301`, `9b2b960`, `abea984`, `8072468`, `e3fa107` | integrated |
 
 ## Agent/thread ledger
 
 | Job | Role | Model/reasoning | Worktree | Status | Report |
 | --- | --- | --- | --- | --- | --- |
 | coordinator | merge/controller | Luna-only constraint | `D:\RepoMentor` | active | this plan |
+| phase-01-foundation | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-monorepo-foundation` | accepted | `plans/reports/orchestrate-20260805T164200/report.md` |
+| phase-01-manager-arbiter | reviewer/fix | `gpt-5.6-luna` / `max` | manager worktree; merge handoff unsupported | accepted with limitation | `plans/reports/orchestrate-20260805T164200/report.md` |
 
 ## Unresolved questions
 
@@ -148,3 +151,5 @@ without live integration evidence.
   present; local deterministic tests proceed, live checks remain explicit.
 - Package versions and API details must be resolved from the installed runtime
   and current official documentation at the implementation point.
+- Phase 01 checks prove an empty workspace foundation only; application
+  coverage begins after Phase 02 scaffolding.

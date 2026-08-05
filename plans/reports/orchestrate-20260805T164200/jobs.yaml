@@ -1,0 +1,49 @@
+version: 1
+concurrency: 1
+defaults:
+  timeout: 30m
+  effect: scoped-write
+  approval: inherit
+  capture: true
+jobs:
+  - id: phase-01-foundation
+    runtime: internal
+    agent: multi_agent_v1__spawn_agent
+    task: implement
+    importance: high
+    cwd: D:\\worktrees\\RepoMentor-monorepo-foundation
+    prompt: "Luna foundation worker prompt dispatched by coordinator; see live thread record."
+    skill: D:\\RepoMentor\\engineer\\skills\\ak-agentkit\\SKILL.md
+    effect: scoped-write
+    approval: inherit
+    isolation: worktree
+    timeout: 30m
+    expected_output: "Validated foundation commits with exact hashes, changed paths, checks, and limitations."
+    destructive: false
+    checks:
+      - git diff --check
+      - staged secret scan
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm build
+  - id: phase-01-verifier
+    runtime: internal
+    agent: multi_agent_v1__spawn_agent
+    task: review
+    importance: high
+    cwd: D:\\worktrees\\RepoMentor-monorepo-foundation
+    prompt: "Read-only Luna verification of Phase 01 commits and checks."
+    skill: D:\\RepoMentor\\engineer\\skills\\ak-code-review\\SKILL.md
+    effect: observe
+    approval: inherit
+    isolation: worktree
+    timeout: 20m
+    expected_output: "Independent Phase 01 verdict with exact checks and concrete concerns."
+    destructive: false
+    depends_on: []
+    checks:
+      - git diff 8662b6e..HEAD --check
+      - pnpm lint
+      - pnpm typecheck
+      - pnpm build
+      - pnpm format:check

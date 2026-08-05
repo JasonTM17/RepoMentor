@@ -1,6 +1,6 @@
 # Phase 00 — Repository analysis
 
-Status: in progress
+Status: completed
 
 ## Context and ownership
 
@@ -15,7 +15,7 @@ Status: in progress
 - [x] Confirm root had no product Git history.
 - [x] Initialize `main` without touching local tooling.
 - [x] Verify canonical worktree script and record wrapper limitation.
-- [ ] Commit the durable plan with a focused docs commit.
+- [x] Commit the durable plan with a focused docs commit (`8662b6e`).
 
 ## Validation and handoff
 

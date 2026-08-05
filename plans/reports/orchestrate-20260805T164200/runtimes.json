@@ -1,0 +1,34 @@
+{
+  "runId": "orchestrate-20260805T164200",
+  "host": {
+    "os": "Windows",
+    "shell": "powershell",
+    "projectRoot": "D:\\RepoMentor"
+  },
+  "candidates": [
+    {
+      "id": "internal",
+      "kind": "internal",
+      "state": "available",
+      "binary": null,
+      "version": null,
+      "authenticated": "unverified",
+      "models": ["gpt-5.6-luna"],
+      "agents": ["multi_agent_v1__spawn_agent"],
+      "headless": true,
+      "cwdControl": "prompt-only",
+      "approval": "auto",
+      "toolGating": "coarse",
+      "isolation": "worktree",
+      "nativeBudget": "reasoning_effort=max",
+      "externalTimeout": "coordinator wait timeout",
+      "capture": ["final-result", "harness-status"],
+      "resume": "unverified",
+      "evidence": ["live multi_agent_v1 tool schema exposed in this run"],
+      "notes": [
+        "Worktree prevents expected edit collisions but is not an OS sandbox.",
+        "Luna model pin is an explicit user constraint and was passed to the live spawn call."
+      ]
+    }
+  ]
+}
