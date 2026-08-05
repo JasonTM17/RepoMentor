@@ -1,18 +1,3 @@
-import eslint from "@eslint/js";
+import sharedConfig from "@repomentor/eslint-config";
 
-export default [
-  {
-    ignores: [
-      ".agentkit/**",
-      ".claude/**",
-      ".next/**",
-      ".turbo/**",
-      "coverage/**",
-      "dist/**",
-      "engineer/**",
-      "node_modules/**",
-      "plans/**",
-    ],
-  },
-  eslint.configs.recommended,
-];
+export default sharedConfig;

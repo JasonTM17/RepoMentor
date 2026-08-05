@@ -18,10 +18,11 @@
     "format:check": "prettier . --check"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@repomentor/eslint-config": "workspace:*",
+    "@repomentor/typescript-config": "workspace:*",
     "eslint": "^10.8.0",
     "prettier": "^3.9.6",
     "turbo": "^2.10.8",
-    "typescript": "^7.0.2"
+    "typescript": "^6.0.3"
   }
 }
