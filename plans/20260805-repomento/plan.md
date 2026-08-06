@@ -216,13 +216,30 @@ queue evidence, incomplete duplication of every server-side client bound, and
 no abort of an already in-flight request. This is a bounded UI checkpoint, not
 a production-ready claim.
 
+Phase 09A is accepted on local main at `4916152` after the exact Luna worker
+chain `b93e3d6 -> 488a72a -> 642fe6d`, based on `80c0c8c`. The authenticated
+usage read model exposes owner-scoped summary, paginated history, and UTC-day
+quota routes. Summary/history exclude soft-deleted reviews and source; usage
+totals are restricted to owned completed persisted results. Authenticated
+quota limits are configuration-driven with defaults QUICK=20, STANDARD=10,
+DEEP=3, and quota counts all owner-created review records in the UTC window,
+including soft-deleted rows, to prevent deletion bypass. Post-merge evidence
+is API `107/107`, web `25/25`, contracts `5/5` (`137/137` root tests), lint,
+typecheck, build, Prettier, Prisma validate/generate, diff-check, and a
+bounded credential-shaped scan. Luna manager and Kongming/Terra counsel found
+no P0/P1 blocker. Redis enforcement, guest quotas, history search/filter,
+dashboard UI, live PostgreSQL/Redis evidence, and strict snapshot/cursor
+pagination remain later Phase 09 slices; this is not a complete Phase 09
+claim.
+
 The current local main checkpoint includes the accepted web-auth contract
 integration at `5ccb4cb`, review-domain integration through `b33d7d6`, truthful
 README/package/GitHub About/media updates through `3b1f3b1`, and the Docker
 slice through local `3d98a4d`, the Phase 06 Luna boundary at `369c958`, and
 Phase 07A orchestration through `6b2dfe4`, Phase 07B persistence through
 `ce6222b`, Phase 07C transport through `cede60c`, the Phase 08A review
-workspace through `0c46164`, plus auth hardening at `0b47a45`.
+workspace through `0c46164`, the Phase 09A usage read model through `4916152`,
+plus auth hardening at `0b47a45`.
 GitHub Actions run `31030844884` passed the
 workflow lint, Hadolint, Dockerfile contract, Compose config, API/web image
 builds, API `/health/live` smoke, and web `/` smoke. The Docker slice is
@@ -301,6 +318,7 @@ without live integration evidence.
 | `main` | 07B | Luna persistence worker + Luna manager arbiter + Kongming/Terra counsel | `ce6222b` (worker `3bddb27`) | accepted; 18 focused persistence/processing tests and 80 API tests; live DB/concurrency, route/queue, SSE, and retry transport deferred |
 | `main` | 07C | Luna processing transport worker + Luna manager arbiter + Kongming/Terra counsel | `41b65a9`, `e7caccb`, `54179dd`, `cede60c` (worker `ad32a51`, `1ba9735`, `3cea836`, `65ebf48`) | accepted; 22 focused, 13 review E2E, 91 API, 112 root tests; live AI/DB/Redis/queue/SSE deferred |
 | `main` | 08A | Luna ak-fe UI worker + Luna manager arbiter + Kongming/Terra counsel | `bd12761`, `6740d70`, `ec51172`, `011a516`, `0c46164` (worker `533cf73`, `c96988f`, `5eca1bf`, `9ea5afa`, `9aac007`) | accepted bounded `/reviews/new` checkpoint; 25 web, 91 API, 5 contracts, 121 root tests; demo transport and Monaco/streaming/history/live services deferred |
+| `main` | 09A | Luna usage API worker + Luna manager arbiter + Kongming/Terra counsel | `ecdf10f`, `72472b2`, `4916152` (worker `b93e3d6`, `488a72a`, `642fe6d`) | accepted bounded owner-scoped summary/history/quota read model; 107 API, 25 web, 5 contracts, 137 root tests; Redis/guest quota, search/filter, dashboard, and live services deferred |
 | `main` | auth hardening | coordinator validation follow-up | `0b47a45` | accepted; rejects non-canonical Base64URL token encodings; full API/root tests pass |
 | `main` | docs/release | Faraday Luna + coordinator follow-up | `54c039f`, `d7e873c`, `2da1bd5`, `4673295`, `3b1f3b1` | accepted; README/release metadata, real UI GIF, and CI evidence; no production/public-package claim |
 | `main` | 13 | Raman Luna + manager arbiter | `014c5e7`, `9456850`, `cf2e62b`, `16a81d1`, `69f83ab`, `d910080`, `10f1b71`, `6448e67`, `952bbc5`, `dc238d3`, `14f0c3e`, `3d98a4d` | accepted; CI run `31030844884` passed Docker/Compose/build/smoke gates; registry publication pending |
@@ -347,6 +365,9 @@ without live integration evidence.
 | phase-08-review-ui | ak frontend implementer | `gpt-5.6-luna` / `max` | `C:\Users\Admin\.codex\worktrees\26dc\RepoMentor` (`feature/review-ui`) | accepted; worker `019fd568-0197-7110-acff-cac1d2139e68`; integrated through `0c46164` | 25 web tests; production browser QA 375px/1440px; demo transport and later UI surfaces deferred |
 | phase-08-ui-manager | reviewer/arbiter | `gpt-5.6-luna` / `max` | read-only exact-head review | accepted; manager `019fd14f-e844-7f83-988f-7a27e3639fe2` | P1 metadata validation fixed at `9aac007`; no P0/P1 blockers; integration P2 limits recorded |
 | phase-08-ui-kongming-counsel | security/architecture advisor | `gpt-5.6-terra` / `max` | read-only counsel | accepted; counsel `019fd4b0-e28f-7361-b7c6-b9752bd24428` | no P0/P1 blockers; scan regex was test-only; live auth/backend and deeper client bounds deferred |
+| phase-09-usage-api | implementer | `gpt-5.6-luna` / `max` | `C:\Users\Admin\.codex\worktrees\d3b5\RepoMentor` (`feature/usage-summary-api`) | accepted; worker `019fd5aa-cf1f-7c80-ab25-b87e566f39b4`; integrated through `4916152` | 107 API tests; owner-scoped read model and config-driven UTC quota; pnpm lifecycle wrapper limitation recorded; Redis/guest quota/filter/dashboard/live services deferred |
+| phase-09-usage-manager | reviewer/arbiter | `gpt-5.6-luna` / `max` | read-only exact-head review | accepted; manager `019fd14f-e844-7f83-988f-7a27e3639fe2` | exact `642fe6d` accepted with no P0/P1; P2 Swagger bearer scheme, live services, snapshot consistency, cursor pagination |
+| phase-09-usage-kongming-counsel | security/architecture advisor | `gpt-5.6-terra` / `max` | read-only counsel | accepted; counsel `019fd4b0-e28f-7361-b7c6-b9752bd24428` | no P0/P1; owner isolation/UTC/config boundaries pass; Redis/guest quota/filter/dashboard/live checks deferred |
 | phase-13-docs-release-media | documentation/media implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docs-release-media` | accepted; worker `019fd2ac-2034-7752-83ef-e2d7cefda10e`; merged through `4673295` | Faraday report; real 3-frame UI GIF |
 | phase-13-docker-release | Docker/CI implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-release` | accepted; worker `019fd2b1-daad-7302-824c-adef31c220ff`; merged through `3d98a4d` | Raman report; CI `31030844884` green; live registry pending |
 | phase-13-docker-compose-runtime | Compose/env/docs implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-compose-runtime` | accepted; worker `019fd2d1-eb9d-7fd0-ab68-4f5f2b44073f`; merged through `2cb9c9d` | Volta report; Docker daemon/live startup unavailable |
