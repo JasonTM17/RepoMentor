@@ -43,17 +43,58 @@ The implementation keeps visual decisions in `app/globals.css`. Components consu
 
 ## Interaction, state, and accessibility checklist
 
-- [ ] Skip link lands on the page's `main` landmark.
-- [ ] Header navigation uses real anchors only for sections present in this phase.
-- [ ] All links and buttons have visible hover, active, disabled or loading treatment where the state exists, and `:focus-visible` treatment.
-- [ ] Touch targets are at least 44px in both dimensions. Body inputs, if added later, must remain at least 16px.
-- [ ] The static preview is explicitly labeled as static and contains no network or fabricated product data.
-- [ ] Empty-state language says `No reviews yet` or equivalent instead of inventing metrics.
-- [ ] Error and loading boundaries retain the same shell, use semantic status roles, and keep content visible without animation.
-- [ ] Color is not the only carrier of meaning. Line labels and text accompany the orange signal.
-- [ ] Decorative SVGs are hidden from assistive technology. Heading order and landmark labels remain semantic.
-- [ ] Reduced motion disables non-essential transitions and preserves immediate content visibility.
-- [ ] Copy contains no em-dash and avoids generic AI marketing language.
+- [x] Skip link lands on the page's `main` landmark.
+- [x] Header navigation uses real anchors only for sections present in this phase.
+- [x] All links and buttons have visible hover, active, disabled or loading treatment where the state exists, and `:focus-visible` treatment.
+- [x] Touch targets are at least 44px in both dimensions. Body inputs, if added later, must remain at least 16px.
+- [x] The static preview is explicitly labeled as static and contains no network or fabricated product data.
+- [x] Empty-state language says `No reviews yet` or equivalent instead of inventing metrics.
+- [x] Error and loading boundaries retain the same shell, use semantic status roles, and keep content visible without animation.
+- [x] Color is not the only carrier of meaning. Line labels and text accompany the orange signal.
+- [x] Decorative SVGs are hidden from assistive technology. Heading order and landmark labels remain semantic.
+- [x] Reduced motion disables non-essential transitions and preserves immediate content visibility.
+- [x] Copy contains no em-dash and avoids generic AI marketing language.
+
+## Phase 08 review workspace evidence
+
+### Direction continuity
+
+Phase 08 keeps the existing Industrial / utilitarian direction. The seeded read in this document already selected that direction for a developer review console, and the new surface extends its code-gutter motif into an editor, status rail, and ruled result desk. The palette, Barlow Condensed display face, Source Sans 3 body face, hairline depth strategy, restrained radius system, and LineIcon family remain shared with the shell.
+
+### Product surface
+
+- `/reviews/new` is a real client-side workspace with source, language, learner level, review mode, title, and context inputs.
+- Character, line, and rough token values are computed from the local source and labeled as estimates. They are not quota or provider usage.
+- Validation runs on blur and submit. Errors are connected below their fields with `aria-describedby` and `role="alert"`.
+- The result desk renders summary, an explicit `Score not supplied` boundary, issue signals, severity/category filters, source line highlights, learning notes, copy action, and safe execution metadata.
+- The result reader preserves the accepted response fields: `summary`, `findings`, `provider`, `model`, `reasoningEffort`, `attempts`, `durationMs`, and nullable `usage`.
+
+### State contract
+
+| UI state   | Visible behavior                                                        | Truth boundary                                        |
+| ---------- | ----------------------------------------------------------------------- | ----------------------------------------------------- |
+| Idle       | Draft form and empty result panel                                       | No review is implied                                  |
+| Loading    | Stable result panel with preparation copy and skeleton lines            | No blank spinner or fake progress                     |
+| Processing | Stable result panel with bounded processing copy                        | No fabricated percentage, quota, or token count       |
+| Success    | Structured summary, findings, filters, line context, and learning notes | Demo result is labeled deterministic fixture          |
+| Empty      | Empty finding list copy and empty result panel                          | Empty means no finding signals, not a missing request |
+| Error      | Generic alert and retry action                                          | Raw API/provider errors do not reach visible copy     |
+
+### Transport bridge
+
+`features/review/api/reviewApi.ts` is the integration seam for the accepted backend transport. It sends an empty object to `POST /api/v1/reviews/:id/process`, reads `GET /api/v1/reviews/:id/result`, includes credentials, validates the success envelope and response shape, and maps failures to a safe client error. The route currently injects the deterministic demo factory because browser auth/session and review creation are not connected in this phase. Title, context, and learner level therefore remain UI-only context and are not sent to a server contract that does not accept them.
+
+The demo fixture uses the server's `gpt-5.6-luna` and `max` metadata shape without making a provider call. It uses fixed output and a fixed completion timestamp, reports `usage: null`, and is explicitly labeled on the page. Adding `no findings` to the local source exercises the empty fixture path.
+
+### Verification evidence
+
+- Static shell/UI contract: 22 tests passed, including exact endpoint/body checks, state copy, result sections, focus/target CSS, responsive rules, reduced motion, and banned-copy checks.
+- `pnpm --filter @repomentor/web lint`: passed.
+- `pnpm --filter @repomentor/web typecheck`: passed.
+- `pnpm --filter @repomentor/web build`: passed. The build generated `/reviews/new` as a static route.
+- Prettier check and `git diff --check`: passed.
+- Browser QA ran against the local production build at 375px and 1440px. Both sizes had no horizontal overflow. The 375px grid composed to one column; the 1440px editor/sidebar grid measured approximately 748.8px and 403.2px. The demo run was exercised through processing into the structured result.
+- Screenshots were transient QA evidence only and are not checked in. No live AI, authenticated session, PostgreSQL, Redis, or provider integration was claimed.
 
 ## Visual-QA limitations
 
