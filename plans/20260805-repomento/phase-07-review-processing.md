@@ -70,11 +70,13 @@ transport; durable multi-worker leases remain later work.
 
 ## Slice 07C — authenticated synchronous processing transport
 
-Status: implemented on `feature/review-processing-command`, based on
-`81b6bbd`; coordinator integration and final branch acceptance remain pending.
-Implementation commit: `ad32a51` (`feat(review): expose synchronous processing
-transport`), with a focused generation-fence and transport-hardening follow-up
-on the same branch.
+Status: accepted on `main` at `cede60c`.
+
+The worker branch `feature/review-processing-command` was based on `81b6bbd`
+and delivered the exact chain `ad32a51 -> 1ba9735 -> 3cea836 -> 65ebf48`.
+The coordinator cherry-picked it as `41b65a9`, `e7caccb`, `54179dd`, and
+`cede60c` after Luna manager and Kongming/Terra counsel accepted the remediated
+exact head with no P0/P1 blocker.
 
 The slice adds a narrow HTTP seam over the accepted processing and persistence
 boundaries:
@@ -103,10 +105,22 @@ This remains deterministic transport evidence only. It does not claim live Luna,
 PostgreSQL, Redis, queues, retries, cancellation transport, SSE/reconnect,
 web UI, or deployment integration.
 
-Exact-head evidence on `ad32a51`: API `86/86`, root `107/107` (web `16/16`,
-contracts `5/5`), API build/typecheck/lint, root build/lint/typecheck/format,
-Prisma validate/generate with a local-only URL, diff-check, and staged secret
-scan. No live service or provider call was made.
+Exact-head evidence on `65ebf48`: API `91/91`, root `112/112` (web `16/16`,
+contracts `5/5`), focused processing/persistence `22/22`, review E2E `13/13`,
+API/root build, lint, typecheck, and format, Prisma validate/generate with a
+local-only URL, diff-check, and staged secret scan. The remediated route maps
+typed timeout/unavailable/rate-limit failures to 504/503/429, preserves a safe
+502 fallback for unknown failures, serializes timestamps as ISO strings, and
+documents empty-body/envelope schemas in Swagger. No live service or provider
+call was made.
+
+The generation fence is deterministic transport hardening: a claim increments
+the bounded persisted generation and every process-owned complete/fail/cancel
+finalization requires the exact generation. Stale request A cannot finalize,
+fail, or cancel retried request B. P2 follow-ups remain an HTTP disconnect to
+AbortSignal bridge, outer deadline, per-owner concurrency/quota controls,
+full Swagger schemas for generic result/usage objects, and live PostgreSQL
+isolation/concurrency evidence before public AI traffic.
 
 ## Commit slices
 

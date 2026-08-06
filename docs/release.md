@@ -78,8 +78,8 @@ pnpm format:check
 ```
 
 Results were successful after the generated Prisma client and shared contract
-package were prepared: 16 web tests, 5 contract tests, and 86/86 API tests
-(107/107 total).
+package were prepared: 16 web tests, 5 contract tests, and 91/91 API tests
+(112/112 total).
 The focused AI suite passed 22/22; the deterministic tests did not call a live
 network. The normal API test command discovers the nested Phase 06 tests.
 Static web routes for `/`, `/_not-found`, `/login`, and `/register`, and a valid
