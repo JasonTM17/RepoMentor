@@ -7,10 +7,14 @@ import {
   RedisConfigurationError,
   RedisInputError,
   RedisUnavailableError,
+  type RedisOperation,
 } from "../../src/modules/redis/redis.errors.js";
 import {
+  REDIS_COMMAND_TIMEOUT_MS,
+  REDIS_CONNECT_TIMEOUT_MS,
   RedisClientAdapter,
   createRedisClientAdapter,
+  getRedisClientOptions,
 } from "../../src/modules/redis/redis.client.js";
 import {
   buildReviewLockKey,
@@ -52,6 +56,7 @@ interface StoredValue {
 interface EvalCall {
   readonly script: string;
   readonly options: RedisEvalOptions;
+  readonly operation: RedisOperation;
 }
 
 class FakeRedisExecutor implements RedisCommandExecutor {
@@ -60,13 +65,18 @@ class FakeRedisExecutor implements RedisCommandExecutor {
     readonly key: string;
     readonly value: string;
     readonly options: RedisSetOptions;
+    readonly operation: RedisOperation;
   }> = [];
   private readonly values = new Map<string, StoredValue>();
   private nowMs = 0;
 
-  async eval(script: string, options: RedisEvalOptions): Promise<unknown> {
+  async eval(
+    script: string,
+    options: RedisEvalOptions,
+    operation: RedisOperation,
+  ): Promise<unknown> {
     this.expireValues();
-    this.evalCalls.push({ script, options });
+    this.evalCalls.push({ script, options, operation });
 
     if (script === RESERVE_QUOTA_SCRIPT) {
       const key = options.keys[0];
@@ -117,9 +127,14 @@ class FakeRedisExecutor implements RedisCommandExecutor {
     throw new Error("unexpected script");
   }
 
-  async set(key: string, value: string, options: RedisSetOptions): Promise<"OK" | null> {
+  async set(
+    key: string,
+    value: string,
+    options: RedisSetOptions,
+    operation: RedisOperation,
+  ): Promise<"OK" | null> {
     this.expireValues();
-    this.setCalls.push({ key, value, options });
+    this.setCalls.push({ key, value, options, operation });
 
     if (options.NX && this.values.has(key)) {
       return null;
@@ -166,6 +181,15 @@ function makeConfig(overrides: Partial<UsageRedisConfig> = {}): UsageRedisConfig
     quotaTtlMaxSeconds: USAGE_DEFAULT_REDIS_CONFIG.quotaTtlMaxSeconds,
     lockTtlMs: USAGE_DEFAULT_REDIS_CONFIG.lockTtlMs,
     ...overrides,
+  };
+}
+
+function unavailableFor(operation: RedisOperation) {
+  return (error: unknown): boolean => {
+    assert.ok(error instanceof RedisUnavailableError);
+    assert.equal(error.operation, operation);
+    assert.equal(error.message, "Redis is unavailable.");
+    return true;
   };
 }
 
@@ -399,6 +423,7 @@ describe("review request lock", () => {
       key,
       value: "owner-token",
       options: { NX: true, PX: 5_000 },
+      operation: "lock-acquisition",
     });
     assert.equal(executor.setCalls[0].key.includes("owner-token"), false);
     assert.equal(await releaseReviewLock(executor, "review_123", "other-token"), false);
@@ -451,11 +476,24 @@ describe("review request lock", () => {
 });
 
 describe("lazy Redis client adapter", () => {
+  it("configures node-redis for no offline queue and no reconnect", () => {
+    assert.deepEqual(getRedisClientOptions("rediss://redis.internal:6380"), {
+      url: "rediss://redis.internal:6380",
+      disableOfflineQueue: true,
+      socket: {
+        reconnectStrategy: false,
+        connectTimeout: REDIS_CONNECT_TIMEOUT_MS,
+      },
+    });
+    assert.equal(REDIS_COMMAND_TIMEOUT_MS, 1_000);
+  });
+
   it("does not construct or connect until the first command", async () => {
     let created = 0;
     let connected = 0;
     const fakeClient: RedisClientLike = {
       isOpen: true,
+      isReady: true,
       async connect(): Promise<void> {
         connected += 1;
       },
@@ -477,9 +515,166 @@ describe("lazy Redis client adapter", () => {
     assert.equal(adapter instanceof RedisClientAdapter, true);
     assert.equal(created, 0);
     assert.equal(connected, 0);
-    assert.equal(await adapter.eval("return 1", { keys: [], arguments: [] }), 1);
+    assert.equal(
+      await adapter.eval("return 1", { keys: [], arguments: [] }, "quota-reservation"),
+      1,
+    );
     assert.equal(created, 1);
     assert.equal(connected, 0);
+  });
+
+  it("rejects an open but not-ready client without issuing eval or set", async () => {
+    let connectCalls = 0;
+    let evalCalls = 0;
+    let setCalls = 0;
+    const adapter = createRedisClientAdapter("redis://localhost:6379", () => ({
+      isOpen: true,
+      isReady: false,
+      async connect(): Promise<void> {
+        connectCalls += 1;
+      },
+      on(): void {
+        return undefined;
+      },
+      async eval(): Promise<unknown> {
+        evalCalls += 1;
+        return 1;
+      },
+      async set(): Promise<"OK" | null> {
+        setCalls += 1;
+        return "OK";
+      },
+    }));
+
+    await assert.rejects(
+      adapter.eval("return 1", { keys: [], arguments: [] }, "quota-reservation"),
+      unavailableFor("quota-reservation"),
+    );
+    await assert.rejects(
+      adapter.set(
+        "repomentor:lock:review:review_123",
+        "opaque-token",
+        { NX: true, PX: 1_000 },
+        "lock-acquisition",
+      ),
+      unavailableFor("lock-acquisition"),
+    );
+
+    assert.equal(connectCalls, 0);
+    assert.equal(evalCalls, 0);
+    assert.equal(setCalls, 0);
+  });
+
+  it("bounds a connection that never resolves and never issues eval", async () => {
+    let connectCalls = 0;
+    let evalCalls = 0;
+    const adapter = createRedisClientAdapter("redis://localhost:6379", () => ({
+      isOpen: false,
+      isReady: false,
+      connect(): Promise<void> {
+        connectCalls += 1;
+        return new Promise<void>(() => undefined);
+      },
+      on(): void {
+        return undefined;
+      },
+      async eval(): Promise<unknown> {
+        evalCalls += 1;
+        return 1;
+      },
+      async set(): Promise<"OK" | null> {
+        return "OK";
+      },
+    }));
+
+    await assert.rejects(
+      adapter.eval("return 1", { keys: [], arguments: [] }, "quota-reservation"),
+      unavailableFor("quota-reservation"),
+    );
+
+    assert.equal(connectCalls, 1);
+    assert.equal(evalCalls, 0);
+  });
+
+  it("bounds one command that never resolves without replaying a quota reservation", async () => {
+    let evalCalls = 0;
+    let resolveCommand: (value: unknown) => void = () => undefined;
+    const pendingCommand = new Promise<unknown>((resolve) => {
+      resolveCommand = resolve;
+    });
+    const adapter = createRedisClientAdapter("redis://localhost:6379", () => ({
+      isOpen: true,
+      isReady: true,
+      async connect(): Promise<void> {
+        return undefined;
+      },
+      on(): void {
+        return undefined;
+      },
+      async eval(): Promise<unknown> {
+        evalCalls += 1;
+        return pendingCommand;
+      },
+      async set(): Promise<"OK" | null> {
+        return "OK";
+      },
+    }));
+
+    await assert.rejects(
+      reserveQuota(adapter, makeConfig(), {
+        namespace: "guest",
+        identity: "guest_123",
+        utcDay: "2026-08-06",
+        mode: "QUICK",
+        now: QUOTA_NOW,
+      }),
+      unavailableFor("quota-reservation"),
+    );
+
+    assert.equal(evalCalls, 1);
+    resolveCommand([1, 1, 2, 1]);
+  });
+
+  it("preserves operation context for quota and lock unavailable paths", async () => {
+    const unavailableAdapter = () =>
+      createRedisClientAdapter("redis://localhost:6379", () => ({
+        isOpen: true,
+        isReady: false,
+        async connect(): Promise<void> {
+          return undefined;
+        },
+        on(): void {
+          return undefined;
+        },
+        async eval(): Promise<unknown> {
+          throw new Error("must not issue command");
+        },
+        async set(): Promise<"OK" | null> {
+          throw new Error("must not issue command");
+        },
+      }));
+
+    await assert.rejects(
+      reserveQuota(unavailableAdapter(), makeConfig(), {
+        namespace: "guest",
+        identity: "guest_123",
+        utcDay: "2026-08-06",
+        mode: "QUICK",
+        now: QUOTA_NOW,
+      }),
+      unavailableFor("quota-reservation"),
+    );
+    await assert.rejects(
+      acquireReviewLock(unavailableAdapter(), makeConfig(), {
+        reviewId: "review_123",
+        token: "owner-token",
+      }),
+      unavailableFor("lock-acquisition"),
+    );
+    await assert.rejects(
+      releaseReviewLock(unavailableAdapter(), "review_123", "owner-token"),
+      unavailableFor("lock-release"),
+    );
   });
 
   it("redacts connection failures and rejects non-Redis URLs", async () => {
@@ -490,6 +685,7 @@ describe("lazy Redis client adapter", () => {
 
     const adapter = createRedisClientAdapter("rediss://redis.internal:6380", () => ({
       isOpen: false,
+      isReady: false,
       async connect(): Promise<void> {
         throw new Error("redis://:runtime-only-value@redis.internal");
       },
@@ -505,13 +701,19 @@ describe("lazy Redis client adapter", () => {
     }));
 
     await assert.rejects(
-      adapter.set("repomentor:lock:review:review_123", "opaque-token", {
-        NX: true,
-        PX: 1_000,
-      }),
+      adapter.set(
+        "repomentor:lock:review:review_123",
+        "opaque-token",
+        {
+          NX: true,
+          PX: 1_000,
+        },
+        "lock-acquisition",
+      ),
       (error: unknown) => {
         assert.ok(error instanceof RedisUnavailableError);
         assert.equal(error.message.includes("runtime-only-value"), false);
+        assert.equal(error.operation, "lock-acquisition");
         return true;
       },
     );

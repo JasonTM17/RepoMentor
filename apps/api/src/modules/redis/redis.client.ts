@@ -16,6 +16,9 @@ import type {
 
 const REDIS_URL_PROTOCOLS = new Set(["redis:", "rediss:"]);
 
+export const REDIS_CONNECT_TIMEOUT_MS = 1_000;
+export const REDIS_COMMAND_TIMEOUT_MS = 1_000;
+
 export function assertRedisUrl(value: string): void {
   let parsed: URL;
 
@@ -30,8 +33,19 @@ export function assertRedisUrl(value: string): void {
   }
 }
 
+export function getRedisClientOptions(url: string) {
+  return {
+    url,
+    disableOfflineQueue: true,
+    socket: {
+      reconnectStrategy: false,
+      connectTimeout: REDIS_CONNECT_TIMEOUT_MS,
+    },
+  } as const;
+}
+
 function createDefaultClient(url: string): RedisClientLike {
-  const client = createClient({ url }) as unknown as RedisClientLike;
+  const client = createClient(getRedisClientOptions(url)) as unknown as RedisClientLike;
 
   // node-redis requires an error listener. Never log the underlying error because
   // connection errors can contain URLs, usernames, or other deployment details.
@@ -40,12 +54,32 @@ function createDefaultClient(url: string): RedisClientLike {
   return client;
 }
 
-function asUnavailable(error: unknown, operation: RedisOperation): Error {
-  if (error instanceof RedisUnavailableError) {
+function asUnavailable(error: unknown, operation: RedisOperation): RedisUnavailableError {
+  if (error instanceof RedisUnavailableError && error.operation === operation) {
     return error;
   }
 
   return new RedisUnavailableError(operation);
+}
+
+function withDeadline<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  operation: RedisOperation,
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new RedisUnavailableError(operation));
+    }, timeoutMs);
+    timer.unref();
+  });
+
+  return Promise.race([promise, deadline]).finally(() => {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  });
 }
 
 export class RedisClientAdapter implements RedisCommandExecutor {
@@ -59,62 +93,96 @@ export class RedisClientAdapter implements RedisCommandExecutor {
     assertRedisUrl(redisUrl);
   }
 
-  private async getConnectedClient(): Promise<RedisClientLike> {
+  private async getReadyClient(operation: RedisOperation): Promise<RedisClientLike> {
     if (this.client === undefined) {
       try {
         this.client = this.clientFactory(this.redisUrl);
       } catch {
-        throw new RedisUnavailableError("connect");
+        throw new RedisUnavailableError(operation);
       }
     }
 
-    if (this.client.isOpen) {
-      return this.client;
+    const client = this.client;
+
+    if (client.isOpen) {
+      if (!client.isReady) {
+        throw new RedisUnavailableError(operation);
+      }
+
+      return client;
     }
 
     if (this.connectPromise === undefined) {
       try {
-        this.connectPromise = this.client.connect().finally(() => {
+        this.connectPromise = withDeadline(
+          client.connect(),
+          REDIS_CONNECT_TIMEOUT_MS,
+          operation,
+        ).finally(() => {
           this.connectPromise = undefined;
         });
       } catch {
-        throw new RedisUnavailableError("connect");
+        throw new RedisUnavailableError(operation);
       }
     }
 
-    try {
-      await this.connectPromise;
-    } catch {
-      throw new RedisUnavailableError("connect");
+    const connectPromise = this.connectPromise;
+
+    if (connectPromise === undefined) {
+      throw new RedisUnavailableError(operation);
     }
 
-    return this.client;
+    try {
+      await connectPromise;
+    } catch (error) {
+      throw asUnavailable(error, operation);
+    }
+
+    if (!client.isOpen || !client.isReady) {
+      throw new RedisUnavailableError(operation);
+    }
+
+    return client;
   }
 
-  async eval(script: string, options: RedisEvalOptions): Promise<unknown> {
+  async eval(
+    script: string,
+    options: RedisEvalOptions,
+    operation: RedisOperation,
+  ): Promise<unknown> {
     try {
-      const client = await this.getConnectedClient();
-
-      return await client.eval(script, {
+      const client = await this.getReadyClient(operation);
+      const result = client.eval(script, {
         keys: [...options.keys],
         arguments: [...options.arguments],
       });
+
+      return await withDeadline(result, REDIS_COMMAND_TIMEOUT_MS, operation);
     } catch (error) {
       if (error instanceof RedisCommandError) {
         throw error;
       }
 
-      throw asUnavailable(error, "command");
+      throw asUnavailable(error, operation);
     }
   }
 
-  async set(key: string, value: string, options: RedisSetOptions): Promise<"OK" | null> {
+  async set(
+    key: string,
+    value: string,
+    options: RedisSetOptions,
+    operation: RedisOperation,
+  ): Promise<"OK" | null> {
     try {
-      const client = await this.getConnectedClient();
-      const result = await client.set(key, value, options);
+      const client = await this.getReadyClient(operation);
+      const result = await withDeadline(
+        client.set(key, value, options),
+        REDIS_COMMAND_TIMEOUT_MS,
+        operation,
+      );
 
       if (result !== "OK" && result !== null) {
-        throw new RedisCommandError("command");
+        throw new RedisCommandError(operation);
       }
 
       return result;
@@ -123,7 +191,7 @@ export class RedisClientAdapter implements RedisCommandExecutor {
         throw error;
       }
 
-      throw asUnavailable(error, "command");
+      throw asUnavailable(error, operation);
     }
   }
 }

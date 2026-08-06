@@ -81,7 +81,7 @@ export async function acquireReviewLock(
   let result: "OK" | null;
 
   try {
-    result = await executor.set(key, token, { NX: true, PX: ttlMs });
+    result = await executor.set(key, token, { NX: true, PX: ttlMs }, "lock-acquisition");
   } catch (error) {
     if (error instanceof RedisUnavailableError) {
       throw error;
@@ -129,10 +129,14 @@ export async function releaseReviewLock(
   let rawResult: unknown;
 
   try {
-    rawResult = await executor.eval(RELEASE_LOCK_SCRIPT, {
-      keys: [key],
-      arguments: [token],
-    });
+    rawResult = await executor.eval(
+      RELEASE_LOCK_SCRIPT,
+      {
+        keys: [key],
+        arguments: [token],
+      },
+      "lock-release",
+    );
   } catch (error) {
     if (error instanceof RedisUnavailableError) {
       throw error;

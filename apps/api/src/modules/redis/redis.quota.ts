@@ -151,10 +151,14 @@ export async function reserveQuota(
   let rawResult: unknown;
 
   try {
-    rawResult = await executor.eval(RESERVE_QUOTA_SCRIPT, {
-      keys: [key],
-      arguments: [String(limit), String(ttlSeconds)],
-    });
+    rawResult = await executor.eval(
+      RESERVE_QUOTA_SCRIPT,
+      {
+        keys: [key],
+        arguments: [String(limit), String(ttlSeconds)],
+      },
+      "quota-reservation",
+    );
   } catch (error) {
     if (error instanceof RedisUnavailableError) {
       throw error;
