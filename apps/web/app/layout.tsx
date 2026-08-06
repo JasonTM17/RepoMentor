@@ -37,6 +37,15 @@ const RootLayout = ({ children }: RootLayoutProps): ReactElement => (
               <a className="nav-link" href="/reviews/new">
                 Workspace
               </a>
+              <a className="nav-link" href="/dashboard">
+                Dashboard
+              </a>
+              <a className="nav-link" href="/history">
+                History
+              </a>
+              <a className="nav-link" href="/usage">
+                Usage
+              </a>
               <a className="nav-link" href="/#learning-loop">
                 Approach
               </a>
