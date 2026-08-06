@@ -86,6 +86,11 @@ export interface UsageDashboardData {
   readonly quota: UsageQuotaData;
 }
 
+export interface UsageOverviewData {
+  readonly summary: UsageSummaryData;
+  readonly quota: UsageQuotaData;
+}
+
 export interface UsageResourceState<TData> {
   readonly data: TData | null;
   readonly errorMessage: string | null;

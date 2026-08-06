@@ -2881,6 +2881,84 @@ button {
     padding: var(--space-6);
   }
 
+  .usage-overview-columns {
+    align-items: stretch;
+  }
+
+  .usage-operation-list {
+    margin: var(--space-5) 0 0;
+  }
+
+  .usage-operation-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding-block: var(--space-3);
+    border-top: var(--depth-rule);
+  }
+
+  .usage-operation-row dt,
+  .usage-operation-row dd {
+    min-width: 0;
+    margin: 0;
+  }
+
+  .usage-operation-row dd {
+    color: var(--color-ink-strong);
+    font-family: var(--font-display);
+    font-size: var(--text-title);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+
+  .usage-deferred-panel {
+    min-width: 0;
+    margin-top: var(--space-4);
+    padding: var(--space-6);
+    border: var(--depth-rule);
+    border-radius: var(--radius-panel);
+    background: var(--color-surface-muted);
+  }
+
+  .usage-deferred-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+    padding: 0;
+    margin: var(--space-5) 0 0;
+    list-style: none;
+  }
+
+  .usage-deferred-list li {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-2);
+    padding-top: var(--space-3);
+    border-top: var(--depth-rule);
+  }
+
+  .usage-deferred-list strong {
+    color: var(--color-ink-strong);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: 600;
+  }
+
+  .usage-deferred-list span {
+    color: var(--color-ink-muted);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+  }
+
+  .usage-overview-links {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+
   .visually-hidden {
     position: absolute;
     width: 1px;
@@ -3166,6 +3244,7 @@ button {
   }
 
   .usage-source-note,
+  .usage-deferred-panel,
   .usage-history-filter-panel,
   .usage-ledger-panel,
   .usage-activity-panel,
@@ -3176,6 +3255,7 @@ button {
   }
 
   .usage-metric-grid,
+  .usage-deferred-list,
   .usage-ledger-grid,
   .usage-history-filter-grid,
   .usage-quota-grid,
@@ -3193,6 +3273,12 @@ button {
   .usage-history-mobile-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .usage-overview-links {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: flex-start;
   }
 
   .usage-pagination {

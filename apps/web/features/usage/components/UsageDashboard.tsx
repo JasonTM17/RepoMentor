@@ -4,6 +4,7 @@ import type { FC, ReactElement } from "react";
 
 import LineIcon from "@/components/line-icon";
 import UsagePageHeader from "@/features/usage/components/UsagePageHeader";
+import UsageQuotaGrid from "@/features/usage/components/UsageQuotaGrid";
 import UsageStatePanel from "@/features/usage/components/UsageStatePanel";
 import { createDemoUsageTransport } from "@/features/usage/api/demoUsageTransport";
 import useUsageDashboard from "@/features/usage/hooks/useUsageDashboard";
@@ -18,13 +19,11 @@ import {
 import type {
   UsageDashboardData,
   UsageHistoryItem,
-  UsageReviewMode,
   UsageReviewStatus,
   UsageTransport,
 } from "@/features/usage/types";
 
 const demoTransport = createDemoUsageTransport();
-const quotaModes: readonly UsageReviewMode[] = ["QUICK", "STANDARD", "DEEP"];
 const statusModes: readonly UsageReviewStatus[] = [
   "COMPLETED",
   "PROCESSING",
@@ -69,53 +68,6 @@ const ActivityRow: FC<ActivityRowProps> = ({ item }): ReactElement => (
     <span className="usage-activity-tokens">{formatTokens(item.totalTokens)} tokens</span>
   </li>
 );
-
-interface QuotaCardProps {
-  readonly mode: UsageReviewMode;
-  readonly remaining: number;
-  readonly limit: number;
-  readonly used: number;
-}
-
-const QuotaCard: FC<QuotaCardProps> = ({ limit, mode, remaining, used }): ReactElement => {
-  const percentage = limit === 0 ? 0 : Math.min(100, Math.round((used / limit) * 100));
-
-  return (
-    <article className="usage-quota-card">
-      <header className="usage-quota-header">
-        <div>
-          <p className="usage-card-kicker">Review mode</p>
-          <h3 className="usage-card-title">{formatMode(mode)}</h3>
-        </div>
-        <span className="usage-quota-remaining">{formatCount(remaining)} left</span>
-      </header>
-      <div
-        className="usage-quota-rail"
-        role="progressbar"
-        aria-label={`${formatMode(mode)} quota used`}
-        aria-valuemax={limit}
-        aria-valuemin={0}
-        aria-valuenow={used}
-      >
-        <span style={{ width: `${percentage}%` }} />
-      </div>
-      <dl className="usage-quota-stats">
-        <div>
-          <dt>Used</dt>
-          <dd>{formatCount(used)}</dd>
-        </div>
-        <div>
-          <dt>Limit</dt>
-          <dd>{formatCount(limit)}</dd>
-        </div>
-        <div>
-          <dt>Remaining</dt>
-          <dd>{formatCount(remaining)}</dd>
-        </div>
-      </dl>
-    </article>
-  );
-};
 
 const EmptyPanel: FC<{ readonly copy: string; readonly title: string }> = ({ copy, title }) => (
   <div className="usage-empty-panel" role="status">
@@ -271,11 +223,7 @@ const DashboardContent: FC<DashboardContentProps> = ({ data }): ReactElement => 
           </div>
           <span className="status-label">As of {formatDateTime(quota.asOf)} UTC</span>
         </header>
-        <div className="usage-quota-grid">
-          {quotaModes.map((mode) => (
-            <QuotaCard key={mode} mode={mode} {...quota.modes[mode]} />
-          ))}
-        </div>
+        <UsageQuotaGrid quota={quota} />
       </section>
 
       <section className="usage-status-panel surface-panel" aria-labelledby="usage-status-heading">
