@@ -227,7 +227,13 @@ function decodeBase64Url(value: string): Buffer {
     throw new Error("Invalid base64url value.");
   }
 
-  return Buffer.from(value, "base64url");
+  const decoded = Buffer.from(value, "base64url");
+
+  if (decoded.toString("base64url") !== value) {
+    throw new Error("Non-canonical base64url value.");
+  }
+
+  return decoded;
 }
 
 function encodeJson(value: unknown): string {
