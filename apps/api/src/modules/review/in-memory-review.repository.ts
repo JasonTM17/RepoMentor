@@ -1,3 +1,6 @@
+import type { AiReviewExecution } from "../ai/ai.types.js";
+import type { ReviewResult } from "../ai/review-result.schema.js";
+import { toReviewResultRecord, type ReviewResultRecord } from "./review-result.persistence.js";
 import type {
   CreateReviewInput,
   ReviewListInput,
@@ -22,6 +25,7 @@ function copyReview(review: ReviewRecord): ReviewRecord {
 
 export class InMemoryReviewRepository implements ReviewRepository {
   private readonly reviews = new Map<string, ReviewRecord>();
+  private readonly results = new Map<string, ReviewResultRecord>();
   private sequence = 0;
 
   async create(input: CreateReviewInput): Promise<ReviewRecord> {
@@ -94,6 +98,7 @@ export class InMemoryReviewRepository implements ReviewRepository {
       !review ||
       review.userId !== userId ||
       review.deletedAt !== null ||
+      transition.toStatus === "COMPLETED" ||
       !transition.fromStatuses.includes(review.status)
     ) {
       return null;
@@ -106,5 +111,59 @@ export class InMemoryReviewRepository implements ReviewRepository {
     };
     this.reviews.set(id, transitioned);
     return copyReview(transitioned);
+  }
+
+  async finalizeForUser(
+    userId: string,
+    id: string,
+    execution: AiReviewExecution<ReviewResult>,
+    now: Date,
+  ): Promise<ReviewRecord | null> {
+    const review = this.reviews.get(id);
+
+    if (
+      !review ||
+      review.userId !== userId ||
+      review.deletedAt !== null ||
+      review.status !== "PROCESSING"
+    ) {
+      return null;
+    }
+
+    const result = toReviewResultRecord(id, execution, now);
+    const completed: ReviewRecord = {
+      ...review,
+      status: "COMPLETED",
+      updatedAt: new Date(now),
+    };
+
+    this.results.set(id, result);
+    this.reviews.set(id, completed);
+    return copyReview(completed);
+  }
+
+  async findResultForUser(userId: string, id: string): Promise<ReviewResultRecord | null> {
+    const review = this.reviews.get(id);
+    const result = this.results.get(id);
+
+    if (
+      !review ||
+      review.userId !== userId ||
+      review.deletedAt !== null ||
+      review.status !== "COMPLETED" ||
+      !result
+    ) {
+      return null;
+    }
+
+    return {
+      ...result,
+      createdAt: new Date(result.createdAt),
+      result: {
+        ...result.result,
+        findings: result.result.findings.map((finding) => ({ ...finding })),
+      },
+      usage: result.usage ? { ...result.usage } : null,
+    };
   }
 }

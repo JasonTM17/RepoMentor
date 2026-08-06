@@ -49,6 +49,24 @@ class RecordingReviewRepository extends InMemoryReviewRepository {
 
     return super.transitionForUser(userId, id, transition);
   }
+
+  override async finalizeForUser(
+    userId: string,
+    id: string,
+    execution: AiReviewExecution<ReviewResult>,
+    now: Date,
+  ) {
+    this.transitions.push({
+      id,
+      transition: {
+        fromStatuses: ["PROCESSING"],
+        now: new Date(now),
+        toStatus: "COMPLETED",
+      },
+    });
+
+    return super.finalizeForUser(userId, id, execution, now);
+  }
 }
 
 class FinalizationErrorRepository extends RecordingReviewRepository {
@@ -56,12 +74,11 @@ class FinalizationErrorRepository extends RecordingReviewRepository {
     super();
   }
 
-  override async transitionForUser(userId: string, id: string, transition: ReviewStatusTransition) {
-    if (transition.toStatus === "COMPLETED") {
-      throw this.finalizationError;
-    }
-
-    return super.transitionForUser(userId, id, transition);
+  override async finalizeForUser(
+    ..._args: Parameters<InMemoryReviewRepository["finalizeForUser"]>
+  ): Promise<Awaited<ReturnType<InMemoryReviewRepository["finalizeForUser"]>>> {
+    void _args;
+    throw this.finalizationError;
   }
 }
 
@@ -185,6 +202,16 @@ describe("review processing orchestration", () => {
     assert.equal(provider.requests.length, 1);
     assert.equal(provider.requests[0]?.provider, "luna");
     assert.equal(provider.requests[0]?.model, "gpt-5.6-luna");
+    const persisted = await repository.findResultForUser(USER_ID, REVIEW_ID);
+    assert.ok(persisted);
+    assert.equal(persisted.reviewId, REVIEW_ID);
+    assert.equal(persisted.provider, "luna");
+    assert.equal(persisted.model, "gpt-5.6-luna");
+    assert.equal(persisted.reasoningEffort, "medium");
+    assert.equal(persisted.attempts, 1);
+    assert.ok(persisted.durationMs >= 0);
+    assert.deepEqual(persisted.result, VALID_RESULT);
+    assert.deepEqual(persisted.usage, { inputTokens: 10, outputTokens: 8, totalTokens: 18 });
     assert.deepEqual(
       repository.transitions.map(({ transition }) => ({
         fromStatuses: transition.fromStatuses,
@@ -212,6 +239,7 @@ describe("review processing orchestration", () => {
     );
     assert.equal(provider.requests.length, 1);
     assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "PROCESSING");
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
     assert.deepEqual(
       repository.transitions.map(({ transition }) => transition.toStatus),
       ["PROCESSING"],
@@ -278,6 +306,7 @@ describe("review processing orchestration", () => {
     assert.equal(outcome.review.id, REVIEW_ID);
     assert.equal(outcome.review.status, "FAILED");
     assert.equal(repository.transitions.at(-1)?.transition.toStatus, "FAILED");
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
   });
 
   it("maps exhausted structured-result validation to a typed FAILED result", async () => {
@@ -314,6 +343,7 @@ describe("review processing orchestration", () => {
     assert.equal(outcome.status, "CANCELLED");
     assert.equal(provider.requests.length, 1);
     assert.equal(repository.transitions.at(-1)?.transition.toStatus, "CANCELLED");
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
   });
 
   it("maps an already-aborted signal to CANCELLED before invoking the provider", async () => {
@@ -365,6 +395,7 @@ describe("review processing orchestration", () => {
       repository.transitions.some(({ transition }) => transition.toStatus === "COMPLETED"),
       false,
     );
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
   });
 
   it("returns a retry-required terminal skip when cancellation loses to FAILED", async () => {
@@ -379,6 +410,7 @@ describe("review processing orchestration", () => {
     assert.equal(outcome.status, "FAILED");
     assert.equal(outcome.review.status, "FAILED");
     assert.equal(provider.requests.length, 1);
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
   });
 
   it("does not invoke AI when the claim transition returns a terminal record", async () => {

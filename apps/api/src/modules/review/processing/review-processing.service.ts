@@ -149,10 +149,11 @@ export class ReviewProcessingService {
     input: ReviewProcessingRequest,
     execution: Awaited<ReturnType<AiReviewService["review"]>>,
   ): Promise<ReviewProcessingOutcome> {
-    const completed = await this.repository.transitionForUser(
+    const completed = await this.repository.finalizeForUser(
       input.userId,
       input.reviewId,
-      createProcessingTransition("complete", this.clock()),
+      execution,
+      this.clock(),
     );
 
     if (completed?.status === "COMPLETED") {

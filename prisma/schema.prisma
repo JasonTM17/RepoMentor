@@ -82,18 +82,48 @@ model Session {
 }
 
 model Review {
-  id        String       @id @default(cuid()) @db.VarChar(25)
-  userId    String       @map("user_id") @db.VarChar(25)
-  source    String       @db.VarChar(100000)
-  language  String       @db.VarChar(32)
-  mode      ReviewMode   @default(STANDARD)
-  status    ReviewStatus @default(PENDING)
-  deletedAt DateTime?    @map("deleted_at")
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String        @id @default(cuid()) @db.VarChar(25)
+  userId    String        @map("user_id") @db.VarChar(25)
+  source    String        @db.VarChar(100000)
+  language  String        @db.VarChar(32)
+  mode      ReviewMode    @default(STANDARD)
+  status    ReviewStatus  @default(PENDING)
+  deletedAt DateTime?     @map("deleted_at")
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  result    ReviewResult?
 
   @@index([userId, deletedAt, createdAt])
   @@index([userId, status, deletedAt, createdAt])
   @@map("reviews")
+}
+
+model ReviewResult {
+  id              String       @id @default(cuid()) @db.VarChar(25)
+  reviewId        String       @unique @map("review_id") @db.VarChar(25)
+  provider        String       @db.VarChar(32)
+  model           String       @db.VarChar(64)
+  reasoningEffort String       @map("reasoning_effort") @db.VarChar(8)
+  result          Json         @map("result_json")
+  durationMs      Int          @map("duration_ms")
+  attempts        Int
+  createdAt       DateTime     @default(now()) @map("created_at")
+  review          Review       @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  usage           ReviewUsage?
+
+  @@map("review_results")
+}
+
+model ReviewUsage {
+  id                String       @id @default(cuid()) @db.VarChar(25)
+  reviewResultId    String       @unique @map("review_result_id") @db.VarChar(25)
+  inputTokens       Int          @map("input_tokens")
+  outputTokens      Int          @map("output_tokens")
+  totalTokens       Int          @map("total_tokens")
+  cachedInputTokens Int?         @map("cached_input_tokens")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  reviewResult      ReviewResult @relation(fields: [reviewResultId], references: [id], onDelete: Cascade)
+
+  @@map("review_usages")
 }

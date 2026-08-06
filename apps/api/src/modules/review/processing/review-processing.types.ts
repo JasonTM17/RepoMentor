@@ -4,6 +4,7 @@ import type {
   ReviewProcessingCancellation,
   ReviewProcessingFailure,
 } from "./review-processing.errors.js";
+import type { ReviewResultRecord } from "../review-result.persistence.js";
 import type { ReviewRecord, ReviewStatus, ReviewStatusTransition } from "../review.types.js";
 
 export interface ReviewProcessingRequest {
@@ -19,6 +20,13 @@ export interface ReviewProcessingRepository {
     id: string,
     transition: ReviewStatusTransition,
   ): Promise<ReviewRecord | null>;
+  finalizeForUser(
+    userId: string,
+    id: string,
+    execution: AiReviewExecution<ReviewResult>,
+    now: Date,
+  ): Promise<ReviewRecord | null>;
+  findResultForUser(userId: string, id: string): Promise<ReviewResultRecord | null>;
 }
 
 export type ReviewProcessingClaim =

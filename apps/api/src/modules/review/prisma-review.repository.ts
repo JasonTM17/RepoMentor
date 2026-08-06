@@ -1,7 +1,19 @@
 import { Injectable } from "@nestjs/common";
-import type { Prisma, Review as PrismaReview } from "@prisma/client";
+import type {
+  Prisma,
+  Review as PrismaReview,
+  ReviewResult as PrismaReviewResult,
+  ReviewUsage as PrismaReviewUsage,
+} from "@prisma/client";
 
+import type { AiReviewExecution } from "../ai/ai.types.js";
+import type { ReviewResult } from "../ai/review-result.schema.js";
 import { PrismaService } from "../auth/prisma.service.js";
+import {
+  parsePersistedReviewResult,
+  validatePersistedAiReviewExecution,
+  type ReviewResultRecord,
+} from "./review-result.persistence.js";
 import type {
   CreateReviewInput,
   ReviewListInput,
@@ -22,6 +34,34 @@ function mapReview(row: PrismaReview): ReviewRecord {
     status: row.status,
     updatedAt: row.updatedAt,
     userId: row.userId,
+  };
+}
+
+type PrismaReviewResultWithUsage = PrismaReviewResult & {
+  usage: PrismaReviewUsage | null;
+};
+
+function mapReviewResult(row: PrismaReviewResultWithUsage): ReviewResultRecord {
+  return {
+    attempts: row.attempts,
+    createdAt: row.createdAt,
+    durationMs: row.durationMs,
+    model: row.model as ReviewResultRecord["model"],
+    provider: row.provider as ReviewResultRecord["provider"],
+    reasoningEffort: row.reasoningEffort as ReviewResultRecord["reasoningEffort"],
+    result: parsePersistedReviewResult(row.result),
+    reviewId: row.reviewId,
+    usage:
+      row.usage === null
+        ? null
+        : {
+            ...(row.usage.cachedInputTokens === null
+              ? {}
+              : { cachedInputTokens: row.usage.cachedInputTokens }),
+            inputTokens: row.usage.inputTokens,
+            outputTokens: row.usage.outputTokens,
+            totalTokens: row.usage.totalTokens,
+          },
   };
 }
 
@@ -87,8 +127,12 @@ export class PrismaReviewRepository implements ReviewRepository {
     id: string,
     transition: ReviewStatusTransition,
   ): Promise<ReviewRecord | null> {
+    if (transition.toStatus === "COMPLETED") {
+      return null;
+    }
+
     const result = await this.prisma.review.updateMany({
-      data: { status: transition.toStatus },
+      data: { status: transition.toStatus, updatedAt: transition.now },
       where: {
         deletedAt: null,
         id,
@@ -102,5 +146,68 @@ export class PrismaReviewRepository implements ReviewRepository {
     }
 
     return this.findByIdForUser(userId, id);
+  }
+
+  async finalizeForUser(
+    userId: string,
+    id: string,
+    execution: AiReviewExecution<ReviewResult>,
+    now: Date,
+  ): Promise<ReviewRecord | null> {
+    const persisted = validatePersistedAiReviewExecution(execution);
+
+    return this.prisma.transaction(async (transaction) => {
+      const transitioned = await transaction.review.updateMany({
+        data: { status: "COMPLETED", updatedAt: now },
+        where: { deletedAt: null, id, status: "PROCESSING", userId },
+      });
+
+      if (transitioned.count !== 1) {
+        return null;
+      }
+
+      await transaction.reviewResult.create({
+        data: {
+          attempts: persisted.attempts,
+          durationMs: persisted.durationMs,
+          model: persisted.model,
+          provider: persisted.provider,
+          reasoningEffort: persisted.reasoningEffort,
+          result: persisted.result as Prisma.InputJsonValue,
+          reviewId: id,
+          ...(persisted.usage === undefined
+            ? {}
+            : {
+                usage: {
+                  create: {
+                    ...(persisted.usage.cachedInputTokens === undefined
+                      ? {}
+                      : { cachedInputTokens: persisted.usage.cachedInputTokens }),
+                    inputTokens: persisted.usage.inputTokens,
+                    outputTokens: persisted.usage.outputTokens,
+                    totalTokens: persisted.usage.totalTokens,
+                  },
+                },
+              }),
+        },
+      });
+
+      const review = await transaction.review.findFirst({
+        where: { deletedAt: null, id, userId },
+      });
+
+      return review ? mapReview(review) : null;
+    });
+  }
+
+  async findResultForUser(userId: string, id: string): Promise<ReviewResultRecord | null> {
+    const result = await this.prisma.reviewResult.findFirst({
+      include: { usage: true },
+      where: {
+        review: { deletedAt: null, id, status: "COMPLETED", userId },
+      },
+    });
+
+    return result ? mapReviewResult(result) : null;
   }
 }

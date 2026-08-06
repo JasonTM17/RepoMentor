@@ -5,6 +5,8 @@ import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 
+import type { AiReviewExecution } from "../src/modules/ai/ai.types.js";
+import type { ReviewResult } from "../src/modules/ai/review-result.schema.js";
 import { AppModule } from "../src/app.module.js";
 import { configureApp } from "../src/app.js";
 import { AuthRateLimiter } from "../src/modules/auth/auth-rate-limiter.js";
@@ -21,6 +23,19 @@ const tokenConfig = {
   cookieSecure: true,
   refreshSecret: "refresh-secret-for-review-controller-tests-32-bytes",
   refreshTtlSeconds: 7_200,
+};
+
+const validExecution: AiReviewExecution<ReviewResult> = {
+  attempts: 1,
+  durationMs: 0,
+  model: "gpt-5.6-luna",
+  provider: "luna",
+  reasoningEffort: "medium",
+  result: {
+    findings: [],
+    schemaVersion: "v1",
+    summary: "No actionable findings were detected.",
+  },
 };
 
 interface ReviewUser {
@@ -250,11 +265,12 @@ describe("review API", () => {
       now: new Date("2026-08-05T12:00:01.000Z"),
       toStatus: "PROCESSING",
     });
-    await reviewRepository.transitionForUser(user.id, completed.id, {
-      fromStatuses: ["PROCESSING"],
-      now: new Date("2026-08-05T12:00:02.000Z"),
-      toStatus: "COMPLETED",
-    });
+    await reviewRepository.finalizeForUser(
+      user.id,
+      completed.id,
+      validExecution,
+      new Date("2026-08-05T12:00:02.000Z"),
+    );
     const invalidRetry = await request(app.getHttpServer())
       .post(`/api/v1/reviews/${completed.id}/retry`)
       .set("authorization", `Bearer ${user.accessToken}`);
