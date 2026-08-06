@@ -130,10 +130,16 @@ The AgentKit frontend design and development skill contracts, plus `technical-ac
 
 ### Verification evidence
 
-- `node --test ./apps/web/test/shell.test.mjs`: 31 tests passed, including route and shell links, strict API/fallback validation, fixture reconciliation, filter and pagination semantics, source-free rendering, state contracts, responsive/a11y rules, and no-secret/no-emoji/no-em-dash checks.
+- `node --test ./apps/web/test/shell.test.mjs`: 32 tests passed, including route and shell links, strict API/fallback validation, optional shared envelope metadata, fixture reconciliation, filter and pagination semantics, source-free rendering, safe quota progress semantics, state contracts, responsive/a11y rules, and no-secret/no-emoji/no-em-dash checks.
 - Local ESLint, TypeScript no-emit, Prettier check, and the Next production build passed. The build emitted `/dashboard`, `/history`, and `/usage` alongside the preserved routes.
 - A local production build was exercised in the in-app browser at 375px and 1440px. At 375px, document width matched the 360px content viewport, the history table switched to the mobile list, demo filtering reduced the fixture to one failed row, pagination reached page 2, and no horizontal overflow was detected. Desktop checks covered visible primary navigation, the multi-column metric/quota composition, and no horizontal overflow. Screenshots were transient QA evidence only.
 - A staged credential-shaped scan was run before each focused commit and remained clean. No secrets, provider credentials, or model controls were added.
+
+### Remediation evidence
+
+- The usage client accepts the shared contract's optional `meta` object only with bounded known keys; empty metadata is valid and unknown or invalid metadata is rejected.
+- Quota progress semantics keep displayed over-limit usage truthful while clamping assistive `aria-valuenow` to the declared range and explaining actual overage in `aria-valuetext`.
+- The remediation commit `ffcb819` was independently checked with 32 web tests, lint, typecheck, Prettier, Next build, diff-check, staged credential scan, and 375px/1440px browser QA.
 
 ### Visual-QA limitations
 
