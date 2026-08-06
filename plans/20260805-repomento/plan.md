@@ -130,10 +130,22 @@ The user-requested DeepSeek V4 Flash integration is recorded in
 `rag_suggestion` capability only, never a Luna code-review/worker substitute,
 and requires later security, privacy, quota, and secret-governance gates.
 
+Phase 06 is accepted on main at `369c958` after the exact Luna-owned commit
+chain `75f05aa`, `0cae58c`, `901d1fc`, and `369c958`. The boundary pins Luna /
+`gpt-5.6-luna`, validates bounded structured output, isolates untrusted source
+framing, preserves typed timeout/retry/cancellation errors, validates the
+fixed HTTPS endpoint, and keeps server-only runtime variables documented.
+Normal API tests pass `62/62`, including `22` focused AI tests; API build,
+lint, typecheck, Prettier, and diff-check pass. Luna manager arbitration and
+Kongming/Terra security counsel both accepted the exact head. This is not live
+AI or end-to-end review evidence; processing, persistence, usage/quota,
+streaming, and the full result contract remain later-phase work.
+
 The current local main checkpoint includes the accepted web-auth contract
 integration at `5ccb4cb`, review-domain integration through `b33d7d6`, truthful
 README/package/GitHub About/media updates through `3b1f3b1`, and the Docker
-slice through local `3d98a4d`. GitHub Actions run `31030844884` passed the
+slice through local `3d98a4d`, plus the Phase 06 Luna boundary at `369c958`.
+GitHub Actions run `31030844884` passed the
 workflow lint, Hadolint, Dockerfile contract, Compose config, API/web image
 builds, API `/health/live` smoke, and web `/` smoke. The Docker slice is
 deliberately not called registry-published: the local Docker daemon is
@@ -206,6 +218,7 @@ without live integration evidence.
 | `main` | planning | coordinator + Kongming/Terra advisory | `1443274` | optional RAG provider boundary recorded; no secret/live provider |
 | `main` | 04 | Luna web-auth integration + manager arbiter | `db6a85f`, `5e5f89f`, `5ccb4cb` | accepted; strict success envelope and 16 web tests; live browser/API unverified |
 | `main` | 05 | Luna review-domain worker + manager arbiter | `2ea3732`, `a2f8761`, `272310e`, `84f5e92`, `b33d7d6` | accepted; 40 API tests and ownership/lifecycle gates; live DB unverified |
+| `main` | 06 | Luna AI worker + Luna manager arbiter + Kongming/Terra counsel | `75f05aa`, `0cae58c`, `901d1fc`, `369c958` | accepted; 62 API tests including 22 AI tests; live AI and processing pipeline deferred |
 | `main` | docs/release | Faraday Luna + coordinator follow-up | `54c039f`, `d7e873c`, `2da1bd5`, `4673295`, `3b1f3b1` | accepted; README/release metadata, real UI GIF, and CI evidence; no production/public-package claim |
 | `main` | 13 | Raman Luna + manager arbiter | `014c5e7`, `9456850`, `cf2e62b`, `16a81d1`, `69f83ab`, `d910080`, `10f1b71`, `6448e67`, `952bbc5`, `dc238d3`, `14f0c3e`, `3d98a4d` | accepted; CI run `31030844884` passed Docker/Compose/build/smoke gates; registry publication pending |
 | `main` | 13 | Volta Luna + manager arbiter | `eab4557`, `6e90530`, `8c0f0c0`, `86a1c69`, `2cb9c9d` | accepted Compose/env/docs slice; local startup and live smoke pending |
@@ -235,6 +248,9 @@ without live integration evidence.
 | phase-04-api-manager | reviewer/implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-auth-api` | accepted locally; integrated at `9413493` with live DB concern | manager thread `019fd14f-e844-7f83-988f-7a27e3639fe2` |
 | phase-04-web-auth-contract-integration | ak frontend implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-web-auth-contract-integration` | accepted; worker `019fd27a-cb59-7731-9ec6-425b7a18eac8`; merged through `5ccb4cb` | manager arbiter pass; visual/live limits recorded |
 | phase-05-review-domain | review API/database implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-review-domain` | accepted; worker `019fd27e-5344-70f2-bcef-a2909bb895f0`; merged through `b33d7d6` | manager arbiter pass; live migration DB unavailable |
+| phase-06-ai-boundary | implementer | `gpt-5.6-luna` / `max` | `feature/ai-provider-boundary` in coordinator checkout (tool limitation recorded) | accepted; worker `019fd304-b781-7aa3-8ef4-bfa09ea67383`; merged through `369c958` | 4 focused commits; no live provider call |
+| phase-06-manager-arbiter | reviewer/arbiter | `gpt-5.6-luna` / `max` | read-only exact-head review | accepted; manager `019fd14f-e844-7f83-988f-7a27e3639fe2` | P1 fixes verified; safe to cherry-pick |
+| phase-06-kongming-counsel | security advisor | `gpt-5.6-terra` / `max` | read-only counsel | accepted; counsel `019fd4b0-e28f-7361-b7c6-b9752bd24428` | no P0/P1 blockers; P2 hardening remains non-blocking |
 | phase-06-deepseek-advisor | advisory architecture/security | `gpt-5.6-terra` / `max` | read-only counsel | completed; no edits; DeepSeek deferred behind ADR | advisory delivered to coordinator/manager |
 | phase-13-docs-release-media | documentation/media implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docs-release-media` | accepted; worker `019fd2ac-2034-7752-83ef-e2d7cefda10e`; merged through `4673295` | Faraday report; real 3-frame UI GIF |
 | phase-13-docker-release | Docker/CI implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-release` | accepted; worker `019fd2b1-daad-7302-824c-adef31c220ff`; merged through `3d98a4d` | Raman report; CI `31030844884` green; live registry pending |

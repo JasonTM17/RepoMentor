@@ -1,30 +1,34 @@
 # RepoMentor release notes and artifact boundaries
 
-This note defines the release boundary for the implemented application
+This note defines the release boundary for the post-integration application
 checkpoint. It is documentation, not a deployment or package-publication
 claim.
 
 ## Current checkpoint
 
-- Base implementation: [`7a4961e`](https://github.com/JasonTM17/RepoMentor/commit/7a4961e)
+- Post-integration base: [`369c9588`](https://github.com/JasonTM17/RepoMentor/commit/369c9588f9cc0a51c28794272185b21f42394c2f)
 - Root version: `0.1.0`
-- Suggested release posture: prerelease only, for example `v0.1.0-alpha.1`
+- Release/tag status: no release or tag is claimed by this checkpoint
 - Root package: `private: true`
 - Publication status: no package artifact is published by this repository
 - Deployment status: no deployment is performed or certified by this worker
 
-The checkpoint has a working web shell, API auth/review boundaries, shared
-contracts, Prisma migrations, deterministic tests, local API/web Compose
-services, and credential-free container validation. It does not include a
-live PostgreSQL or Redis proof, a live AI provider, a worker, review results,
-registry publication, or deployment evidence.
+The checkpoint has a working web shell, API auth/review boundaries, an
+isolated Luna provider boundary, shared contracts, Prisma migrations,
+deterministic tests, local API/web Compose services, and credential-free
+container validation. The Luna boundary fixes the provider/model, validates
+strict bounded results, isolates untrusted source from instructions, and
+exposes typed retry/timeout/cancellation/error handling. It does not include a
+live PostgreSQL or Redis proof, a live AI call, review-processing worker,
+generated-result persistence, application usage or quota accounting, SSE result
+streaming, connected editor, registry publication, or deployment evidence.
 
 ## Tag and prerelease boundaries
 
-Use an annotated, immutable tag only after the exact commit intended for the
-release has passed the repository checks. Until the missing integration and
-release gates are satisfied, use a prerelease tag such as `v0.1.0-alpha.1`
-and describe it as an application checkpoint.
+No release or tag is created or claimed by this checkpoint. Use an annotated,
+immutable tag only after the exact commit intended for a release has passed
+the repository checks and the remaining execution and release gates are
+satisfied.
 
 Do not move a tag after publication. If a correction is required, create the
 next prerelease or release tag at a new commit. Release notes should name the
@@ -73,15 +77,24 @@ pnpm format:check
 ```
 
 Results were successful after the generated Prisma client and shared contract
-package were prepared: 16 web tests, 5 contract tests, 40 API tests, static
-web routes for `/`, `/_not-found`, `/login`, and `/register`, and a valid
-Prisma schema. Prisma checks used a local-only URL and did not connect to a
-database. GitHub Actions run
+package were prepared: 16 web tests, 5 contract tests, and 62/62 API tests.
+The focused AI suite passed 22/22; the deterministic tests did not call a live
+network. The normal API test command discovers the nested Phase 06 tests.
+Static web routes for `/`, `/_not-found`, `/login`, and `/register`, and a valid
+Prisma schema were also evidenced. Prisma checks used a local-only URL and did
+not connect to a database. The historical GitHub Actions run
 [`31030844884`](https://github.com/JasonTM17/RepoMentor/actions/runs/31030844884)
-also passed workflow/Dockerfile lint, Compose config, API/web image builds,
-and HTTP smoke for `/health/live` and `/`. No live PostgreSQL, Redis, AI,
-deployment, registry publication, or authenticated browser session was
-verified.
+passed workflow/Dockerfile lint, Compose config, API/web image builds, and
+HTTP smoke for `/health/live` and `/`; it is infrastructure evidence, not
+proof of a live AI call. No live PostgreSQL, Redis, or AI call, review worker,
+generated-result persistence, usage/quota accounting, SSE stream, deployment,
+registry publication, or authenticated browser session was verified.
+
+The Luna boundary is server-side only: `LUNA_API_KEY` is not exposed to
+clients, and `LUNA_API_BASE_URL` is fixed to the deployment-owned HTTPS
+allowlisted endpoint `https://api.openai.com/v1`. Optional DeepSeek RAG
+suggestions remain disabled and deferred under ADR-001; no DeepSeek secret is
+added, documented, or stored.
 
 The UI GIF in `docs/media/repomentor-ui.gif` is a real capture of the running
 Next UI shell at `/`, `/login`, and `/register`. It is not a visual-regression
