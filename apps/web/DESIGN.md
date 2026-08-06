@@ -64,6 +64,7 @@ Phase 08 keeps the existing Industrial / utilitarian direction. The seeded read 
 ### Product surface
 
 - `/reviews/new` is a real client-side workspace with source, language, learner level, review mode, title, and context inputs.
+- The language select covers the initial ten-language set: JavaScript, TypeScript, Java, Python, Go, SQL, C#, C++, Rust, and Other. Demo fixture filenames map each option to a deterministic extension.
 - Character, line, and rough token values are computed from the local source and labeled as estimates. They are not quota or provider usage.
 - Validation runs on blur and submit. Errors are connected below their fields with `aria-describedby` and `role="alert"`.
 - The result desk renders summary, an explicit `Score not supplied` boundary, issue signals, severity/category filters, source line highlights, learning notes, copy action, and safe execution metadata.
@@ -71,31 +72,35 @@ Phase 08 keeps the existing Industrial / utilitarian direction. The seeded read 
 
 ### State contract
 
-| UI state   | Visible behavior                                                        | Truth boundary                                        |
-| ---------- | ----------------------------------------------------------------------- | ----------------------------------------------------- |
-| Idle       | Draft form and empty result panel                                       | No review is implied                                  |
-| Loading    | Stable result panel with preparation copy and skeleton lines            | No blank spinner or fake progress                     |
-| Processing | Stable result panel with bounded processing copy                        | No fabricated percentage, quota, or token count       |
-| Success    | Structured summary, findings, filters, line context, and learning notes | Demo result is labeled deterministic fixture          |
-| Empty      | Empty finding list copy and empty result panel                          | Empty means no finding signals, not a missing request |
-| Error      | Generic alert and retry action                                          | Raw API/provider errors do not reach visible copy     |
+| UI state   | Visible behavior                                                                 | Truth boundary                                        |
+| ---------- | -------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Idle       | Draft form and empty result panel                                                | No review is implied                                  |
+| Loading    | Stable result panel with preparation copy and skeleton lines                     | No blank spinner or fake progress                     |
+| Processing | Stable result panel with bounded processing copy and a `Check for result` action | No fabricated percentage, quota, or token count       |
+| Success    | Structured summary, findings, filters, line context, and learning notes          | Demo result is labeled deterministic fixture          |
+| Empty      | Empty finding list copy and empty result panel                                   | Empty means no finding signals, not a missing request |
+| Error      | Generic alert and retry action                                                   | Raw API/provider errors do not reach visible copy     |
 
 ### Transport bridge
 
 `features/review/api/reviewApi.ts` is the integration seam for the accepted backend transport. It sends an empty object to `POST /api/v1/reviews/:id/process`, reads `GET /api/v1/reviews/:id/result`, includes credentials, validates the success envelope and response shape, and maps failures to a safe client error. The route currently injects the deterministic demo factory because browser auth/session and review creation are not connected in this phase. Title, context, and learner level therefore remain UI-only context and are not sent to a server contract that does not accept them.
 
+When process returns `resultAvailable: false` with `ALREADY_PROCESSING`, the hook keeps the result panel in `processing` and checks the result endpoint at most four times. It retries only the expected HTTP 409 conflict (`CONFLICT`, or the more specific `RESULT_NOT_READY` code), waits between checks, and returns to the visible processing state when the bounded window ends. A newer request, reset, or unmount invalidates the request version and cancels further checks. Other transport failures enter the generic error state. The processing panel exposes `Check for result`, while the result remains empty until the transport returns a validated completed payload.
+
+Learning-note headings use the rendered finding index for unique DOM IDs, and React keys include that index so duplicate `filePath` and line references remain addressable. The result validator also requires an ISO date-time completion value, non-negative integer usage, additive totals, a bounded cached-input value, and strict known-key sets.
+
 The demo fixture uses the server's `gpt-5.6-luna` and `max` metadata shape without making a provider call. It uses fixed output and a fixed completion timestamp, reports `usage: null`, and is explicitly labeled on the page. Adding `no findings` to the local source exercises the empty fixture path.
 
 ### Verification evidence
 
-- Static shell/UI contract: 22 tests passed, including exact endpoint/body checks, state copy, result sections, focus/target CSS, responsive rules, reduced motion, and banned-copy checks.
+- Static and runtime shell/UI contract: 25 tests passed, including bounded conflict polling, request-version cancellation, duplicate-safe learning-note IDs, strict result timestamp/usage validation, the ten-language option set, exact endpoint/body checks, state copy, result sections, focus/target CSS, responsive rules, reduced motion, and banned-copy checks.
 - `pnpm --filter @repomentor/web lint`: passed.
 - `pnpm --filter @repomentor/web typecheck`: passed.
 - `pnpm --filter @repomentor/web build`: passed. The build generated `/reviews/new` as a static route.
 - Prettier check and `git diff --check`: passed.
-- Browser QA ran against the local production build at 375px and 1440px. Both sizes had no horizontal overflow. The 375px grid composed to one column; the 1440px editor/sidebar grid measured approximately 748.8px and 403.2px. The demo run was exercised through processing into the structured result.
+- Browser QA reran against the local production build at 375px and 1440px. At 375px, the document and body measured 360px, the field grid composed to one 294.4px column, and there was no horizontal overflow. At 1440px, the document measured 1425px and the editor/sidebar grid measured approximately 748.8px and 403.2px with no horizontal overflow. The demo run was exercised through processing into the structured result.
 - Screenshots were transient QA evidence only and are not checked in. No live AI, authenticated session, PostgreSQL, Redis, or provider integration was claimed.
 
 ## Visual-QA limitations
 
-The implementation will be checked with a production build, static HTML inspection, a 375px viewport check for overflow, and a desktop composition check. This environment does not provide a checked-in screenshot baseline or live backend data, so visual QA cannot validate authenticated routes, repository-specific code, real review findings, network-loaded font behavior under offline conditions, or future editor interactions. The preview is intentionally an illustrative static surface and is labeled accordingly.
+The implementation was checked with a production build, static HTML inspection, a 375px viewport check for overflow, and a desktop composition check. The deterministic demo does not emit the backend's processing conflict, so the `Check for result` interaction is covered by the bounded polling runtime test rather than a fabricated browser state. This environment does not provide a checked-in screenshot baseline or live backend data, so visual QA cannot validate authenticated routes, repository-specific code, real review findings, network-loaded font behavior under offline conditions, or future editor interactions. The preview is intentionally an illustrative static surface and is labeled accordingly.
