@@ -14,14 +14,15 @@ claim.
 - Deployment status: no deployment is performed or certified by this worker
 
 The checkpoint has a working web shell, API auth/review boundaries, an
-isolated Luna provider boundary, shared contracts, Prisma migrations,
+authenticated synchronous review-processing and persisted-result transport,
+an isolated Luna provider boundary, shared contracts, Prisma migrations,
 deterministic tests, local API/web Compose services, and credential-free
 container validation. The Luna boundary fixes the provider/model, validates
 strict bounded results, isolates untrusted source from instructions, and
 exposes typed retry/timeout/cancellation/error handling. It does not include a
-live PostgreSQL or Redis proof, a live AI call, review-processing worker,
-generated-result persistence, application usage or quota accounting, SSE result
-streaming, connected editor, registry publication, or deployment evidence.
+live PostgreSQL or Redis proof, a live AI call, queue/worker runtime, application
+usage or quota accounting, SSE result streaming, connected editor, registry
+publication, or deployment evidence.
 
 ## Tag and prerelease boundaries
 
@@ -77,7 +78,8 @@ pnpm format:check
 ```
 
 Results were successful after the generated Prisma client and shared contract
-package were prepared: 16 web tests, 5 contract tests, and 62/62 API tests.
+package were prepared: 16 web tests, 5 contract tests, and 86/86 API tests
+(107/107 total).
 The focused AI suite passed 22/22; the deterministic tests did not call a live
 network. The normal API test command discovers the nested Phase 06 tests.
 Static web routes for `/`, `/_not-found`, `/login`, and `/register`, and a valid
@@ -86,9 +88,11 @@ not connect to a database. The historical GitHub Actions run
 [`31030844884`](https://github.com/JasonTM17/RepoMentor/actions/runs/31030844884)
 passed workflow/Dockerfile lint, Compose config, API/web image builds, and
 HTTP smoke for `/health/live` and `/`; it is infrastructure evidence, not
-proof of a live AI call. No live PostgreSQL, Redis, or AI call, review worker,
-generated-result persistence, usage/quota accounting, SSE stream, deployment,
-registry publication, or authenticated browser session was verified.
+proof of a live AI call. No live PostgreSQL, Redis, or AI call, queue/worker
+runtime, usage/quota accounting, SSE stream, deployment, registry publication,
+or authenticated browser session was verified. Processing/result transport
+evidence is deterministic and uses in-memory repositories plus a fake Luna
+provider.
 
 The Luna boundary is server-side only: `LUNA_API_KEY` is not exposed to
 clients, and `LUNA_API_BASE_URL` is fixed to the deployment-owned HTTPS

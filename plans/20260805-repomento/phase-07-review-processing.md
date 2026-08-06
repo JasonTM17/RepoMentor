@@ -67,10 +67,44 @@ enforcement that every COMPLETED review has a result, claim-generation/lease
 fencing for multiple workers, and live isolation/rollback/concurrency checks
 remain P2 follow-ups before queues, retries, or public result transport.
 
+## Slice 07C — authenticated synchronous processing transport
+
+Status: implemented on `feature/review-processing-command`, based on
+`81b6bbd`; coordinator integration and final branch acceptance remain pending.
+Implementation commit: `ad32a51` (`feat(review): expose synchronous processing
+transport`).
+
+The slice adds a narrow HTTP seam over the accepted processing and persistence
+boundaries:
+
+- `ReviewProcessingService` is injectable through `ReviewModule` while its
+  manual constructor remains available for deterministic tests;
+- `POST /api/v1/reviews/:id/process` runs one bounded synchronous Luna attempt,
+  rejects client processing options, and returns a stable source-free response
+  for completion and already-processing/already-completed idempotent skips;
+- `GET /api/v1/reviews/:id/result` returns only an owner-scoped validated result
+  with fixed Luna execution metadata and bounded usage, never stored source or
+  raw provider payloads;
+- not-found, conflict, provider failure, cancellation, invalid state, and
+  unexpected persistence paths map to existing safe API problem categories;
+- controller/e2e coverage uses in-memory repositories and a fake Luna provider
+  for auth, ownership, idempotency, invalid IDs/states, failure/cancellation,
+  result retrieval, and leakage checks.
+
+This remains deterministic transport evidence only. It does not claim live Luna,
+PostgreSQL, Redis, queues, retries, cancellation transport, SSE/reconnect,
+web UI, or deployment integration.
+
+Exact-head evidence on `ad32a51`: API `86/86`, root `107/107` (web `16/16`,
+contracts `5/5`), API build/typecheck/lint, root build/lint/typecheck/format,
+Prisma validate/generate with a local-only URL, diff-check, and staged secret
+scan. No live service or provider call was made.
+
 ## Commit slices
 
 - `feat(review): add AI review processing pipeline` (07A accepted)
 - `feat(review): persist review results transactionally` (07B accepted)
+- `feat(review): expose synchronous processing and result transport` (07C)
 - `feat(review): add review cancellation support`
 - `feat(streaming): stream review progress to clients`
 - `feat(review): add failed review retry workflow`

@@ -28,13 +28,13 @@ This checkpoint contains:
   PostgreSQL, and Redis, with localhost-bound ports and health-gated startup;
 - focused unit and in-memory controller tests for the implemented boundaries.
 
-The review API still does not invoke the integrated provider. There is no live AI
-call, review-processing worker, persistence of a generated result, application
-usage/quota accounting, SSE or other result streaming, connected editor,
-production deployment, registry publication, or package publication. The Luna
-boundary is tested without a live provider call. The container build workflow is
-implemented and validated on GitHub-hosted runners, but it is not a registry
-publication or deployment.
+The review API now includes a narrow authenticated synchronous processing and
+persisted-result transport seam. It is tested with an in-memory repository and
+fake Luna provider; there is no live AI call, PostgreSQL or Redis integration,
+queue, application usage/quota accounting, SSE or other result streaming,
+connected editor, production deployment, registry publication, or package
+publication. The container build workflow is implemented and validated on
+GitHub-hosted runners, but it is not a registry publication or deployment.
 
 ## Architecture
 
@@ -76,29 +76,31 @@ The API uses `/api/v1` as its global prefix except for the two health routes.
 Successful responses are wrapped as `{ "data": ... }`; failures use an
 `{ "error": ... }` problem envelope and a bounded `X-Request-Id` header.
 
-| Method and route                  | Implemented behavior                                                                                                         |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health/live`                | Process liveness: `{ "data": { "status": "ok" } }`.                                                                          |
-| `GET /health/ready`               | Application-only readiness. It does not probe PostgreSQL, Redis, or AI.                                                      |
-| `GET /api/docs`                   | Swagger UI for the current API document.                                                                                     |
-| `POST /api/v1/auth/register`      | Validates input and returns `202` with `{ "accepted": true }`; new and duplicate emails are intentionally indistinguishable. |
-| `POST /api/v1/auth/login`         | Returns a short-lived Bearer access token and public user data in a `201` success envelope.                                  |
-| `POST /api/v1/auth/refresh`       | Reads and rotates the API-owned refresh cookie.                                                                              |
-| `POST /api/v1/auth/logout`        | Revokes the presented refresh session when valid and clears the cookie; malformed or repeated logout is idempotent.          |
-| `POST /api/v1/auth/logout-all`    | Authenticated session revocation for every session belonging to the user.                                                    |
-| `GET /api/v1/auth/me`             | Returns the authenticated public user.                                                                                       |
-| `POST /api/v1/reviews`            | Creates an authenticated, user-owned review in `PENDING` status; default mode is `STANDARD`.                                 |
-| `GET /api/v1/reviews`             | Lists only the authenticated user's active reviews with page, limit, and status filtering.                                   |
-| `GET /api/v1/reviews/:id`         | Returns one owned review, including source code.                                                                             |
-| `DELETE /api/v1/reviews/:id`      | Soft-deletes one owned review and returns `204`.                                                                             |
-| `POST /api/v1/reviews/:id/retry`  | Moves an owned review back to `PENDING` when the status policy allows it.                                                    |
-| `POST /api/v1/reviews/:id/cancel` | Moves an owned review to `CANCELLED` when the status policy allows it.                                                       |
+| Method and route                   | Implemented behavior                                                                                                             |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health/live`                 | Process liveness: `{ "data": { "status": "ok" } }`.                                                                              |
+| `GET /health/ready`                | Application-only readiness. It does not probe PostgreSQL, Redis, or AI.                                                          |
+| `GET /api/docs`                    | Swagger UI for the current API document.                                                                                         |
+| `POST /api/v1/auth/register`       | Validates input and returns `202` with `{ "accepted": true }`; new and duplicate emails are intentionally indistinguishable.     |
+| `POST /api/v1/auth/login`          | Returns a short-lived Bearer access token and public user data in a `201` success envelope.                                      |
+| `POST /api/v1/auth/refresh`        | Reads and rotates the API-owned refresh cookie.                                                                                  |
+| `POST /api/v1/auth/logout`         | Revokes the presented refresh session when valid and clears the cookie; malformed or repeated logout is idempotent.              |
+| `POST /api/v1/auth/logout-all`     | Authenticated session revocation for every session belonging to the user.                                                        |
+| `GET /api/v1/auth/me`              | Returns the authenticated public user.                                                                                           |
+| `POST /api/v1/reviews`             | Creates an authenticated, user-owned review in `PENDING` status; default mode is `STANDARD`.                                     |
+| `GET /api/v1/reviews`              | Lists only the authenticated user's active reviews with page, limit, and status filtering.                                       |
+| `GET /api/v1/reviews/:id`          | Returns one owned review, including source code.                                                                                 |
+| `DELETE /api/v1/reviews/:id`       | Soft-deletes one owned review and returns `204`.                                                                                 |
+| `POST /api/v1/reviews/:id/retry`   | Moves an owned review back to `PENDING` when the status policy allows it.                                                        |
+| `POST /api/v1/reviews/:id/cancel`  | Moves an owned review to `CANCELLED` when the status policy allows it.                                                           |
+| `POST /api/v1/reviews/:id/process` | Runs one bounded synchronous Luna review; returns a source-free completion or idempotent skip response.                          |
+| `GET /api/v1/reviews/:id/result`   | Returns one owned completed result with validated findings and safe Luna execution metadata; non-completed reviews return `409`. |
 
 Review statuses are `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`, and
-`CANCELLED`. The API currently persists the review boundary and lifecycle
-seams only. The Luna provider boundary is integrated and tested in isolation;
-no public review endpoint invokes it or changes a review to a generated result
-in this checkpoint.
+`CANCELLED`. Processing accepts no provider, model, or prompt options from the
+client. Successful processing responses contain only the review ID, status,
+outcome, and result-availability flag; result data is available only through
+the owner-scoped result endpoint.
 
 ## Local setup
 
@@ -131,7 +133,8 @@ The Luna provider boundary is server-side only. Keep `LUNA_API_KEY` in the API
 runtime and never expose it to clients. `LUNA_API_BASE_URL` is fixed to
 `https://api.openai.com/v1`, the deployment-owned HTTPS allowlisted endpoint;
 it is not an arbitrary provider or model selection setting. These variables do
-not make the review API invoke an AI provider at this checkpoint.
+not prove live provider access; deterministic transport tests use a fake Luna
+provider and no external AI request is made by the validation suite.
 
 For Compose, set `API_HOST_PORT` and `WEB_HOST_PORT` to unused localhost ports.
 `NEXT_PUBLIC_API_ORIGIN` is required as a web image build argument and must be
@@ -213,11 +216,11 @@ Authentication is server-owned:
   high-entropy JWT secrets.
 
 Review authorization is user-owned at the repository boundary. List, detail,
-delete, retry, and cancel operations all scope by the authenticated user ID.
-Submitted source is treated as untrusted data and is stored as review input;
-the current repository never executes it. No public review request reaches the
-Luna provider yet; its isolated boundary treats source as untrusted data when
-called by its own service tests.
+delete, retry, cancel, process, and result operations all scope by the
+authenticated user ID. Submitted source is treated as untrusted data and is
+stored as review input; the current repository never executes it. The
+processing route pins the server-owned Luna provider/model and never accepts
+client prompt overrides.
 
 ## Validation evidence
 
@@ -233,7 +236,7 @@ the process environment; they did not connect to PostgreSQL.
 | `pnpm db:validate`                          | Pass; schema accepted by Prisma `6.19.0`.                                                                                                                                                             |
 | `pnpm lint`                                 | Pass for root, API, web, and contracts.                                                                                                                                                               |
 | `pnpm typecheck`                            | Pass after generated Prisma and contracts artifacts were prepared.                                                                                                                                    |
-| `pnpm test`                                 | Pass: 16 web tests, 5 contract tests, and 62/62 API tests.                                                                                                                                            |
+| `pnpm test`                                 | Pass: 16 web tests, 5 contract tests, and 86/86 API tests (107/107 total).                                                                                                                            |
 | Focused AI tests                            | Pass: 22/22; deterministic provider-boundary tests do not call a live network.                                                                                                                        |
 | `pnpm build`                                | Pass: static web routes `/`, `/_not-found`, `/login`, and `/register` plus API and contracts.                                                                                                         |
 | `pnpm format:check`                         | Pass.                                                                                                                                                                                                 |
@@ -279,10 +282,10 @@ PostgreSQL, Redis, AI output, or a production deployment._
 - No live PostgreSQL or Redis service was available or verified by the checks
   above. API integration tests override the Prisma repositories with in-memory
   implementations.
-- The Luna provider boundary is integrated and tested, but there is no live AI
-  call, review-processing worker, generated finding, generated-result
-  persistence, application usage/quota accounting, or SSE result stream at
-  this checkpoint.
+- The synchronous processing and result routes are covered with fake Luna and
+  in-memory repositories only. There is no live AI call, live PostgreSQL or
+  Redis integration, queue/worker runtime, application usage/quota accounting,
+  or SSE result stream at this checkpoint.
 - The web shell is not connected to a review dashboard or repository data.
 - The captured GIF is not a browser visual-regression baseline and does not
   claim a live browser session or backend integration.
