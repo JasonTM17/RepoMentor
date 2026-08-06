@@ -80,3 +80,29 @@ server-side search/date/sort, backend failure simulation, and future cost/
 model/provider/reasoning fields remain follow-up slices. History validator
 cross-field consistency and offline-font/live-service evidence are P2
 hardening items.
+
+## Accepted checkpoint: Phase 09C server history filters
+
+Phase 09C is accepted on local `main` at `8a4acc3` after cherry-picking the
+exact Luna worker chain `97db82b -> e462686 -> f37ed79 -> 0a6aaef`, based on
+`1b0f82d`. The authenticated usage-history route now supports optional
+language, mode, status, bounded review-ID-only search, stable `createdAt` plus
+`id` ordering, and strict inclusive-`from`/exclusive-`to` UTC date-time
+filters. Count and page queries reuse the same owner and `deletedAt: null`
+predicates; the Prisma select and response remain source-free. Swagger and
+global DTO validation document and reject unknown, ambiguous, out-of-range,
+or invalid query values. Prisma `LIKE`/`ILIKE` wildcard semantics are handled
+by escaping `_` at the repository boundary; persisted title search remains a
+P2 schema/migration decision because the current Review model has no title.
+
+Post-merge evidence is API `112/112` across 23 suites, API lint, typecheck,
+build, Prettier, Prisma validate/generate with a non-secret placeholder
+`DATABASE_URL`, diff-check, and a credential-shaped scan with no matches. The
+worker additionally passed focused usage `21/21`; its D: worktree is clean.
+Luna manager and Kongming/Terra counsel accepted exact worker head
+`0a6aaef06ff66274da406f8c9c6024fe1327fc67` with no P0/P1 blocker. P2 limits
+are explicit: no live PostgreSQL execution proof yet, and bounded offset
+search/pagination should be profiled before high-volume production use.
+This is a server-filter checkpoint, not completion of Phase 09: Redis atomic
+enforcement, guest quotas, live auth/API wiring, live PostgreSQL/Redis, and
+cursor/snapshot consistency remain later work.

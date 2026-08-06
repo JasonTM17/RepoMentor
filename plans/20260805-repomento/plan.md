@@ -248,9 +248,25 @@ remains a bounded UI checkpoint: live auth/API, PostgreSQL/Redis, server
 search/date/sort, backend failure simulation, and deferred cost/model/
 provider/reasoning fields remain later work.
 
+Phase 09C is accepted on local main at `8a4acc3` after the exact Luna worker
+chain `97db82b -> e462686 -> f37ed79 -> 0a6aaef`, based on `1b0f82d`.
+Authenticated usage history now has owner-safe language/mode/status filters,
+bounded review-ID-only search, strict UTC range validation, stable
+createdAt/id sorting, source-free responses, and documented Swagger query
+parameters. The Prisma boundary escapes `_` so review-ID search remains a
+literal substring operation under PostgreSQL LIKE/ILIKE semantics; persisted
+title search is explicitly deferred because Review has no title column.
+Post-merge evidence is API `112/112` across 23 suites, API lint, typecheck,
+build, Prettier, Prisma validate/generate, diff-check, and a credential-shaped
+scan with no matches. Luna manager and Kongming/Terra counsel accepted the
+exact worker head with no P0/P1 blocker. This remains a bounded server-filter
+checkpoint: no live PostgreSQL execution proof, Redis atomic enforcement,
+guest quotas, live auth/API wiring, or cursor/snapshot pagination claim.
+
 The current local main checkpoint includes the accepted web-auth contract
 integration at `5ccb4cb`, review-domain integration through `b33d7d6`, truthful
-README/package/GitHub About/media updates through `3b1f3b1`, and the Docker
+README/package/GitHub About/media updates through `3b1f3b1`, Phase 09C history
+filters through `8a4acc3`, and the Docker
 slice through local `3d98a4d`, the Phase 06 Luna boundary at `369c958`, and
 Phase 07A orchestration through `6b2dfe4`, Phase 07B persistence through
 `ce6222b`, Phase 07C transport through `cede60c`, the Phase 08A review
@@ -336,6 +352,7 @@ without live integration evidence.
 | `main` | 08A | Luna ak-fe UI worker + Luna manager arbiter + Kongming/Terra counsel | `bd12761`, `6740d70`, `ec51172`, `011a516`, `0c46164` (worker `533cf73`, `c96988f`, `5eca1bf`, `9ea5afa`, `9aac007`) | accepted bounded `/reviews/new` checkpoint; 25 web, 91 API, 5 contracts, 121 root tests; demo transport and Monaco/streaming/history/live services deferred |
 | `main` | 09A | Luna usage API worker + Luna manager arbiter + Kongming/Terra counsel | `ecdf10f`, `72472b2`, `4916152` (worker `b93e3d6`, `488a72a`, `642fe6d`) | accepted bounded owner-scoped summary/history/quota read model; 107 API, 25 web, 5 contracts, 137 root tests; Redis/guest quota, search/filter, dashboard, and live services deferred |
 | `main` | 09B | Luna ak-fe usage UI worker + Luna manager arbiter + Kongming/Terra counsel | `4c0e26d`, `84df4f2`, `b4b6236`, `aaea4f5`, `e9cf5bc`, `4951c5b`, `b9390a5`, `9e24463`, `ffcb819` (worker `53b805f`, `27c7fb7`, `c88c045`, `1c362e8`, `a7d861f`, `cb1cf3c`, `93e077a`, `9e6a346`, `6695ed2`) | accepted bounded `/dashboard`, `/history`, `/usage` checkpoint; 32 web, 107 API, 5 contracts, 144 root tests; live auth/API and server history filters deferred |
+| `main` | 09C | Luna usage-history filter worker + Luna manager arbiter + Kongming/Terra counsel | `f66bd45`, `5fba494`, `b662058`, `8a4acc3` (worker `97db82b`, `e462686`, `f37ed79`, `0a6aaef`) | accepted bounded owner-safe filters/search/UTC/sort; 112 API tests; live PostgreSQL, Redis enforcement, guest quota, and cursor/snapshot evidence deferred |
 | `main` | auth hardening | coordinator validation follow-up | `0b47a45` | accepted; rejects non-canonical Base64URL token encodings; full API/root tests pass |
 | `main` | docs/release | Faraday Luna + coordinator follow-up | `54c039f`, `d7e873c`, `2da1bd5`, `4673295`, `3b1f3b1` | accepted; README/release metadata, real UI GIF, and CI evidence; no production/public-package claim |
 | `main` | 13 | Raman Luna + manager arbiter | `014c5e7`, `9456850`, `cf2e62b`, `16a81d1`, `69f83ab`, `d910080`, `10f1b71`, `6448e67`, `952bbc5`, `dc238d3`, `14f0c3e`, `3d98a4d` | accepted; CI run `31030844884` passed Docker/Compose/build/smoke gates; registry publication pending |
@@ -388,6 +405,9 @@ without live integration evidence.
 | phase-09-usage-ui | ak frontend implementer | `gpt-5.6-luna` / `max` | `C:\Users\Admin\.codex\worktrees\31df\RepoMentor` (`feature/history-usage-ui`) | accepted; worker `019fd5d3-3367-7d71-9841-4913a95df82a`; integrated through `ffcb819` | 32 web tests; dashboard/history/usage surfaces, fixture/API boundary, 375px/1440px browser QA; live auth/API and server filters deferred |
 | phase-09-usage-ui-manager | reviewer/arbiter | `gpt-5.6-luna` / `max` | read-only exact-head review | accepted; manager `019fd14f-e844-7f83-988f-7a27e3639fe2` | initial HOLD fixed by `6695ed2`; exact `6695ed2` accepted with no P0/P1; P2 live auth bridge and validator hardening |
 | phase-09-usage-ui-kongming-counsel | security/architecture advisor | `gpt-5.6-terra` / `max` | read-only counsel | accepted; counsel `019fd4b0-e28f-7361-b7c6-b9752bd24428` | no P0/P1 after remediation; demo honesty/source-free/a11y pass; live auth/API and server filters deferred |
+| phase-09-history-filters | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-history-filter` (`feature/history-filter-api-disk`) | accepted; worker `019fd614-d769-74b0-a1c0-2beaa8d935e0`; integrated through `8a4acc3` | 4 focused commits; 21 focused and 112 post-merge API tests; live PostgreSQL and high-volume pagination remain P2 |
+| phase-09-history-filters-manager | reviewer/arbiter | `gpt-5.6-luna` / `max` | read-only exact-head review | accepted; manager `019fd14f-e844-7f83-988f-7a27e3639fe2` | exact `0a6aaef` accepted; no P0/P1; live PostgreSQL evidence remains P2 |
+| phase-09-history-filters-kongming-counsel | security/architecture advisor | `gpt-5.6-terra` / `max` | read-only exact-head counsel | accepted; counsel `019fd4b0-e28f-7361-b7c6-b9752bd24428` | `_` wildcard remediation accepted; no P0/P1; live PostgreSQL and scale profiling remain P2 |
 | phase-13-docs-release-media | documentation/media implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docs-release-media` | accepted; worker `019fd2ac-2034-7752-83ef-e2d7cefda10e`; merged through `4673295` | Faraday report; real 3-frame UI GIF |
 | phase-13-docker-release | Docker/CI implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-release` | accepted; worker `019fd2b1-daad-7302-824c-adef31c220ff`; merged through `3d98a4d` | Raman report; CI `31030844884` green; live registry pending |
 | phase-13-docker-compose-runtime | Compose/env/docs implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-compose-runtime` | accepted; worker `019fd2d1-eb9d-7fd0-ab68-4f5f2b44073f`; merged through `2cb9c9d` | Volta report; Docker daemon/live startup unavailable |
