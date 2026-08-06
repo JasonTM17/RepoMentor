@@ -38,6 +38,8 @@ export const REVIEW_PROCESSING_BOUNDARY_ERROR_CODES = [
   "REVIEW_NOT_FOUND",
   "CLAIM_CONFLICT",
   "FINALIZATION_CONFLICT",
+  "RESULT_NOT_READY",
+  "RESULT_UNAVAILABLE",
 ] as const;
 export type ReviewProcessingBoundaryErrorCode =
   (typeof REVIEW_PROCESSING_BOUNDARY_ERROR_CODES)[number];
@@ -46,6 +48,8 @@ const BOUNDARY_ERROR_MESSAGES: Readonly<Record<ReviewProcessingBoundaryErrorCode
   CLAIM_CONFLICT: "The review could not be claimed for processing.",
   FINALIZATION_CONFLICT: "The review processing result could not be committed.",
   REVIEW_NOT_FOUND: "The review was not found.",
+  RESULT_NOT_READY: "The review result is not available yet.",
+  RESULT_UNAVAILABLE: "The completed review result is unavailable.",
 };
 
 export class ReviewProcessingBoundaryError extends Error {

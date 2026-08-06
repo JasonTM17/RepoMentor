@@ -1,3 +1,5 @@
+import { Inject, Injectable, Optional } from "@nestjs/common";
+
 import { AiReviewService } from "../../ai/ai-review.service.js";
 import {
   mapAiError,
@@ -11,7 +13,9 @@ import type {
   ReviewProcessingRepository,
   ReviewProcessingRequest,
 } from "./review-processing.types.js";
+import { REVIEW_REPOSITORY } from "../review.types.js";
 import type { ReviewRecord } from "../review.types.js";
+import type { ReviewResultRecord } from "../review-result.persistence.js";
 
 export type ReviewProcessingClock = () => Date;
 
@@ -65,12 +69,31 @@ function concurrentCancellation(
   };
 }
 
+@Injectable()
 export class ReviewProcessingService {
   constructor(
+    @Inject(REVIEW_REPOSITORY)
     private readonly repository: ReviewProcessingRepository,
     private readonly aiReviewService: AiReviewService,
+    @Optional()
     private readonly clock: ReviewProcessingClock = () => new Date(),
   ) {}
+
+  async getResult(input: ReviewProcessingRequest): Promise<ReviewResultRecord> {
+    const review = await this.findCurrentOrThrow(input);
+
+    if (review.status !== "COMPLETED") {
+      throw new ReviewProcessingBoundaryError("RESULT_NOT_READY");
+    }
+
+    const result = await this.repository.findResultForUser(input.userId, input.reviewId);
+
+    if (!result) {
+      throw new ReviewProcessingBoundaryError("RESULT_UNAVAILABLE");
+    }
+
+    return result;
+  }
 
   async claim(input: ReviewProcessingRequest): Promise<ReviewProcessingClaim> {
     const claimed = await this.repository.transitionForUser(

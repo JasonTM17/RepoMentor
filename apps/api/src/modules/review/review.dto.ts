@@ -69,3 +69,10 @@ export class ReviewListQueryDto {
   @IsIn(REVIEW_STATUSES)
   status?: ReviewStatus;
 }
+
+export class ReviewIdParamDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(25)
+  id!: string;
+}

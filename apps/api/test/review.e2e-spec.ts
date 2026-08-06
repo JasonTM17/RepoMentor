@@ -5,6 +5,9 @@ import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 
+import { AiProviderError } from "../src/modules/ai/ai.errors.js";
+import { AI_REVIEW_PROVIDER } from "../src/modules/ai/ai.types.js";
+import { FakeAiReviewProvider } from "../src/modules/ai/fake-ai.provider.js";
 import type { AiReviewExecution } from "../src/modules/ai/ai.types.js";
 import type { ReviewResult } from "../src/modules/ai/review-result.schema.js";
 import { AppModule } from "../src/app.module.js";
@@ -25,6 +28,8 @@ const tokenConfig = {
   refreshTtlSeconds: 7_200,
 };
 
+const validUsage = { inputTokens: 12, outputTokens: 8, totalTokens: 20 } as const;
+
 const validExecution: AiReviewExecution<ReviewResult> = {
   attempts: 1,
   durationMs: 0,
@@ -36,6 +41,7 @@ const validExecution: AiReviewExecution<ReviewResult> = {
     schemaVersion: "v1",
     summary: "No actionable findings were detected.",
   },
+  usage: validUsage,
 };
 
 interface ReviewUser {
@@ -47,18 +53,34 @@ describe("review API", () => {
   let app: INestApplication;
   let authRepository: InMemoryAuthRepository;
   let reviewRepository: InMemoryReviewRepository;
+  let provider: FakeAiReviewProvider;
+  let providerFailure: Error | undefined;
   let rateLimiter: AuthRateLimiter;
   let userSequence = 0;
 
   before(async () => {
     authRepository = new InMemoryAuthRepository();
     reviewRepository = new InMemoryReviewRepository();
+    provider = new FakeAiReviewProvider([
+      () => {
+        if (providerFailure) {
+          throw providerFailure;
+        }
+
+        return {
+          output: validExecution.result,
+          usage: validUsage,
+        };
+      },
+    ]);
     const tokenService = new AuthTokenService(tokenConfig);
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(AUTH_REPOSITORY)
       .useValue(authRepository)
       .overrideProvider(AuthTokenService)
       .useValue(tokenService)
+      .overrideProvider(AI_REVIEW_PROVIDER)
+      .useValue(provider)
       .overrideProvider(REVIEW_REPOSITORY)
       .useValue(reviewRepository)
       .compile();
@@ -74,6 +96,8 @@ describe("review API", () => {
 
   beforeEach(() => {
     rateLimiter.clear();
+    providerFailure = undefined;
+    provider.requests.length = 0;
   });
 
   async function createUser(): Promise<ReviewUser> {
@@ -288,5 +312,196 @@ describe("review API", () => {
     assert.equal(invalidRetry.status, 409);
     assert.equal(cancelAgain.status, 201);
     assert.equal(repeatedCancel.status, 409);
+  });
+
+  it("processes an owned review through injected Luna and returns a stable source-free response", async () => {
+    const user = await createUser();
+    const source = "const processOnly = 'source should not be returned';";
+    const created = await createReview(user, source);
+
+    const overrideAttempt = await request(app.getHttpServer())
+      .post(`/api/v1/reviews/${created.id}/process`)
+      .set("authorization", `Bearer ${user.accessToken}`)
+      .send({ model: "other-model", prompt: "override", provider: "deepseek" });
+
+    assert.equal(overrideAttempt.status, 400);
+    assert.equal(overrideAttempt.body.error.code, "BAD_REQUEST");
+    assert.equal(provider.requests.length, 0);
+
+    const processed = await request(app.getHttpServer())
+      .post(`/api/v1/reviews/${created.id}/process`)
+      .set("authorization", `Bearer ${user.accessToken}`)
+      .send({});
+
+    assert.equal(processed.status, 200);
+    assert.deepEqual(processed.body.data, {
+      id: created.id,
+      outcome: "COMPLETED",
+      resultAvailable: true,
+      status: "COMPLETED",
+    });
+    assert.equal(JSON.stringify(processed.body).includes(source), false);
+    assert.equal(provider.requests.length, 1);
+    assert.equal(provider.requests[0]?.provider, "luna");
+    assert.equal(provider.requests[0]?.model, "gpt-5.6-luna");
+
+    const repeated = await request(app.getHttpServer())
+      .post(`/api/v1/reviews/${created.id}/process`)
+      .set("authorization", `Bearer ${user.accessToken}`)
+      .send({});
+
+    assert.equal(repeated.status, 200);
+    assert.deepEqual(repeated.body.data, {
+      id: created.id,
+      outcome: "SKIPPED",
+      reason: "ALREADY_COMPLETED",
+      resultAvailable: true,
+      status: "COMPLETED",
+    });
+    assert.equal(provider.requests.length, 1);
+  });
+
+  it("returns an owner-scoped validated persisted result with safe execution metadata", async () => {
+    const user = await createUser();
+    const source = "const resultOnly = true;";
+    const created = await createReview(user, source);
+    const processed = await request(app.getHttpServer())
+      .post(`/api/v1/reviews/${created.id}/process`)
+      .set("authorization", `Bearer ${user.accessToken}`)
+      .send({});
+    assert.equal(processed.status, 200);
+
+    const result = await request(app.getHttpServer())
+      .get(`/api/v1/reviews/${created.id}/result`)
+      .set("authorization", `Bearer ${user.accessToken}`);
+
+    assert.equal(result.status, 200);
+    assert.equal(result.body.data.id, created.id);
+    assert.equal(result.body.data.status, "COMPLETED");
+    assert.deepEqual(result.body.data.result, validExecution.result);
+    assert.deepEqual(result.body.data.execution.usage, validExecution.usage);
+    assert.equal(result.body.data.execution.provider, "luna");
+    assert.equal(result.body.data.execution.model, "gpt-5.6-luna");
+    assert.equal(result.body.data.execution.reasoningEffort, "medium");
+    assert.equal(result.body.data.execution.attempts, 1);
+    assert.equal(typeof result.body.data.execution.durationMs, "number");
+    assert.equal(typeof result.body.data.execution.completedAt, "string");
+    assert.equal("source" in result.body.data, false);
+    assert.equal(JSON.stringify(result.body).includes(source), false);
+  });
+
+  it("returns already-processing idempotency and withholds non-completed results", async () => {
+    const user = await createUser();
+    const source = "const stillProcessing = true;";
+    const created = await createReview(user, source);
+    await reviewRepository.transitionForUser(user.id, created.id, {
+      fromStatuses: ["PENDING"],
+      now: new Date("2026-08-06T01:00:00.000Z"),
+      toStatus: "PROCESSING",
+    });
+
+    const process = await request(app.getHttpServer())
+      .post(`/api/v1/reviews/${created.id}/process`)
+      .set("authorization", `Bearer ${user.accessToken}`)
+      .send({});
+    const result = await request(app.getHttpServer())
+      .get(`/api/v1/reviews/${created.id}/result`)
+      .set("authorization", `Bearer ${user.accessToken}`);
+
+    assert.equal(process.status, 200);
+    assert.deepEqual(process.body.data, {
+      id: created.id,
+      outcome: "SKIPPED",
+      reason: "ALREADY_PROCESSING",
+      resultAvailable: false,
+      status: "PROCESSING",
+    });
+    assert.equal(provider.requests.length, 0);
+    assert.equal(result.status, 409);
+    assert.equal(result.body.error.code, "CONFLICT");
+    assert.equal("data" in result.body, false);
+    assert.equal(JSON.stringify(result.body).includes(source), false);
+  });
+
+  it("keeps processing and result retrieval isolated by owner and authentication", async () => {
+    const owner = await createUser();
+    const other = await createUser();
+    const source = "const ownerOnly = true;";
+    const created = await createReview(owner, source);
+
+    const unauthenticated = await request(app.getHttpServer()).post(
+      `/api/v1/reviews/${created.id}/process`,
+    );
+    const otherProcess = await request(app.getHttpServer())
+      .post(`/api/v1/reviews/${created.id}/process`)
+      .set("authorization", `Bearer ${other.accessToken}`)
+      .send({});
+    const otherResult = await request(app.getHttpServer())
+      .get(`/api/v1/reviews/${created.id}/result`)
+      .set("authorization", `Bearer ${other.accessToken}`);
+
+    assert.equal(unauthenticated.status, 401);
+    assert.equal(otherProcess.status, 404);
+    assert.equal(otherResult.status, 404);
+    assert.equal(provider.requests.length, 0);
+    for (const response of [otherProcess, otherResult]) {
+      assert.equal("data" in response.body, false);
+      assert.equal(JSON.stringify(response.body).includes(created.id), false);
+      assert.equal(JSON.stringify(response.body).includes(source), false);
+    }
+  });
+
+  it("maps provider failures and cancellation to safe API categories", async () => {
+    const failedUser = await createUser();
+    const failedSource = "const providerFailureSource = 'private';";
+    const failedReview = await createReview(failedUser, failedSource);
+    providerFailure = new Error(`provider secret ${failedSource}`);
+
+    const failed = await request(app.getHttpServer())
+      .post(`/api/v1/reviews/${failedReview.id}/process`)
+      .set("authorization", `Bearer ${failedUser.accessToken}`)
+      .send({});
+
+    assert.equal(failed.status, 502);
+    assert.equal(failed.body.error.code, "DEPENDENCY_UNAVAILABLE");
+    assert.equal(JSON.stringify(failed.body).includes("provider secret"), false);
+    assert.equal(JSON.stringify(failed.body).includes(failedSource), false);
+    assert.equal(JSON.stringify(failed.body).includes("stack"), false);
+
+    providerFailure = new AiProviderError("CANCELLED");
+    const cancelledUser = await createUser();
+    const cancelledReview = await createReview(cancelledUser, "const cancellationSource = true;");
+    const cancelled = await request(app.getHttpServer())
+      .post(`/api/v1/reviews/${cancelledReview.id}/process`)
+      .set("authorization", `Bearer ${cancelledUser.accessToken}`)
+      .send({});
+
+    assert.equal(cancelled.status, 409);
+    assert.equal(cancelled.body.error.code, "CONFLICT");
+    assert.equal(JSON.stringify(cancelled.body).includes("CANCELLED"), false);
+    assert.equal(provider.requests.length, 2);
+  });
+
+  it("maps invalid identifiers and pending result reads without exposing state data", async () => {
+    const user = await createUser();
+    const created = await createReview(user, "const pendingResult = true;");
+    const missing = await request(app.getHttpServer())
+      .post("/api/v1/reviews/not-a-real-review/process")
+      .set("authorization", `Bearer ${user.accessToken}`)
+      .send({});
+    const malformed = await request(app.getHttpServer())
+      .get(`/api/v1/reviews/${"x".repeat(26)}/result`)
+      .set("authorization", `Bearer ${user.accessToken}`);
+    const pending = await request(app.getHttpServer())
+      .get(`/api/v1/reviews/${created.id}/result`)
+      .set("authorization", `Bearer ${user.accessToken}`);
+
+    assert.equal(missing.status, 404);
+    assert.equal(missing.body.error.code, "NOT_FOUND");
+    assert.equal(malformed.status, 400);
+    assert.equal(malformed.body.error.code, "VALIDATION_FAILED");
+    assert.equal(pending.status, 409);
+    assert.equal(pending.body.error.code, "CONFLICT");
+    assert.equal("data" in pending.body, false);
   });
 });
