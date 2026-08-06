@@ -38,6 +38,7 @@ interface UsageUser {
 }
 
 interface SeededUsageRecord extends UsageHistoryRecord {
+  readonly deletedAt?: Date | null;
   readonly userId: string;
 }
 
@@ -56,8 +57,15 @@ class InMemoryUsageRepository implements UsageRepository {
     this.records.push(...records);
   }
 
+  private activeRecordsForUser(userId: string): SeededUsageRecord[] {
+    return this.records.filter(
+      (record) =>
+        record.userId === userId && (record.deletedAt === undefined || record.deletedAt === null),
+    );
+  }
+
   async getSummaryForUser(userId: string): Promise<UsageSummaryAggregate> {
-    const records = this.records.filter((record) => record.userId === userId);
+    const records = this.activeRecordsForUser(userId);
     const completedRecords = records.filter((record) => record.status === "COMPLETED");
     const tokenRecords = completedRecords.flatMap((record) =>
       record.result?.usage === null || record.result?.usage === undefined
@@ -90,11 +98,29 @@ class InMemoryUsageRepository implements UsageRepository {
   }
 
   async listHistoryForUser(input: UsageHistoryListInput): Promise<UsageHistoryListResult> {
-    const records = this.records
-      .filter((record) => record.userId === input.userId)
+    const records = this.activeRecordsForUser(input.userId)
+      .filter(
+        (record) =>
+          (input.language === undefined || record.language === input.language) &&
+          (input.mode === undefined || record.mode === input.mode) &&
+          (input.status === undefined || record.status === input.status) &&
+          (input.search === undefined ||
+            record.reviewId.toLowerCase().includes(input.search.toLowerCase())) &&
+          (input.from === undefined || record.createdAt >= input.from) &&
+          (input.to === undefined || record.createdAt < input.to),
+      )
       .sort((left, right) => {
         const dateDifference = right.createdAt.getTime() - left.createdAt.getTime();
-        return dateDifference === 0 ? right.reviewId.localeCompare(left.reviewId) : dateDifference;
+        if (dateDifference !== 0) {
+          return input.sort === "asc" ? -dateDifference : dateDifference;
+        }
+
+        if (left.reviewId === right.reviewId) {
+          return 0;
+        }
+
+        const idDifference = left.reviewId < right.reviewId ? -1 : 1;
+        return input.sort === "asc" ? idDifference : -idDifference;
       });
 
     return {
@@ -374,12 +400,32 @@ describe("usage API", () => {
       totalPages: 2,
     });
 
-    for (const query of ["limit=0", "limit=51", "page=0", "page=10001", "page=1e2", "unknown=x"]) {
+    for (const query of [
+      "limit=0",
+      "limit=51",
+      "page=0",
+      "page=10001",
+      "page=1e2",
+      "language=not%20a%20language",
+      "mode=UNKNOWN",
+      "status=UNKNOWN",
+      "search=source%20secret",
+      `search=${"a".repeat(26)}`,
+      "sort=sideways",
+      "from=2026-08-06",
+      "from=2026-02-30T00:00:00.000Z",
+      "from=2026-08-06T00:00:00.000%2B00:00",
+      "from=2026-08-06T00:00:00.000Z&to=2026-08-06T00:00:00.000Z",
+      "unknown=x",
+    ]) {
       const response = await request(app.getHttpServer())
         .get(`/api/v1/usage/history?${query}`)
         .set("authorization", `Bearer ${owner.accessToken}`);
       assert.equal(response.status, 400, query);
       assert.equal(response.body.error.code, "VALIDATION_FAILED", query);
+      if (query === "search=source%20secret") {
+        assert.equal(JSON.stringify(response.body).includes("source secret"), false);
+      }
     }
 
     const otherHistory = await request(app.getHttpServer())
@@ -389,6 +435,147 @@ describe("usage API", () => {
       otherHistory.body.data.items.map((item: { readonly reviewId: string }) => item.reviewId),
       ["other-only"],
     );
+  });
+
+  it("applies each filter, UTC boundaries, and stable createdAt/id sorting", async () => {
+    const owner = await createUser();
+    const other = await createUser();
+    const from = "2026-08-06T00:00:00.000Z";
+    const to = "2026-08-06T12:00:00.000Z";
+
+    usageRepository.seed(
+      record(owner.id, {
+        createdAt: new Date("2026-08-05T23:59:59.999Z"),
+        language: "typescript",
+        mode: "QUICK",
+        result: null,
+        reviewId: "before-review",
+        status: "PENDING",
+      }),
+      record(owner.id, {
+        createdAt: new Date(from),
+        language: "typescript",
+        mode: "DEEP",
+        result: null,
+        reviewId: "b-review",
+        status: "COMPLETED",
+      }),
+      record(owner.id, {
+        createdAt: new Date(from),
+        language: "typescript",
+        mode: "DEEP",
+        result: null,
+        reviewId: "a-review",
+        status: "COMPLETED",
+      }),
+      record(owner.id, {
+        createdAt: new Date("2026-08-06T06:00:00.000Z"),
+        language: "python",
+        mode: "DEEP",
+        result: null,
+        reviewId: "inside-review",
+        status: "FAILED",
+      }),
+      record(owner.id, {
+        createdAt: new Date(to),
+        language: "typescript",
+        mode: "DEEP",
+        result: null,
+        reviewId: "end-review",
+        status: "COMPLETED",
+      }),
+      record(owner.id, {
+        createdAt: new Date("2026-08-06T06:30:00.000Z"),
+        language: "typescript",
+        mode: "DEEP",
+        result: null,
+        reviewId: "other-id",
+        status: "COMPLETED",
+      }),
+      record(owner.id, {
+        createdAt: new Date("2026-08-06T06:30:00.000Z"),
+        deletedAt: new Date("2026-08-06T07:00:00.000Z"),
+        language: "python",
+        mode: "DEEP",
+        result: null,
+        reviewId: "deleted-review",
+        status: "COMPLETED",
+      }),
+      record(other.id, {
+        createdAt: new Date("2026-08-06T06:00:00.000Z"),
+        language: "python",
+        mode: "DEEP",
+        result: null,
+        reviewId: "other-review",
+        status: "FAILED",
+      }),
+    );
+
+    const language = await request(app.getHttpServer())
+      .get("/api/v1/usage/history?language=PYTHON")
+      .set("authorization", `Bearer ${owner.accessToken}`);
+    const mode = await request(app.getHttpServer())
+      .get("/api/v1/usage/history?mode=DEEP")
+      .set("authorization", `Bearer ${owner.accessToken}`);
+    const status = await request(app.getHttpServer())
+      .get("/api/v1/usage/history?status=FAILED")
+      .set("authorization", `Bearer ${owner.accessToken}`);
+    const search = await request(app.getHttpServer())
+      .get("/api/v1/usage/history?search=REVIEW")
+      .set("authorization", `Bearer ${owner.accessToken}`);
+    const boundedPage = await request(app.getHttpServer())
+      .get(
+        `/api/v1/usage/history?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&sort=asc&page=1&limit=2`,
+      )
+      .set("authorization", `Bearer ${owner.accessToken}`);
+    const boundedLastPage = await request(app.getHttpServer())
+      .get(
+        `/api/v1/usage/history?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&sort=asc&page=2&limit=2`,
+      )
+      .set("authorization", `Bearer ${owner.accessToken}`);
+
+    assert.deepEqual(
+      language.body.data.items.map((item: { readonly reviewId: string }) => item.reviewId),
+      ["inside-review"],
+    );
+    assert.deepEqual(
+      mode.body.data.items.map((item: { readonly reviewId: string }) => item.reviewId),
+      ["end-review", "other-id", "inside-review", "b-review", "a-review"],
+    );
+    assert.deepEqual(
+      status.body.data.items.map((item: { readonly reviewId: string }) => item.reviewId),
+      ["inside-review"],
+    );
+    assert.deepEqual(
+      search.body.data.items.map((item: { readonly reviewId: string }) => item.reviewId),
+      ["end-review", "inside-review", "b-review", "a-review", "before-review"],
+    );
+    assert.deepEqual(
+      boundedPage.body.data.items.map((item: { readonly reviewId: string }) => item.reviewId),
+      ["a-review", "b-review"],
+    );
+    assert.deepEqual(boundedPage.body.data.meta, {
+      hasNext: true,
+      hasPrevious: false,
+      limit: 2,
+      page: 1,
+      total: 4,
+      totalPages: 2,
+    });
+    assert.deepEqual(
+      boundedLastPage.body.data.items.map((item: { readonly reviewId: string }) => item.reviewId),
+      ["inside-review", "other-id"],
+    );
+    assert.deepEqual(boundedLastPage.body.data.meta, {
+      hasNext: false,
+      hasPrevious: true,
+      limit: 2,
+      page: 2,
+      total: 4,
+      totalPages: 2,
+    });
+    assert.equal(JSON.stringify(boundedPage.body).includes("source"), false);
+    assert.equal(JSON.stringify(boundedPage.body).includes("other-review"), false);
   });
 
   it("returns truthful empty views and requires authentication", async () => {
@@ -440,6 +627,29 @@ describe("usage API", () => {
       assert.match(JSON.stringify(operation.responses["200"]), /Usage/u);
       assert.match(JSON.stringify(operation.responses["200"]), /data/u);
     }
+
+    const historyOperation = documentation.body.paths["/api/v1/usage/history"].get;
+    const parameters = historyOperation.parameters as readonly {
+      readonly name: string;
+      readonly description?: string;
+      readonly default?: string;
+      readonly schema?: { readonly default?: string };
+    }[];
+    assert.deepEqual(parameters.map((parameter) => parameter.name).sort(), [
+      "from",
+      "language",
+      "limit",
+      "mode",
+      "page",
+      "search",
+      "sort",
+      "status",
+      "to",
+    ]);
+    const searchParameter = parameters.find((parameter) => parameter.name === "search");
+    assert.match(searchParameter?.description ?? "", /review IDs only/u);
+    const sortParameter = parameters.find((parameter) => parameter.name === "sort");
+    assert.equal(sortParameter?.default ?? sortParameter?.schema?.default, "desc");
   });
 
   it("does not expose usage repository wiring through the controller response", () => {

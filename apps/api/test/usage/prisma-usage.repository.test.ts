@@ -90,7 +90,12 @@ describe("Prisma usage repository", () => {
     } as unknown as PrismaService;
     const repository = new PrismaUsageRepository(prisma);
 
-    const history = await repository.listHistoryForUser({ limit: 2, page: 3, userId: OWNER_ID });
+    const history = await repository.listHistoryForUser({
+      limit: 2,
+      page: 3,
+      sort: "desc",
+      userId: OWNER_ID,
+    });
 
     assert.equal((countWhere as { readonly userId?: string }).userId, OWNER_ID);
     assert.deepEqual(history.items, [
@@ -111,6 +116,55 @@ describe("Prisma usage repository", () => {
     assert.equal(findManyArgs?.skip, 4);
     assert.equal(findManyArgs?.take, 2);
     assert.deepEqual(findManyArgs?.where, { deletedAt: null, userId: OWNER_ID });
+    assert.deepEqual(findManyArgs?.orderBy, [{ createdAt: "desc" }, { id: "desc" }]);
+  });
+
+  it("composes every history filter with owner and soft-delete predicates", async () => {
+    let countWhere: unknown;
+    let findManyArgs: Record<string, unknown> | undefined;
+    const from = new Date("2026-08-06T00:00:00.000Z");
+    const to = new Date("2026-08-07T00:00:00.000Z");
+    const prisma = {
+      review: {
+        count: async (args: { readonly where: unknown }) => {
+          countWhere = args.where;
+          return 1;
+        },
+        findMany: async (args: Record<string, unknown>) => {
+          findManyArgs = args;
+          return [];
+        },
+      },
+    } as unknown as PrismaService;
+    const repository = new PrismaUsageRepository(prisma);
+
+    await repository.listHistoryForUser({
+      from,
+      language: "typescript",
+      limit: 5,
+      mode: "DEEP",
+      page: 2,
+      search: "review",
+      sort: "asc",
+      status: "COMPLETED",
+      to,
+      userId: OWNER_ID,
+    });
+
+    const expectedWhere = {
+      createdAt: { gte: from, lt: to },
+      deletedAt: null,
+      id: { contains: "review", mode: "insensitive" },
+      language: "typescript",
+      mode: "DEEP",
+      status: "COMPLETED",
+      userId: OWNER_ID,
+    };
+    assert.deepEqual(countWhere, expectedWhere);
+    assert.deepEqual(findManyArgs?.where, expectedWhere);
+    assert.deepEqual(findManyArgs?.orderBy, [{ createdAt: "asc" }, { id: "asc" }]);
+    assert.equal(findManyArgs?.skip, 5);
+    assert.equal(findManyArgs?.take, 5);
   });
 
   it("counts every owned review in the explicit UTC range for quota reads", async () => {

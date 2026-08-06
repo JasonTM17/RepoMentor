@@ -8,7 +8,7 @@ import {
   USAGE_QUOTA_ENV_NAMES,
   UsageConfigError,
 } from "../../src/modules/usage/usage.config.js";
-import { getUtcDayWindow } from "../../src/modules/usage/usage.date.js";
+import { getUtcDayWindow, parseStrictUtcDateTime } from "../../src/modules/usage/usage.date.js";
 import {
   toUsageHistoryItem,
   toUsageQuota,
@@ -61,6 +61,21 @@ describe("usage configuration", () => {
 });
 
 describe("usage UTC read model", () => {
+  it("accepts strict UTC date-times and rejects ambiguous or invalid calendars", () => {
+    const parsed = parseStrictUtcDateTime("2026-08-06T12:34:56.789Z");
+
+    assert.equal(parsed?.toISOString(), "2026-08-06T12:34:56.789Z");
+    for (const invalid of [
+      "2026-08-06",
+      "2026-08-06T12:34:56.789+00:00",
+      "2026-02-30T00:00:00.000Z",
+      "2026-08-06T24:00:00.000Z",
+      "2026-08-06T12:34:60.000Z",
+    ]) {
+      assert.equal(parseStrictUtcDateTime(invalid), undefined, invalid);
+    }
+  });
+
   it("uses an inclusive start and exclusive next-midnight UTC window", () => {
     const window = getUtcDayWindow(AS_OF);
 
