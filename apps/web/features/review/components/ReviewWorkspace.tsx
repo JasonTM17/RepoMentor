@@ -32,10 +32,16 @@ interface ValueTarget {
 }
 
 const languageOptions: readonly { readonly label: string; readonly value: ReviewLanguage }[] = [
-  { label: "TypeScript", value: "typescript" },
   { label: "JavaScript", value: "javascript" },
+  { label: "TypeScript", value: "typescript" },
+  { label: "Java", value: "java" },
   { label: "Python", value: "python" },
   { label: "Go", value: "go" },
+  { label: "SQL", value: "sql" },
+  { label: "C#", value: "csharp" },
+  { label: "C++", value: "cpp" },
+  { label: "Rust", value: "rust" },
+  { label: "Other", value: "other" },
 ];
 
 const learnerLevelOptions: readonly { readonly label: string; readonly value: LearnerLevel }[] = [

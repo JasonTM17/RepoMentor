@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   DEMO_REVIEW_ID,
   createDemoReviewTransport,
 } from "@/features/review/api/demoReviewTransport";
+import { getReviewResultWithPolling } from "@/features/review/helpers/reviewPolling";
 import type {
   ReviewDraft,
   ReviewResultResponse,
@@ -60,11 +61,30 @@ export const useReviewWorkspace = (
           return false;
         }
 
-        if (!processResponse.resultAvailable) {
-          setStatus("processing");
-        }
+        let resultResponse: ReviewResultResponse;
 
-        const resultResponse = await transport.getResult(processResponse.id);
+        if (processResponse.resultAvailable) {
+          resultResponse = await transport.getResult(processResponse.id);
+        } else {
+          const pollingOutcome = await getReviewResultWithPolling(transport, processResponse.id, {
+            isCurrent: () => requestVersion.current === currentVersion,
+          });
+
+          if (pollingOutcome.kind === "cancelled") {
+            return false;
+          }
+
+          if (pollingOutcome.kind === "processing") {
+            if (requestVersion.current !== currentVersion) {
+              return false;
+            }
+
+            setStatus("processing");
+            return false;
+          }
+
+          resultResponse = pollingOutcome.response;
+        }
 
         if (requestVersion.current !== currentVersion) {
           return false;
@@ -85,6 +105,12 @@ export const useReviewWorkspace = (
     },
     [transportFactory],
   );
+
+  useEffect(() => {
+    return () => {
+      requestVersion.current += 1;
+    };
+  }, []);
 
   const reset = useCallback((): void => {
     requestVersion.current += 1;

@@ -40,11 +40,35 @@ const source = Object.freeze({
   reviewDemoTransport: readTrackedSource("features/review/api/demoReviewTransport.ts"),
   reviewHelpers: readTrackedSource("features/review/helpers/reviewHelpers.ts"),
   reviewHook: readTrackedSource("features/review/hooks/useReviewWorkspace.ts"),
+  reviewPolling: readTrackedSource("features/review/helpers/reviewPolling.ts"),
+  reviewTypes: readTrackedSource("features/review/types/index.ts"),
 });
 
 const authClientRuntime = import(
   `data:text/javascript,${encodeURIComponent(
     typescript.transpileModule(source.authClient, {
+      compilerOptions: {
+        module: typescript.ModuleKind.ESNext,
+        target: typescript.ScriptTarget.ES2022,
+      },
+    }).outputText,
+  )}`
+);
+
+const reviewApiRuntime = import(
+  `data:text/javascript,${encodeURIComponent(
+    typescript.transpileModule(source.reviewApi, {
+      compilerOptions: {
+        module: typescript.ModuleKind.ESNext,
+        target: typescript.ScriptTarget.ES2022,
+      },
+    }).outputText,
+  )}`
+);
+
+const reviewPollingRuntime = import(
+  `data:text/javascript,${encodeURIComponent(
+    typescript.transpileModule(source.reviewPolling, {
       compilerOptions: {
         module: typescript.ModuleKind.ESNext,
         target: typescript.ScriptTarget.ES2022,
@@ -75,6 +99,30 @@ const validLoginData = Object.freeze({
 });
 
 const authRequest = Object.freeze({ email: "user@example.com", password: "x" });
+
+const createReviewResultResponse = () => ({
+  execution: {
+    attempts: 1,
+    completedAt: "2026-08-06T00:00:00.000Z",
+    durationMs: 12,
+    model: "gpt-5.6-luna",
+    provider: "luna",
+    reasoningEffort: "max",
+    usage: {
+      cachedInputTokens: 4,
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+    },
+  },
+  id: "review-1",
+  result: {
+    findings: [],
+    schemaVersion: "v1",
+    summary: "The fixture is valid.",
+  },
+  status: "COMPLETED",
+});
 
 const shellTsxSources = Object.freeze({
   "app/layout.tsx": source.layout,
@@ -470,6 +518,143 @@ test("review transport preserves the accepted process and result endpoints", () 
   assert.doesNotMatch(source.reviewApi, /DEEPSEEK|api[_-]?key|secret/iu);
 });
 
+test("review result polling is bounded, cancellable, and conflict-specific at runtime", async () => {
+  const { getReviewResultWithPolling, isExpectedResultNotReadyError } = await reviewPollingRuntime;
+  const notReadyError = { code: "CONFLICT", status: 409 };
+  const resultResponse = createReviewResultResponse();
+
+  assert.equal(isExpectedResultNotReadyError(notReadyError), true);
+  assert.equal(isExpectedResultNotReadyError({ code: "FORBIDDEN", status: 409 }), false);
+  assert.equal(isExpectedResultNotReadyError({ code: "CONFLICT", status: 500 }), false);
+
+  let readyCalls = 0;
+  const readyOutcome = await getReviewResultWithPolling(
+    {
+      getResult: async () => {
+        readyCalls += 1;
+
+        if (readyCalls < 3) {
+          throw notReadyError;
+        }
+
+        return resultResponse;
+      },
+    },
+    "review-1",
+    { delayMs: 0, isCurrent: () => true, maxChecks: 3, sleep: async () => {} },
+  );
+
+  assert.deepEqual(readyOutcome, { kind: "ready", response: resultResponse });
+  assert.equal(readyCalls, 3, "expected 409 conflicts may be checked until the bounded limit");
+
+  let exhaustedCalls = 0;
+  const exhaustedOutcome = await getReviewResultWithPolling(
+    {
+      getResult: async () => {
+        exhaustedCalls += 1;
+        throw notReadyError;
+      },
+    },
+    "review-1",
+    { delayMs: 0, isCurrent: () => true, maxChecks: 2, sleep: async () => {} },
+  );
+
+  assert.deepEqual(exhaustedOutcome, { kind: "processing" });
+  assert.equal(exhaustedCalls, 2, "polling must stop at its finite attempt limit");
+
+  let unexpectedCalls = 0;
+  await assert.rejects(() =>
+    getReviewResultWithPolling(
+      {
+        getResult: async () => {
+          unexpectedCalls += 1;
+          throw { code: "FORBIDDEN", status: 409 };
+        },
+      },
+      "review-1",
+      { delayMs: 0, isCurrent: () => true, maxChecks: 4, sleep: async () => {} },
+    ),
+  );
+  assert.equal(unexpectedCalls, 1, "unexpected conflicts must not be retried");
+
+  let isCurrent = true;
+  let cancelledCalls = 0;
+  const cancelledOutcome = await getReviewResultWithPolling(
+    {
+      getResult: async () => {
+        cancelledCalls += 1;
+        throw notReadyError;
+      },
+    },
+    "review-1",
+    {
+      delayMs: 0,
+      isCurrent: () => isCurrent,
+      maxChecks: 4,
+      sleep: async () => {
+        isCurrent = false;
+      },
+    },
+  );
+
+  assert.deepEqual(cancelledOutcome, { kind: "cancelled" });
+  assert.equal(cancelledCalls, 1, "request-version cancellation must prevent the next GET");
+});
+
+test("review result runtime validation enforces ISO timestamps, usage invariants, and strict keys", async () => {
+  const { ReviewApiError, reviewApi } = await reviewApiRuntime;
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () => createJsonResponse(200, { data: createReviewResultResponse() });
+    await assert.doesNotReject(() => reviewApi.getResult("review-1"));
+
+    const invalidResponses = [
+      (() => {
+        const response = createReviewResultResponse();
+        response.execution.completedAt = "not-a-date";
+        return response;
+      })(),
+      (() => {
+        const response = createReviewResultResponse();
+        response.execution.usage.inputTokens = -1;
+        return response;
+      })(),
+      (() => {
+        const response = createReviewResultResponse();
+        response.execution.usage.totalTokens = 99;
+        return response;
+      })(),
+      (() => {
+        const response = createReviewResultResponse();
+        response.execution.usage.cachedInputTokens = 11;
+        return response;
+      })(),
+      (() => {
+        const response = createReviewResultResponse();
+        response.execution.usage.unexpected = 1;
+        return response;
+      })(),
+      (() => {
+        const response = createReviewResultResponse();
+        response.execution.unexpected = true;
+        return response;
+      })(),
+    ];
+
+    for (const response of invalidResponses) {
+      globalThis.fetch = async () => createJsonResponse(200, { data: response });
+
+      await assert.rejects(
+        () => reviewApi.getResult("review-1"),
+        (error) => error instanceof ReviewApiError && error.status === 200,
+      );
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("review result renders summary, score boundary, issue filters, and learning notes", () => {
   assert.match(source.reviewResultPanel, /status === "loading"/u);
   assert.match(source.reviewResultPanel, /status === "processing"/u);
@@ -482,6 +667,10 @@ test("review result renders summary, score boundary, issue filters, and learning
   assert.match(source.reviewResultPanel, /Filter issue signals/u);
   assert.match(source.reviewResultPanel, /aria-live="polite"/u);
   assert.match(source.reviewResultPanel, /No score is invented/u);
+  assert.match(source.reviewResultPanel, /Check for result/u);
+  assert.match(source.reviewResultPanel, /learningNoteId/u);
+  assert.match(source.reviewResultPanel, /readonly index: number/u);
+  assert.match(source.reviewResultPanel, /finding\.endLine\}-\$\{index\}/u);
 });
 
 test("review fixture remains deterministic and has an explicit empty-result path", () => {
@@ -494,10 +683,41 @@ test("review fixture remains deterministic and has an explicit empty-result path
   assert.match(source.reviewHook, /safeErrorMessage/u);
   assert.match(source.reviewHook, /setStatus\("loading"\)/u);
   assert.match(source.reviewHook, /setStatus\("processing"\)/u);
+  assert.match(source.reviewHook, /useEffect/u);
+  assert.match(source.reviewHook, /requestVersion\.current \+= 1/u);
+  assert.match(source.reviewHook, /getReviewResultWithPolling/u);
+  assert.match(source.reviewHook, /processResponse\.resultAvailable/u);
   assert.match(
     source.reviewHook,
     /setStatus\(resultResponse\.result\.findings\.length === 0 \? "empty" : "success"\)/u,
   );
+});
+
+test("review editor exposes the full initial language set and fixture extensions", () => {
+  const languageOptions = [
+    ["JavaScript", "javascript"],
+    ["TypeScript", "typescript"],
+    ["Java", "java"],
+    ["Python", "python"],
+    ["Go", "go"],
+    ["SQL", "sql"],
+    ["C#", "csharp"],
+    ["C++", "cpp"],
+    ["Rust", "rust"],
+    ["Other", "other"],
+  ];
+
+  for (const [label, value] of languageOptions) {
+    assert.match(
+      source.reviewWorkspace,
+      new RegExp(`label: "${escapeRegExp(label)}", value: "${value}"`, "u"),
+    );
+    assert.match(source.reviewTypes, new RegExp(`"${value}"`, "u"));
+  }
+
+  for (const extension of ["js", "ts", "java", "py", "go", "sql", "cs", "cpp", "rs", "txt"]) {
+    assert.match(source.reviewHelpers, new RegExp(`return "${extension}"`, "u"));
+  }
 });
 
 test("review CSS preserves product accessibility and responsive contracts", () => {
@@ -520,6 +740,7 @@ test("review source copy contains no em dash, emoji, or banned marketing languag
     source.reviewApi,
     source.reviewDemoTransport,
     source.reviewHelpers,
+    source.reviewPolling,
   ];
 
   for (const reviewSource of reviewSources) {

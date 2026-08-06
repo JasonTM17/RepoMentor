@@ -1,4 +1,14 @@
-export type ReviewLanguage = "typescript" | "javascript" | "python" | "go";
+export type ReviewLanguage =
+  | "javascript"
+  | "typescript"
+  | "java"
+  | "python"
+  | "go"
+  | "sql"
+  | "csharp"
+  | "cpp"
+  | "rust"
+  | "other";
 
 export type LearnerLevel = "beginner" | "intermediate" | "advanced";
 

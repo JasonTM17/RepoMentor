@@ -27,8 +27,20 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const hasExactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
   Object.keys(value).length === keys.length && keys.every((key) => key in value);
 
+const hasOnlyKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
+  Object.keys(value).every((key) => keys.includes(key));
+
 const isNonBlankString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
+
+const isNonNegativeInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0;
+
+const isoDateTimePattern =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/u;
+
+const isIsoDateTime = (value: unknown): value is string =>
+  typeof value === "string" && isoDateTimePattern.test(value) && !Number.isNaN(Date.parse(value));
 
 const isReviewFinding = (value: unknown): value is ReviewFinding => {
   if (!isRecord(value)) {
@@ -101,14 +113,26 @@ const isReviewProcessResponse = (value: unknown): value is ReviewProcessResponse
   );
 };
 
-const isReviewUsage = (value: unknown): value is ReviewUsage =>
-  isRecord(value) &&
-  typeof value.inputTokens === "number" &&
-  Number.isInteger(value.inputTokens) &&
-  typeof value.outputTokens === "number" &&
-  Number.isInteger(value.outputTokens) &&
-  typeof value.totalTokens === "number" &&
-  Number.isInteger(value.totalTokens);
+const isReviewUsage = (value: unknown): value is ReviewUsage => {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, ["inputTokens", "outputTokens", "totalTokens", "cachedInputTokens"])
+  ) {
+    return false;
+  }
+
+  const hasCachedInputTokens = "cachedInputTokens" in value;
+
+  return (
+    isNonNegativeInteger(value.inputTokens) &&
+    isNonNegativeInteger(value.outputTokens) &&
+    isNonNegativeInteger(value.totalTokens) &&
+    value.totalTokens === value.inputTokens + value.outputTokens &&
+    (!hasCachedInputTokens ||
+      (isNonNegativeInteger(value.cachedInputTokens) &&
+        value.cachedInputTokens <= value.inputTokens))
+  );
+};
 
 const isReviewResultResponse = (value: unknown): value is ReviewResultResponse => {
   if (!isRecord(value) || !hasExactKeys(value, ["execution", "id", "result", "status"])) {
@@ -120,12 +144,21 @@ const isReviewResultResponse = (value: unknown): value is ReviewResultResponse =
   }
 
   return (
+    hasExactKeys(value.execution, [
+      "attempts",
+      "completedAt",
+      "durationMs",
+      "model",
+      "provider",
+      "reasoningEffort",
+      "usage",
+    ]) &&
     typeof value.id === "string" &&
     value.status === "COMPLETED" &&
     isReviewResult(value.result) &&
     typeof value.execution.attempts === "number" &&
     Number.isInteger(value.execution.attempts) &&
-    typeof value.execution.completedAt === "string" &&
+    isIsoDateTime(value.execution.completedAt) &&
     typeof value.execution.durationMs === "number" &&
     Number.isInteger(value.execution.durationMs) &&
     value.execution.durationMs >= 0 &&

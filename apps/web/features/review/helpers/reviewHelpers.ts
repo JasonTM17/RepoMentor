@@ -80,12 +80,24 @@ const getFixtureFileExtension = (language: ReviewDraft["language"]): string => {
   switch (language) {
     case "javascript":
       return "js";
+    case "java":
+      return "java";
     case "python":
       return "py";
     case "go":
       return "go";
+    case "sql":
+      return "sql";
+    case "csharp":
+      return "cs";
+    case "cpp":
+      return "cpp";
+    case "rust":
+      return "rs";
     case "typescript":
       return "ts";
+    case "other":
+      return "txt";
   }
 };
 

@@ -60,6 +60,7 @@ const formatFindingText = (finding: ReviewFinding): string =>
 const ReviewStatePanel: FC<ReviewResultPanelProps> = ({ errorMessage, onRetry, status }) => {
   const isError = status === "error";
   const isBusy = status === "loading" || status === "processing";
+  const isProcessing = status === "processing";
   const title =
     status === "idle"
       ? "Result will land here."
@@ -99,13 +100,13 @@ const ReviewStatePanel: FC<ReviewResultPanelProps> = ({ errorMessage, onRetry, s
             <span className="review-result-skeleton review-result-skeleton-short" />
           </div>
         ) : null}
-        {isError ? (
+        {isError || isProcessing ? (
           <button
             className="action-secondary review-retry-button"
             type="button"
             onClick={() => void onRetry()}
           >
-            Retry review
+            {isProcessing ? "Check for result" : "Retry review"}
             <LineIcon name="refresh" />
           </button>
         ) : null}
@@ -164,28 +165,35 @@ const ReviewSourceContext: FC<{
   );
 };
 
-const ReviewFindingView: FC<{ readonly finding: ReviewFinding }> = ({ finding }): ReactElement => (
-  <li className="review-finding">
-    <div className="review-finding-header">
-      <span className={`review-severity review-severity-${finding.severity.toLowerCase()}`}>
-        {finding.severity}
-      </span>
-      <span className="review-finding-category">{finding.category}</span>
-      <span className="review-finding-location">
-        {finding.filePath} / {formatLineReference(finding)}
-      </span>
-    </div>
-    <h4 className="review-finding-title">{finding.title}</h4>
-    <p className="review-finding-copy">{finding.description}</p>
-    <section className="review-learning-note" aria-labelledby={`learning-${finding.startLine}`}>
-      <p id={`learning-${finding.startLine}`} className="review-learning-heading">
-        <LineIcon name="book-open" />
-        Learning note
-      </p>
-      <p className="review-learning-copy">{finding.suggestion}</p>
-    </section>
-  </li>
-);
+const ReviewFindingView: FC<{
+  readonly finding: ReviewFinding;
+  readonly index: number;
+}> = ({ finding, index }): ReactElement => {
+  const learningNoteId = `learning-note-${index}`;
+
+  return (
+    <li className="review-finding">
+      <div className="review-finding-header">
+        <span className={`review-severity review-severity-${finding.severity.toLowerCase()}`}>
+          {finding.severity}
+        </span>
+        <span className="review-finding-category">{finding.category}</span>
+        <span className="review-finding-location">
+          {finding.filePath} / {formatLineReference(finding)}
+        </span>
+      </div>
+      <h4 className="review-finding-title">{finding.title}</h4>
+      <p className="review-finding-copy">{finding.description}</p>
+      <section className="review-learning-note" aria-labelledby={learningNoteId}>
+        <p id={learningNoteId} className="review-learning-heading">
+          <LineIcon name="book-open" />
+          Learning note
+        </p>
+        <p className="review-learning-copy">{finding.suggestion}</p>
+      </section>
+    </li>
+  );
+};
 
 const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
   errorMessage,
@@ -380,10 +388,11 @@ const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
 
             {filteredFindings.length > 0 ? (
               <ul className="review-finding-list">
-                {filteredFindings.map((finding) => (
+                {filteredFindings.map((finding, index) => (
                   <ReviewFindingView
-                    key={`${finding.filePath}-${finding.startLine}-${finding.title}`}
+                    key={`${finding.filePath}-${finding.startLine}-${finding.endLine}-${index}`}
                     finding={finding}
+                    index={index}
                   />
                 ))}
               </ul>

@@ -8,4 +8,10 @@ export {
   estimateReviewMetrics,
   validateReviewDraft,
 } from "./helpers/reviewHelpers";
+export {
+  getReviewResultWithPolling,
+  isExpectedResultNotReadyError,
+  REVIEW_RESULT_CHECK_DELAY_MS,
+  REVIEW_RESULT_MAX_CHECKS,
+} from "./helpers/reviewPolling";
 export type * from "./types";
