@@ -46,3 +46,37 @@ PostgreSQL/Redis evidence, and strict snapshot/cursor-pagination hardening
 remain follow-up slices. The worker's pnpm lifecycle guard limitation was
 recorded; equivalent repository-local compiler/linter/formatter checks passed
 and the final worker worktree was clean.
+
+## Accepted checkpoint: Phase 09B web usage surfaces
+
+Phase 09B is accepted on local `main` at `ffcb819` after the exact Luna worker
+chain `53b805f -> 27c7fb7 -> c88c045 -> 1c362e8 -> a7d861f -> cb1cf3c ->
+93e077a -> 9e6a346 -> 6695ed2`, based on `dceb935`. The web shell now links
+to `/dashboard`, `/history`, and `/usage`. The dashboard shows deterministic
+review totals, completed/deep counts, token direction, recent source-free
+activity, language distribution, status counts, and UTC quota rails. History
+uses the accepted page/limit seam, a responsive source-free table/list, and
+status/mode/language filters only inside the explicitly labeled deterministic
+demo fixture. Search, date filtering, and sorting are not presented because
+they are not in the accepted server contract. Usage displays only truthful
+token/operation fields and names cost, model, provider, and reasoning metrics
+as deferred rather than estimating them.
+
+The client API boundary validates strict summary/history/quota data, accepts
+only the shared optional envelope metadata keys, and rejects unknown or
+invalid metadata. Quota progress semantics preserve displayed overage truth
+while keeping assistive progress values within their declared range. Post-
+merge evidence is web `32/32`, API `107/107`, contracts `5/5` (`144/144` root
+tests), lint, typecheck, build, Prettier, Prisma validate/generate,
+diff-check, staged credential-shaped scans, and browser QA at 375px and
+1440px with no horizontal overflow. Luna manager and Kongming/Terra counsel
+accepted the exact head with no P0/P1 blocker.
+
+This is a bounded UI checkpoint, not live Phase 09 completion. The default
+routes remain deterministic-demo only; authenticated API wiring is not active
+because the browser seam currently sends cookies while the API guard requires
+a Bearer access token. Live auth/session/API behavior, PostgreSQL/Redis,
+server-side search/date/sort, backend failure simulation, and future cost/
+model/provider/reasoning fields remain follow-up slices. History validator
+cross-field consistency and offline-font/live-service evidence are P2
+hardening items.
