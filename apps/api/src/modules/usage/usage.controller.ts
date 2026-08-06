@@ -88,7 +88,7 @@ export class UsageController {
   @Get("quota")
   @ApiOkResponse({
     description:
-      "Configuration-driven UTC-day review counts and remaining limits. This read model does not claim Redis enforcement.",
+      "Configuration-driven UTC-day review counts and remaining limits. Redis-backed enforcement and guest quotas are P2 and intentionally outside this read-only foundation.",
     schema: envelopeSchema(UsageQuotaResponseDto),
   })
   @ApiOperation({ summary: "Read the authenticated user's daily review quota" })
