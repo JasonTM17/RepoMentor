@@ -601,13 +601,40 @@ test("review result polling is bounded, cancellable, and conflict-specific at ru
   assert.equal(cancelledCalls, 1, "request-version cancellation must prevent the next GET");
 });
 
-test("review result runtime validation enforces ISO timestamps, usage invariants, and strict keys", async () => {
+test("review result runtime validation enforces ISO timestamps, usage invariants, metadata, and strict keys", async () => {
   const { ReviewApiError, reviewApi } = await reviewApiRuntime;
   const originalFetch = globalThis.fetch;
 
   try {
     globalThis.fetch = async () => createJsonResponse(200, { data: createReviewResultResponse() });
     await assert.doesNotReject(() => reviewApi.getResult("review-1"));
+
+    globalThis.fetch = async () =>
+      createJsonResponse(200, {
+        data: createReviewResultResponse(),
+        meta: { page: 1, pageSize: 100, requestId: "review-request-1", total: 0 },
+      });
+    await assert.doesNotReject(() => reviewApi.getResult("review-1"));
+
+    const invalidMetadata = [
+      "malformed",
+      { page: 1, pageSize: 20, requestId: "review-request-1", total: 0, unknown: true },
+      { page: 0, pageSize: 20, requestId: "review-request-1", total: 0 },
+      { page: 1, pageSize: 101, requestId: "review-request-1", total: 0 },
+      { page: 1, pageSize: 20, requestId: "review-request-1", total: -1 },
+      { page: 1, pageSize: 20, requestId: " ", total: 0 },
+      { page: 1, pageSize: 20, requestId: "x".repeat(129), total: 0 },
+    ];
+
+    for (const meta of invalidMetadata) {
+      globalThis.fetch = async () =>
+        createJsonResponse(200, { data: createReviewResultResponse(), meta });
+
+      await assert.rejects(
+        () => reviewApi.getResult("review-1"),
+        (error) => error instanceof ReviewApiError && error.status === 200,
+      );
+    }
 
     const invalidResponses = [
       (() => {

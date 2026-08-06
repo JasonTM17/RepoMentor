@@ -8,6 +8,8 @@ import type {
 } from "@/features/review/types";
 
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN?.replace(/\/+$/u, "") ?? "";
+const maxPageSize = 100;
+const maxRequestIdLength = 128;
 
 export class ReviewApiError extends Error {
   public readonly code: string | undefined;
@@ -24,14 +26,23 @@ export class ReviewApiError extends Error {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(value, key);
+
 const hasExactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
-  Object.keys(value).length === keys.length && keys.every((key) => key in value);
+  Object.keys(value).length === keys.length && keys.every((key) => hasOwn(value, key));
 
 const hasOnlyKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
   Object.keys(value).every((key) => keys.includes(key));
 
 const isNonBlankString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
+
+const isBoundedString = (value: unknown, maximum: number): value is string =>
+  typeof value === "string" &&
+  value.length > 0 &&
+  value.length <= maximum &&
+  value === value.trim();
 
 const isNonNegativeInteger = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 0;
@@ -41,6 +52,32 @@ const isoDateTimePattern =
 
 const isIsoDateTime = (value: unknown): value is string =>
   typeof value === "string" && isoDateTimePattern.test(value) && !Number.isNaN(Date.parse(value));
+
+interface ReviewApiMeta {
+  readonly requestId?: string;
+  readonly page?: number;
+  readonly pageSize?: number;
+  readonly total?: number;
+}
+
+const isApiMeta = (value: unknown): value is ReviewApiMeta => {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["requestId", "page", "pageSize", "total"])) {
+    return false;
+  }
+
+  return (
+    (!hasOwn(value, "requestId") || isBoundedString(value.requestId, maxRequestIdLength)) &&
+    (!hasOwn(value, "page") ||
+      (typeof value.page === "number" && Number.isInteger(value.page) && value.page > 0)) &&
+    (!hasOwn(value, "pageSize") ||
+      (typeof value.pageSize === "number" &&
+        Number.isInteger(value.pageSize) &&
+        value.pageSize > 0 &&
+        value.pageSize <= maxPageSize)) &&
+    (!hasOwn(value, "total") ||
+      (typeof value.total === "number" && Number.isInteger(value.total) && value.total >= 0))
+  );
+};
 
 const isReviewFinding = (value: unknown): value is ReviewFinding => {
   if (!isRecord(value)) {
@@ -169,10 +206,13 @@ const isReviewResultResponse = (value: unknown): value is ReviewResultResponse =
   );
 };
 
-const isSuccessEnvelope = (value: unknown): value is { readonly data: unknown } =>
+const isSuccessEnvelope = (
+  value: unknown,
+): value is { readonly data: unknown; readonly meta?: ReviewApiMeta } =>
   isRecord(value) &&
-  "data" in value &&
-  Object.keys(value).every((key) => key === "data" || key === "meta");
+  hasOwn(value, "data") &&
+  hasOnlyKeys(value, ["data", "meta"]) &&
+  (!hasOwn(value, "meta") || isApiMeta(value.meta));
 
 const readErrorCode = (value: unknown): string | undefined => {
   if (!isRecord(value) || !isRecord(value.error) || typeof value.error.code !== "string") {
