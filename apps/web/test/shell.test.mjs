@@ -885,6 +885,12 @@ test("usage API validates strict summary, history, quota, and envelope shapes", 
     },
     utcDay: "2026-08-06",
   };
+  const validEnvelopeMeta = {
+    page: 1,
+    pageSize: 20,
+    requestId: "usage-request-1",
+    total: 1,
+  };
   const seenRequests = [];
 
   try {
@@ -893,7 +899,7 @@ test("usage API validates strict summary, history, quota, and envelope shapes", 
       const path = String(input);
 
       if (path.includes("/summary")) {
-        return createJsonResponse(200, { data: validSummary });
+        return createJsonResponse(200, { data: validSummary, meta: validEnvelopeMeta });
       }
 
       if (path.includes("/history")) {
@@ -940,6 +946,23 @@ test("usage API validates strict summary, history, quota, and envelope shapes", 
     );
 
     globalThis.fetch = async () => createJsonResponse(200, { data: validSummary, meta: {} });
+    await assert.doesNotReject(() => usageApi.getSummary());
+
+    globalThis.fetch = async () =>
+      createJsonResponse(200, {
+        data: validSummary,
+        meta: { ...validEnvelopeMeta, pageSize: 101 },
+      });
+    await assert.rejects(
+      () => usageApi.getSummary(),
+      (error) => error instanceof UsageApiError && error.status === 200,
+    );
+
+    globalThis.fetch = async () =>
+      createJsonResponse(200, {
+        data: validSummary,
+        meta: { ...validEnvelopeMeta, unexpected: true },
+      });
     await assert.rejects(
       () => usageApi.getSummary(),
       (error) => error instanceof UsageApiError && error.status === 200,
@@ -1008,6 +1031,13 @@ test("usage demo filters and pagination are explicit client-only semantics", asy
   assert.match(source.usageHistory, /Demo-only filters/u);
   assert.match(source.usageHistory, /page and limit only/u);
   assert.doesNotMatch(source.usageApi, /status=.*[?&]|mode=.*[?&]|language=.*[?&]/u);
+});
+
+test("usage quota progress semantics clamp assistive values and preserve overage truth", () => {
+  assert.match(source.usageQuotaGrid, /const overage = Math\.max\(0, used - limit\)/u);
+  assert.match(source.usageQuotaGrid, /aria-valuenow=\{Math\.min\(used, limit\)\}/u);
+  assert.match(source.usageQuotaGrid, /aria-valuetext=\{quotaValueText\}/u);
+  assert.match(source.usageQuotaGrid, /overage \$\{formatCount\(overage\)\}/u);
 });
 
 test("usage states, responsive records, focus targets, and reduced motion are explicit", () => {

@@ -13,7 +13,9 @@ const UsageQuotaGrid: FC<UsageQuotaGridProps> = ({ quota }): ReactElement => (
   <div className="usage-quota-grid">
     {quotaModes.map((mode) => {
       const { limit, remaining, used } = quota.modes[mode];
+      const overage = Math.max(0, used - limit);
       const percentage = limit === 0 ? 0 : Math.min(100, Math.round((used / limit) * 100));
+      const quotaValueText = `${formatCount(used)} used, ${formatCount(limit)} limit, ${formatCount(remaining)} remaining${overage > 0 ? `, overage ${formatCount(overage)}` : ""}`;
 
       return (
         <article key={mode} className="usage-quota-card">
@@ -30,7 +32,8 @@ const UsageQuotaGrid: FC<UsageQuotaGridProps> = ({ quota }): ReactElement => (
             aria-label={`${formatMode(mode)} quota used`}
             aria-valuemax={limit}
             aria-valuemin={0}
-            aria-valuenow={used}
+            aria-valuenow={Math.min(used, limit)}
+            aria-valuetext={quotaValueText}
           >
             <span style={{ width: `${percentage}%` }} />
           </div>

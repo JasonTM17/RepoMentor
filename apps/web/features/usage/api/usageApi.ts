@@ -14,8 +14,10 @@ import type {
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN?.replace(/\/+$/u, "") ?? "";
 const maxHistoryPageSize = 50;
 const maxHistoryPageNumber = 10_000;
+const maxPageSize = 100;
 const maxLanguageLength = 32;
 const maxReviewIdLength = 256;
+const maxRequestIdLength = 128;
 
 export class UsageApiError extends Error {
   public readonly code: string | undefined;
@@ -37,6 +39,9 @@ const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
 
 const hasExactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
   Object.keys(value).length === keys.length && keys.every((key) => hasOwn(value, key));
+
+const hasOnlyKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
+  Object.keys(value).every((key) => keys.includes(key));
 
 const isNonBlankString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
@@ -206,8 +211,42 @@ const isUsageQuotaData = (value: unknown): value is UsageQuotaData => {
   return usageModes.every((mode) => isUsageQuotaMode(modes[mode]));
 };
 
-const isSuccessEnvelope = (value: unknown): value is { readonly data: unknown } =>
-  isRecord(value) && hasExactKeys(value, ["data"]);
+interface UsageApiMeta {
+  readonly requestId?: string;
+  readonly page?: number;
+  readonly pageSize?: number;
+  readonly total?: number;
+}
+
+interface UsageSuccessEnvelope {
+  readonly data: unknown;
+  readonly meta?: UsageApiMeta;
+}
+
+const isApiMeta = (value: unknown): value is UsageApiMeta => {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["requestId", "page", "pageSize", "total"])) {
+    return false;
+  }
+
+  return (
+    (!hasOwn(value, "requestId") || isBoundedString(value.requestId, maxRequestIdLength)) &&
+    (!hasOwn(value, "page") ||
+      (typeof value.page === "number" && Number.isSafeInteger(value.page) && value.page > 0)) &&
+    (!hasOwn(value, "pageSize") ||
+      (typeof value.pageSize === "number" &&
+        Number.isSafeInteger(value.pageSize) &&
+        value.pageSize > 0 &&
+        value.pageSize <= maxPageSize)) &&
+    (!hasOwn(value, "total") ||
+      (typeof value.total === "number" && Number.isSafeInteger(value.total) && value.total >= 0))
+  );
+};
+
+const isSuccessEnvelope = (value: unknown): value is UsageSuccessEnvelope =>
+  isRecord(value) &&
+  hasOwn(value, "data") &&
+  hasOnlyKeys(value, ["data", "meta"]) &&
+  (!hasOwn(value, "meta") || isApiMeta(value.meta));
 
 const readErrorCode = (value: unknown): string | undefined => {
   if (!isRecord(value) || !isRecord(value.error) || typeof value.error.code !== "string") {
