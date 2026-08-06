@@ -55,7 +55,7 @@ const HomePage = (): ReactElement => (
           developers can improve the next change with context.
         </p>
         <div className="hero-actions">
-          <a className="action-primary" href="#review-preview">
+          <a className="action-primary" href="/reviews/new">
             Review workspace
             <LineIcon name="arrow-up-right" />
           </a>

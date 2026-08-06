@@ -33,6 +33,13 @@ const source = Object.freeze({
   authHook: readTrackedSource("features/auth/hooks/useAuthForm.ts"),
   authTypes: readTrackedSource("features/auth/types/index.ts"),
   validation: readTrackedSource("features/auth/helpers/validation.ts"),
+  reviewPage: readTrackedSource("app/reviews/new/page.tsx"),
+  reviewWorkspace: readTrackedSource("features/review/components/ReviewWorkspace.tsx"),
+  reviewResultPanel: readTrackedSource("features/review/components/ReviewResultPanel.tsx"),
+  reviewApi: readTrackedSource("features/review/api/reviewApi.ts"),
+  reviewDemoTransport: readTrackedSource("features/review/api/demoReviewTransport.ts"),
+  reviewHelpers: readTrackedSource("features/review/helpers/reviewHelpers.ts"),
+  reviewHook: readTrackedSource("features/review/hooks/useReviewWorkspace.ts"),
 });
 
 const authClientRuntime = import(
@@ -424,5 +431,103 @@ test("auth source contains no emoji or em dash in visible UI copy", () => {
   for (const authSource of authSources) {
     assert.doesNotMatch(authSource, /—/u);
     assert.doesNotMatch(authSource, /[\u{1F300}-\u{1FAFF}]/u);
+  }
+});
+
+test("review route exposes an operable editor and honest transport label", () => {
+  assert.match(source.reviewPage, /<ReviewWorkspace\s*\/>/u);
+  assert.match(source.reviewWorkspace, /<main\s+id="main-content"/u);
+  assert.match(source.reviewWorkspace, /name="source"/u);
+  assert.match(source.reviewWorkspace, /name="title"/u);
+  assert.match(source.reviewWorkspace, /name="context"/u);
+  assert.match(source.reviewWorkspace, /value=\{draft\.language\}/u);
+  assert.match(source.reviewWorkspace, /value=\{draft\.learnerLevel\}/u);
+  assert.match(source.reviewWorkspace, /value=\{draft\.mode\}/u);
+  assert.match(source.reviewWorkspace, /Start demo review/u);
+  assert.match(source.reviewWorkspace, /Cancel run/u);
+  assert.match(source.reviewWorkspace, /data-transport-mode="demo"/u);
+  assert.match(source.reviewWorkspace, /POST \/api\/v1\/reviews\/:id\/process/u);
+  assert.match(source.reviewWorkspace, /GET \/api\/v1\/reviews\/:id\/result/u);
+  assert.match(source.reviewWorkspace, /does not call live AI/u);
+  assert.match(source.reviewWorkspace, /report usage/u);
+});
+
+test("review transport preserves the accepted process and result endpoints", () => {
+  assert.match(
+    source.reviewApi,
+    /\/api\/v1\/reviews\/\$\{encodeURIComponent\(reviewId\)\}\/process/u,
+  );
+  assert.match(
+    source.reviewApi,
+    /\/api\/v1\/reviews\/\$\{encodeURIComponent\(reviewId\)\}\/result/u,
+  );
+  assert.match(source.reviewApi, /method:\s*"POST"/u);
+  assert.match(source.reviewApi, /body:\s*"\{\}"/u);
+  assert.match(source.reviewApi, /credentials:\s*"include"/u);
+  assert.match(source.reviewApi, /isReviewProcessResponse/u);
+  assert.match(source.reviewApi, /isReviewResultResponse/u);
+  assert.match(source.reviewApi, /ReviewApiError/u);
+  assert.doesNotMatch(source.reviewApi, /DEEPSEEK|api[_-]?key|secret/iu);
+});
+
+test("review result renders summary, score boundary, issue filters, and learning notes", () => {
+  assert.match(source.reviewResultPanel, /status === "loading"/u);
+  assert.match(source.reviewResultPanel, /status === "processing"/u);
+  assert.match(source.reviewResultPanel, /status === "error"/u);
+  assert.match(source.reviewResultPanel, /status === "empty"/u);
+  assert.match(source.reviewResultPanel, />\s*Score\s*<\/h3>/u);
+  assert.match(source.reviewResultPanel, />\s*Summary\s*<\/h3>/u);
+  assert.match(source.reviewResultPanel, />\s*Issue signals\s*<\/h3>/u);
+  assert.match(source.reviewResultPanel, /Learning note/u);
+  assert.match(source.reviewResultPanel, /Filter issue signals/u);
+  assert.match(source.reviewResultPanel, /aria-live="polite"/u);
+  assert.match(source.reviewResultPanel, /No score is invented/u);
+});
+
+test("review fixture remains deterministic and has an explicit empty-result path", () => {
+  assert.match(source.reviewDemoTransport, /createDeterministicFixtureResult\(draft\)/u);
+  assert.match(source.reviewDemoTransport, /gpt-5\.6-luna/u);
+  assert.match(source.reviewDemoTransport, /reasoningEffort: "max"/u);
+  assert.match(source.reviewDemoTransport, /usage: null/u);
+  assert.match(source.reviewHelpers, /no findings/iu);
+  assert.match(source.reviewHelpers, /findings:\s*\[\]/u);
+  assert.match(source.reviewHook, /safeErrorMessage/u);
+  assert.match(source.reviewHook, /setStatus\("loading"\)/u);
+  assert.match(source.reviewHook, /setStatus\("processing"\)/u);
+  assert.match(
+    source.reviewHook,
+    /setStatus\(resultResponse\.result\.findings\.length === 0 \? "empty" : "success"\)/u,
+  );
+});
+
+test("review CSS preserves product accessibility and responsive contracts", () => {
+  assert.match(source.styles, /\.review-input\s*\{[\s\S]*min-height:\s*var\(--touch-target\)/u);
+  assert.match(source.styles, /\.review-input:focus-visible\s*\{[\s\S]*outline:/u);
+  assert.match(source.styles, /\.review-input:disabled\s*\{[\s\S]*cursor:\s*not-allowed/u);
+  assert.match(source.styles, /\.review-workspace-grid\s*\{[\s\S]*grid-template-columns:/u);
+  assert.match(source.styles, /@media\s*\(max-width:\s*62rem\)[\s\S]*\.review-workspace-grid/u);
+  assert.match(source.styles, /@media\s*\(max-width:\s*30rem\)[\s\S]*\.review-field-grid/u);
+  assert.match(source.styles, /@media\s*\(prefers-reduced-motion\s*:\s*reduce\s*\)/u);
+  assert.doesNotMatch(source.styles, /transition:\s*all/u);
+  assert.doesNotMatch(source.styles, /overflow-x:\s*hidden/u);
+});
+
+test("review source copy contains no em dash, emoji, or banned marketing language", () => {
+  const reviewSources = [
+    source.reviewPage,
+    source.reviewWorkspace,
+    source.reviewResultPanel,
+    source.reviewApi,
+    source.reviewDemoTransport,
+    source.reviewHelpers,
+  ];
+
+  for (const reviewSource of reviewSources) {
+    assert.doesNotMatch(reviewSource, /—/u);
+    assert.doesNotMatch(reviewSource, /[\u{1F300}-\u{1FAFF}]/u);
+    assert.doesNotMatch(
+      reviewSource,
+      /Elevate|Seamless|Unleash|Empower|Supercharge|Next-Gen|Game-changer/iu,
+    );
   }
 });
