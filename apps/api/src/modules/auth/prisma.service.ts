@@ -21,6 +21,10 @@ export class PrismaService implements OnModuleDestroy {
     return this.getClient().reviewResult;
   }
 
+  get reviewUsage(): PrismaClient["reviewUsage"] {
+    return this.getClient().reviewUsage;
+  }
+
   async transaction<T>(callback: (client: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     return this.getClient().$transaction(callback);
   }

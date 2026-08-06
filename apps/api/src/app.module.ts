@@ -6,9 +6,10 @@ import { AuthModule } from "./modules/auth/auth.module.js";
 import { AiModule } from "./modules/ai/ai.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
 import { ReviewModule } from "./modules/review/review.module.js";
+import { UsageModule } from "./modules/usage/usage.module.js";
 
 @Module({
-  imports: [AiModule, AuthModule, HealthModule, ReviewModule],
+  imports: [AiModule, AuthModule, HealthModule, ReviewModule, UsageModule],
   providers: [
     {
       provide: APP_INTERCEPTOR,
