@@ -42,6 +42,19 @@ const source = Object.freeze({
   reviewHook: readTrackedSource("features/review/hooks/useReviewWorkspace.ts"),
   reviewPolling: readTrackedSource("features/review/helpers/reviewPolling.ts"),
   reviewTypes: readTrackedSource("features/review/types/index.ts"),
+  dashboardPage: readTrackedSource("app/dashboard/page.tsx"),
+  historyPage: readTrackedSource("app/history/page.tsx"),
+  usagePage: readTrackedSource("app/usage/page.tsx"),
+  usageDashboard: readTrackedSource("features/usage/components/UsageDashboard.tsx"),
+  usageHistory: readTrackedSource("features/usage/components/UsageHistory.tsx"),
+  usageOverview: readTrackedSource("features/usage/components/UsageOverview.tsx"),
+  usageQuotaGrid: readTrackedSource("features/usage/components/UsageQuotaGrid.tsx"),
+  usageSourceNote: readTrackedSource("features/usage/components/UsageSourceNote.tsx"),
+  usageStatePanel: readTrackedSource("features/usage/components/UsageStatePanel.tsx"),
+  usageApi: readTrackedSource("features/usage/api/usageApi.ts"),
+  demoUsageTransport: readTrackedSource("features/usage/api/demoUsageTransport.ts"),
+  usageHelpers: readTrackedSource("features/usage/helpers/usageHelpers.ts"),
+  usageTypes: readTrackedSource("features/usage/types/index.ts"),
 });
 
 const authClientRuntime = import(
@@ -69,6 +82,39 @@ const reviewApiRuntime = import(
 const reviewPollingRuntime = import(
   `data:text/javascript,${encodeURIComponent(
     typescript.transpileModule(source.reviewPolling, {
+      compilerOptions: {
+        module: typescript.ModuleKind.ESNext,
+        target: typescript.ScriptTarget.ES2022,
+      },
+    }).outputText,
+  )}`
+);
+
+const usageApiRuntime = import(
+  `data:text/javascript,${encodeURIComponent(
+    typescript.transpileModule(source.usageApi, {
+      compilerOptions: {
+        module: typescript.ModuleKind.ESNext,
+        target: typescript.ScriptTarget.ES2022,
+      },
+    }).outputText,
+  )}`
+);
+
+const demoUsageRuntime = import(
+  `data:text/javascript,${encodeURIComponent(
+    typescript.transpileModule(source.demoUsageTransport, {
+      compilerOptions: {
+        module: typescript.ModuleKind.ESNext,
+        target: typescript.ScriptTarget.ES2022,
+      },
+    }).outputText,
+  )}`
+);
+
+const usageHelpersRuntime = import(
+  `data:text/javascript,${encodeURIComponent(
+    typescript.transpileModule(source.usageHelpers, {
       compilerOptions: {
         module: typescript.ModuleKind.ESNext,
         target: typescript.ScriptTarget.ES2022,
@@ -777,5 +823,254 @@ test("review source copy contains no em dash, emoji, or banned marketing languag
       reviewSource,
       /Elevate|Seamless|Unleash|Empower|Supercharge|Next-Gen|Game-changer/iu,
     );
+  }
+});
+
+test("usage routes are linked from the shell and keep the existing review and auth routes", () => {
+  for (const href of [
+    "/reviews/new",
+    "/dashboard",
+    "/history",
+    "/usage",
+    "/#learning-loop",
+    "/#status",
+  ]) {
+    assert.match(source.layout, new RegExp(`href\\s*=\\s*["']${escapeRegExp(href)}["']`, "u"));
+  }
+
+  assert.match(source.dashboardPage, /<UsageDashboard\s*\/>/u);
+  assert.match(source.historyPage, /<UsageHistory\s*\/>/u);
+  assert.match(source.usagePage, /<UsageOverview\s*\/>/u);
+  assert.match(source.usageDashboard, /id="main-content"/u);
+  assert.match(source.usageHistory, /id="main-content"/u);
+  assert.match(source.usageOverview, /id="main-content"/u);
+});
+
+test("usage API validates strict summary, history, quota, and envelope shapes", async () => {
+  const { UsageApiError, usageApi } = await usageApiRuntime;
+  const originalFetch = globalThis.fetch;
+  const validSummary = {
+    asOf: "2026-08-06T00:00:00.000Z",
+    completedReviews: 1,
+    deepReviews: 0,
+    inputTokens: 10,
+    languageDistribution: [{ count: 1, language: "typescript" }],
+    outputTokens: 5,
+    reviewsByStatus: { CANCELLED: 0, COMPLETED: 1, FAILED: 0, PENDING: 0, PROCESSING: 0 },
+    totalReviews: 1,
+    totalTokens: 15,
+  };
+  const validHistory = {
+    items: [
+      {
+        createdAt: "2026-08-06T00:00:00.000Z",
+        durationMs: 42,
+        inputTokens: 10,
+        language: "typescript",
+        mode: "STANDARD",
+        outputTokens: 5,
+        reviewId: "review-1",
+        status: "COMPLETED",
+        totalTokens: 15,
+      },
+    ],
+    meta: { hasNext: false, hasPrevious: false, limit: 20, page: 1, total: 1, totalPages: 1 },
+  };
+  const validQuota = {
+    asOf: "2026-08-06T00:00:00.000Z",
+    modes: {
+      DEEP: { limit: 3, remaining: 3, used: 0 },
+      QUICK: { limit: 20, remaining: 19, used: 1 },
+      STANDARD: { limit: 10, remaining: 10, used: 0 },
+    },
+    utcDay: "2026-08-06",
+  };
+  const seenRequests = [];
+
+  try {
+    globalThis.fetch = async (input, init) => {
+      seenRequests.push({ init, input });
+      const path = String(input);
+
+      if (path.includes("/summary")) {
+        return createJsonResponse(200, { data: validSummary });
+      }
+
+      if (path.includes("/history")) {
+        return createJsonResponse(200, { data: validHistory });
+      }
+
+      return createJsonResponse(200, { data: validQuota });
+    };
+
+    await assert.doesNotReject(() => usageApi.getSummary());
+    await assert.doesNotReject(() => usageApi.getHistory({ limit: 20, page: 1 }));
+    await assert.doesNotReject(() => usageApi.getQuota());
+    assert.match(String(seenRequests[0].input), /\/api\/v1\/usage\/summary/u);
+    assert.match(String(seenRequests[1].input), /\/api\/v1\/usage\/history\?page=1&limit=20/u);
+    assert.match(String(seenRequests[2].input), /\/api\/v1\/usage\/quota/u);
+    for (const request of seenRequests) {
+      assert.equal(request.init.credentials, "include");
+      assert.equal(request.init.method, "GET");
+    }
+
+    globalThis.fetch = async () =>
+      createJsonResponse(200, { data: { ...validSummary, totalTokens: 99 } });
+    await assert.rejects(
+      () => usageApi.getSummary(),
+      (error) => error instanceof UsageApiError && error.status === 200,
+    );
+
+    globalThis.fetch = async () => createJsonResponse(200, { data: validHistory, trace: "extra" });
+    await assert.rejects(
+      () => usageApi.getHistory({ limit: 20, page: 1 }),
+      (error) => error instanceof UsageApiError && error.status === 200,
+    );
+
+    globalThis.fetch = async () =>
+      createJsonResponse(200, {
+        data: {
+          ...validQuota,
+          modes: { ...validQuota.modes, QUICK: { limit: 20, remaining: 0, used: 1 } },
+        },
+      });
+    await assert.rejects(
+      () => usageApi.getQuota(),
+      (error) => error instanceof UsageApiError && error.status === 200,
+    );
+
+    globalThis.fetch = async () => createJsonResponse(200, { data: validSummary, meta: {} });
+    await assert.rejects(
+      () => usageApi.getSummary(),
+      (error) => error instanceof UsageApiError && error.status === 200,
+    );
+
+    await assert.rejects(
+      () => usageApi.getHistory({ limit: 51, page: 1 }),
+      (error) => error instanceof UsageApiError && error.status === 0,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("usage fixture reconciles summary, history pagination, quota, and owner-safe row shape", async () => {
+  const { createDemoUsageTransport, DEMO_USAGE_HISTORY } = await demoUsageRuntime;
+  const transport = createDemoUsageTransport();
+  const [summary, history, quota] = await Promise.all([
+    transport.getSummary(),
+    transport.getHistory({ limit: 4, page: 1 }),
+    transport.getQuota(),
+  ]);
+
+  assert.equal(transport.source, "demo");
+  assert.equal(summary.totalReviews, DEMO_USAGE_HISTORY.length);
+  assert.equal(summary.totalTokens, summary.inputTokens + summary.outputTokens);
+  assert.equal(history.meta.total, DEMO_USAGE_HISTORY.length);
+  assert.equal(history.meta.totalPages, 2);
+  assert.equal(history.meta.hasNext, true);
+  assert.equal(quota.utcDay, "2026-08-06");
+  assert.deepEqual(quota.modes.DEEP, { limit: 3, remaining: 1, used: 2 });
+  assert.equal(
+    DEMO_USAGE_HISTORY.some((item) => Object.hasOwn(item, "source")),
+    false,
+  );
+  assert.equal(JSON.stringify(history).includes("source"), false);
+});
+
+test("usage demo filters and pagination are explicit client-only semantics", async () => {
+  const { createDemoUsageTransport, DEMO_USAGE_HISTORY } = await demoUsageRuntime;
+  const { clampPage, createHistoryMeta, filterUsageHistory } = await usageHelpersRuntime;
+  const transport = createDemoUsageTransport();
+  const completed = filterUsageHistory(DEMO_USAGE_HISTORY, {
+    language: "ALL",
+    mode: "ALL",
+    status: "COMPLETED",
+  });
+  const typescript = filterUsageHistory(DEMO_USAGE_HISTORY, {
+    language: "typescript",
+    mode: "ALL",
+    status: "ALL",
+  });
+
+  assert.equal(transport.source, "demo");
+  assert.equal(completed.length, 5);
+  assert.equal(typescript.length, 2);
+  assert.deepEqual(createHistoryMeta(2, 1, 1), {
+    hasNext: true,
+    hasPrevious: false,
+    limit: 1,
+    page: 1,
+    total: 2,
+    totalPages: 2,
+  });
+  assert.equal(clampPage(4, 2), 2);
+  assert.match(source.usageHistory, /Demo-only filters/u);
+  assert.match(source.usageHistory, /page and limit only/u);
+  assert.doesNotMatch(source.usageApi, /status=.*[?&]|mode=.*[?&]|language=.*[?&]/u);
+});
+
+test("usage states, responsive records, focus targets, and reduced motion are explicit", () => {
+  assert.match(source.usageDashboard, /status === "loading"/u);
+  assert.match(source.usageDashboard, /status === "error"/u);
+  assert.match(source.usageDashboard, /No reviews yet/u);
+  assert.match(source.usageHistory, /status === "loading"/u);
+  assert.match(source.usageHistory, /Empty result/u);
+  assert.match(source.usageHistory, /aria-label="Review history pagination"/u);
+  assert.match(source.usageHistory, /disabled=\{disabled \|\| !hasPrevious\}/u);
+  assert.match(source.usageStatePanel, /aria-busy=\{tone === "loading"\}/u);
+  assert.match(source.usageSourceNote, /data-transport-mode=\{source\}/u);
+  assert.match(source.usageOverview, /Unavailable/u);
+  assert.match(source.usageOverview, /Deferred/u);
+  assert.match(
+    source.styles,
+    /\.usage-filter-input\s*\{[\s\S]*min-height:\s*var\(--touch-target\)/u,
+  );
+  assert.match(source.styles, /\.usage-filter-input:focus-visible\s*\{[\s\S]*outline:/u);
+  assert.match(source.styles, /\.usage-filter-input:disabled\s*\{[\s\S]*cursor:\s*not-allowed/u);
+  assert.match(source.styles, /\.usage-history-table\s*\{[\s\S]*table-layout:\s*fixed/u);
+  assert.match(
+    source.styles,
+    /@media\s*\(max-width:\s*50rem\)[\s\S]*\.usage-history-table-shell\s*\{[\s\S]*display:\s*none/u,
+  );
+  assert.match(
+    source.styles,
+    /@media\s*\(max-width:\s*50rem\)[\s\S]*\.usage-history-mobile-list\s*\{[\s\S]*display:\s*grid/u,
+  );
+  assert.match(
+    source.styles,
+    /@media\s*\(max-width:\s*30rem\)[\s\S]*\.usage-pagination\s*\{[\s\S]*flex-direction:\s*column/u,
+  );
+  assert.match(source.styles, /@media\s*\(prefers-reduced-motion\s*:\s*reduce\s*\)/u);
+  assert.doesNotMatch(source.styles, /transition:\s*all/u);
+  assert.doesNotMatch(source.styles, /overflow-x:\s*hidden/u);
+});
+
+test("usage UI is source-free, secret-free, and avoids banned visible copy", () => {
+  assert.doesNotMatch(source.usageHistory, /item\.source|<th[^>]*>\s*Source\s*</u);
+
+  const usageSources = [
+    source.dashboardPage,
+    source.historyPage,
+    source.usagePage,
+    source.usageDashboard,
+    source.usageHistory,
+    source.usageOverview,
+    source.usageQuotaGrid,
+    source.usageSourceNote,
+    source.usageStatePanel,
+    source.usageApi,
+    source.demoUsageTransport,
+    source.usageHelpers,
+  ];
+
+  for (const usageSource of usageSources) {
+    assert.doesNotMatch(usageSource, /—/u);
+    assert.doesNotMatch(usageSource, /[\u{1F300}-\u{1FAFF}]/u);
+    assert.doesNotMatch(
+      usageSource,
+      /Elevate|Seamless|Unleash|Empower|Supercharge|Next-Gen|Game-changer/iu,
+    );
+    assert.doesNotMatch(usageSource, /DEEPSEEK|sk-[A-Za-z0-9]{20,}|api[_-]?key/iu);
   }
 });
