@@ -101,6 +101,44 @@ The demo fixture uses the server's `gpt-5.6-luna` and `max` metadata shape witho
 - Browser QA reran against the local production build at 375px and 1440px. At 375px, the document and body measured 360px, the field grid composed to one 294.4px column, and there was no horizontal overflow. At 1440px, the document measured 1425px and the editor/sidebar grid measured approximately 748.8px and 403.2px with no horizontal overflow. The demo run was exercised through processing into the structured result.
 - Screenshots were transient QA evidence only and are not checked in. No live AI, authenticated session, PostgreSQL, Redis, or provider integration was claimed.
 
+## Phase 09B usage surfaces
+
+### Design Read and decision procedure
+
+- Reading this as: an authenticated-leaning developer usage product UI for developers and learners, with precise audit-friendly console language. The product register is Industrial / utilitarian.
+- Decision seed: `RepoMentor|Phase 09B|history|dashboard|usage|quota|review ledger` computes to `6605`. The seeded menu row was Soft / pastel; this phase stepped to the adjacent Industrial row because it extends the existing review console and its accepted visual system.
+- Aesthetic thesis: cool concrete field, paper-white panels, ink typography, ember-orange signals, Barlow Condensed display type, Source Sans 3 body type, flush-left ruled sections, and one LineIcon family. Quota rails are the memorable element: they read like a daily operator ledger instead of a decorative chart.
+- Component patterns are metric rails, token direction ledger, quota rails, status ledger, a source-free responsive history table/list, and named deferred metrics. Existing shell/navigation patterns remain the frame.
+
+### Skill source boundary
+
+The AgentKit frontend design and development skill contracts, plus `technical-accessibility.md` and `workflow-quick.md`, were read from the shared coordinator-local source at `D:\RepoMentor\engineer\skills\`. That source is not checked out in this worker worktree and was used as instruction only; `D:\RepoMentor\engineer` was not edited. The current repository has no TanStack Query, MUI, or `SuspenseLoader` dependency, so the usage area follows the existing manual hook convention with stable loading shells, typed request versions, cancellation guards, and no package manifest changes.
+
+### Product and data boundary
+
+- `/dashboard` shows total reviews, completed and deep counts, additive input/output/total tokens, recent activity, quota rails, status counts, and language distribution. Values are deterministic fixture values and are visibly labeled as demo transport; they do not imply an authenticated session, persistence, or live metrics.
+- `/history` shows source-free review rows with only accepted history fields. The server seam sends `page` and `limit`. Status, mode, and language filters are client-side demo-only controls applied only when the fixture boundary is active. Search, date filtering, and sorting are not presented because they are absent from the accepted server contract.
+- `/usage` shows token direction and operation counts only where the accepted summary response is truthful. Cost, spend, model identity, provider attribution, and reasoning measurements are explicitly deferred instead of estimated.
+- `features/usage/api/usageApi.ts` performs credentialed GET requests to the three accepted endpoints and validates the envelope, known keys, integer bounds, date-times, additive totals, quota consistency, and history pagination at runtime. Browser code has no provider, model, or API key controls.
+
+### State, interaction, and accessibility decisions
+
+- Stable page shells keep headings and supporting copy visible during loading, then use skeleton rails with `role=status` and `aria-busy`. Error panels use `role=alert` with generic copy and a retry action. Empty history and empty language/status branches are explicit and do not invent counts.
+- Filter controls expose selected values and disabled styling. Pagination exposes previous/next disabled states and a live page summary. Inputs remain at least 16px and interactive targets remain at least 44px.
+- The usage area keeps the existing LineIcon family, semantic landmarks, visible `:focus-visible` rings, keyboard-reachable controls, text labels alongside color signals, and reduced-motion overrides. Responsive rules switch the history table to a labeled mobile list at 50rem and stack the rails at 30rem. The 375px check had no horizontal overflow.
+- Visible copy avoids emoji, em dash, generic AI marketing language, and live-data claims. History rows render review identifiers and usage metadata only, never source code or source content.
+
+### Verification evidence
+
+- `node --test ./apps/web/test/shell.test.mjs`: 31 tests passed, including route and shell links, strict API/fallback validation, fixture reconciliation, filter and pagination semantics, source-free rendering, state contracts, responsive/a11y rules, and no-secret/no-emoji/no-em-dash checks.
+- Local ESLint, TypeScript no-emit, Prettier check, and the Next production build passed. The build emitted `/dashboard`, `/history`, and `/usage` alongside the preserved routes.
+- A local production build was exercised in the in-app browser at 375px and 1440px. At 375px, document width matched the 360px content viewport, the history table switched to the mobile list, demo filtering reduced the fixture to one failed row, pagination reached page 2, and no horizontal overflow was detected. Desktop checks covered visible primary navigation, the multi-column metric/quota composition, and no horizontal overflow. Screenshots were transient QA evidence only.
+- A staged credential-shaped scan was run before each focused commit and remained clean. No secrets, provider credentials, or model controls were added.
+
+### Visual-QA limitations
+
+The browser checks use the deterministic fixture and a local production server. They cannot validate authenticated session behavior, live API data, network-loaded font behavior under offline conditions, or future server-side search/date/sort behavior. The fixture intentionally delays transport responses to exercise loading, but it cannot reproduce real backend failures or quota changes. Those integrations remain the next slice.
+
 ## Visual-QA limitations
 
 The implementation was checked with a production build, static HTML inspection, a 375px viewport check for overflow, and a desktop composition check. The deterministic demo does not emit the backend's processing conflict, so the `Check for result` interaction is covered by the bounded polling runtime test rather than a fabricated browser state. This environment does not provide a checked-in screenshot baseline or live backend data, so visual QA cannot validate authenticated routes, repository-specific code, real review findings, network-loaded font behavior under offline conditions, or future editor interactions. The preview is intentionally an illustrative static surface and is labeled accordingly.
