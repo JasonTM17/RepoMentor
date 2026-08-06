@@ -25,12 +25,17 @@ export interface ReviewProcessingRepository {
     id: string,
     execution: AiReviewExecution<ReviewResult>,
     now: Date,
+    expectedProcessingGeneration: number,
   ): Promise<ReviewRecord | null>;
   findResultForUser(userId: string, id: string): Promise<ReviewResultRecord | null>;
 }
 
 export type ReviewProcessingClaim =
-  | { readonly kind: "CLAIMED"; readonly review: ReviewRecord }
+  | {
+      readonly generation: number;
+      readonly kind: "CLAIMED";
+      readonly review: ReviewRecord;
+    }
   | { readonly kind: "ALREADY_PROCESSING"; readonly review: ReviewRecord }
   | { readonly kind: "ALREADY_COMPLETED"; readonly review: ReviewRecord }
   | {
@@ -41,7 +46,7 @@ export type ReviewProcessingClaim =
     };
 
 export type ReviewProcessingSkippedReason =
-  "ALREADY_PROCESSING" | "ALREADY_COMPLETED" | "RETRY_REQUIRED";
+  "ALREADY_PROCESSING" | "ALREADY_COMPLETED" | "RETRY_REQUIRED" | "STALE_CLAIM";
 
 export type ReviewProcessingOutcome =
   | {

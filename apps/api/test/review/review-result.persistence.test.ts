@@ -64,11 +64,12 @@ describe("persisted AI review execution contract", () => {
       source: "const answer = 42;",
       userId: OWNER_ID,
     });
-    await repository.transitionForUser(OWNER_ID, REVIEW_ID, {
+    const claimed = await repository.transitionForUser(OWNER_ID, REVIEW_ID, {
       fromStatuses: ["PENDING"],
       now: NOW,
       toStatus: "PROCESSING",
     });
+    assert.equal(claimed?.processingGeneration, 1);
     assert.equal(
       await repository.transitionForUser(OWNER_ID, REVIEW_ID, {
         fromStatuses: ["PROCESSING"],
@@ -78,10 +79,25 @@ describe("persisted AI review execution contract", () => {
       null,
     );
 
-    assert.equal(await repository.finalizeForUser(OTHER_USER_ID, REVIEW_ID, EXECUTION, NOW), null);
+    assert.equal(
+      await repository.finalizeForUser(
+        OTHER_USER_ID,
+        REVIEW_ID,
+        EXECUTION,
+        NOW,
+        claimed?.processingGeneration ?? 0,
+      ),
+      null,
+    );
     assert.equal((await repository.findByIdForUser(OWNER_ID, REVIEW_ID))?.status, "PROCESSING");
 
-    const completed = await repository.finalizeForUser(OWNER_ID, REVIEW_ID, EXECUTION, NOW);
+    const completed = await repository.finalizeForUser(
+      OWNER_ID,
+      REVIEW_ID,
+      EXECUTION,
+      NOW,
+      claimed?.processingGeneration ?? 0,
+    );
     assert.equal(completed?.status, "COMPLETED");
     const persisted = await repository.findResultForUser(OWNER_ID, REVIEW_ID);
     assert.ok(persisted);
@@ -92,6 +108,7 @@ describe("persisted AI review execution contract", () => {
       REVIEW_ID,
       { ...EXECUTION, durationMs: 999 },
       new Date(NOW.getTime() + 1_000),
+      claimed?.processingGeneration ?? 0,
     );
     assert.equal(duplicate, null);
     assert.equal((await repository.findResultForUser(OWNER_ID, REVIEW_ID))?.durationMs, 42);

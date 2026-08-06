@@ -284,16 +284,18 @@ describe("review API", () => {
       .post(`/api/v1/reviews/${cancelled.id}/retry`)
       .set("authorization", `Bearer ${user.accessToken}`);
     const completed = await createReview(user);
-    await reviewRepository.transitionForUser(user.id, completed.id, {
+    const processing = await reviewRepository.transitionForUser(user.id, completed.id, {
       fromStatuses: ["PENDING"],
       now: new Date("2026-08-05T12:00:01.000Z"),
       toStatus: "PROCESSING",
     });
+    assert.ok(processing);
     await reviewRepository.finalizeForUser(
       user.id,
       completed.id,
       validExecution,
       new Date("2026-08-05T12:00:02.000Z"),
+      processing.processingGeneration,
     );
     const invalidRetry = await request(app.getHttpServer())
       .post(`/api/v1/reviews/${completed.id}/retry`)

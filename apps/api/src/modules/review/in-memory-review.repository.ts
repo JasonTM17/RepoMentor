@@ -1,6 +1,7 @@
 import type { AiReviewExecution } from "../ai/ai.types.js";
 import type { ReviewResult } from "../ai/review-result.schema.js";
 import { toReviewResultRecord, type ReviewResultRecord } from "./review-result.persistence.js";
+import { REVIEW_MAX_PROCESSING_GENERATION } from "./review.types.js";
 import type {
   CreateReviewInput,
   ReviewListInput,
@@ -37,6 +38,7 @@ export class InMemoryReviewRepository implements ReviewRepository {
       id,
       language: input.language,
       mode: input.mode,
+      processingGeneration: 0,
       source: input.source,
       status: "PENDING",
       updatedAt: now,
@@ -99,6 +101,10 @@ export class InMemoryReviewRepository implements ReviewRepository {
       review.userId !== userId ||
       review.deletedAt !== null ||
       transition.toStatus === "COMPLETED" ||
+      (transition.expectedProcessingGeneration !== undefined &&
+        transition.expectedProcessingGeneration !== review.processingGeneration) ||
+      (transition.toStatus === "PROCESSING" &&
+        review.processingGeneration >= REVIEW_MAX_PROCESSING_GENERATION) ||
       !transition.fromStatuses.includes(review.status)
     ) {
       return null;
@@ -106,6 +112,10 @@ export class InMemoryReviewRepository implements ReviewRepository {
 
     const transitioned: ReviewRecord = {
       ...review,
+      processingGeneration:
+        transition.toStatus === "PROCESSING"
+          ? review.processingGeneration + 1
+          : review.processingGeneration,
       status: transition.toStatus,
       updatedAt: new Date(transition.now),
     };
@@ -118,6 +128,7 @@ export class InMemoryReviewRepository implements ReviewRepository {
     id: string,
     execution: AiReviewExecution<ReviewResult>,
     now: Date,
+    expectedProcessingGeneration: number,
   ): Promise<ReviewRecord | null> {
     const review = this.reviews.get(id);
 
@@ -125,7 +136,8 @@ export class InMemoryReviewRepository implements ReviewRepository {
       !review ||
       review.userId !== userId ||
       review.deletedAt !== null ||
-      review.status !== "PROCESSING"
+      review.status !== "PROCESSING" ||
+      review.processingGeneration !== expectedProcessingGeneration
     ) {
       return null;
     }

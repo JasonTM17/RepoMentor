@@ -16,6 +16,9 @@ export const REVIEW_MAX_SOURCE_LENGTH = 100_000;
 export const REVIEW_MAX_LANGUAGE_LENGTH = 32;
 export const REVIEW_MAX_PAGE_SIZE = 50;
 export const REVIEW_MAX_PAGE_NUMBER = 10_000;
+// Keep the persisted counter below PostgreSQL's signed INTEGER maximum so a
+// claim can always advance without overflowing the database column.
+export const REVIEW_MAX_PROCESSING_GENERATION = 2_147_483_646;
 
 export interface ReviewRecord {
   readonly id: string;
@@ -23,6 +26,7 @@ export interface ReviewRecord {
   readonly source: string;
   readonly language: string;
   readonly mode: ReviewMode;
+  readonly processingGeneration: number;
   readonly status: ReviewStatus;
   readonly deletedAt: Date | null;
   readonly createdAt: Date;
@@ -54,6 +58,7 @@ export interface ReviewListResult {
 
 export interface ReviewStatusTransition {
   readonly fromStatuses: readonly ReviewStatus[];
+  readonly expectedProcessingGeneration?: number;
   readonly toStatus: ReviewStatus;
   readonly now: Date;
 }

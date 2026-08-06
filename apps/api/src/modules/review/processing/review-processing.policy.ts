@@ -19,6 +19,7 @@ export const REVIEW_PROCESSING_TRANSITIONS = {
 export function createProcessingTransition(
   name: ReviewProcessingTransitionName,
   now: Date,
+  expectedProcessingGeneration?: number,
 ): ReviewStatusTransition {
   const rule = REVIEW_PROCESSING_TRANSITIONS[name];
 
@@ -26,5 +27,6 @@ export function createProcessingTransition(
     fromStatuses: rule.fromStatuses,
     now: new Date(now),
     toStatus: rule.toStatus,
+    ...(expectedProcessingGeneration === undefined ? {} : { expectedProcessingGeneration }),
   };
 }

@@ -11,6 +11,7 @@ import { PrismaReviewRepository } from "../../src/modules/review/prisma-review.r
 const USER_ID = "prisma-result-owner";
 const REVIEW_ID = "prisma-result-1";
 const NOW = new Date("2026-08-06T02:00:00.000Z");
+const EXPECTED_GENERATION = 1;
 const EXECUTION: AiReviewExecution<ReviewResult> = {
   attempts: 1,
   durationMs: 42,
@@ -25,13 +26,17 @@ const EXECUTION: AiReviewExecution<ReviewResult> = {
   usage: { inputTokens: 12, outputTokens: 8, totalTokens: 20 },
 };
 
-function reviewRow(status: "PROCESSING" | "COMPLETED"): PrismaReview {
+function reviewRow(
+  status: "PENDING" | "PROCESSING" | "COMPLETED",
+  processingGeneration = EXPECTED_GENERATION,
+): PrismaReview {
   return {
     createdAt: NOW,
     deletedAt: null,
     id: REVIEW_ID,
     language: "typescript",
     mode: "STANDARD",
+    processingGeneration,
     source: "const answer = 42;",
     status,
     updatedAt: NOW,
@@ -43,13 +48,22 @@ function createRepository(options: { readonly failResultInsert?: Error } = {}) {
   let status: "PROCESSING" | "COMPLETED" = "PROCESSING";
   let resultInserted = false;
   const events: string[] = [];
+  let lastUpdateWhere: unknown;
 
   const transactionClient = {
     review: {
-      findFirst: async () => reviewRow(status),
-      updateMany: async (args: { readonly data: { readonly status: string } }) => {
+      findFirst: async () => reviewRow(status, EXPECTED_GENERATION),
+      updateMany: async (args: {
+        readonly data: { readonly status: string };
+        readonly where: unknown;
+      }) => {
+        lastUpdateWhere = args.where;
         events.push(`review.updateMany:${args.data.status}`);
-        if (status !== "PROCESSING") {
+        if (
+          status !== "PROCESSING" ||
+          (args.where as { readonly processingGeneration?: number }).processingGeneration !==
+            EXPECTED_GENERATION
+        ) {
           return { count: 0 };
         }
 
@@ -101,6 +115,73 @@ function createRepository(options: { readonly failResultInsert?: Error } = {}) {
     get status() {
       return status;
     },
+    get lastUpdateWhere() {
+      return lastUpdateWhere;
+    },
+    repository: new PrismaReviewRepository(prisma),
+  };
+}
+
+function createClaimRepository() {
+  let status: "PENDING" | "PROCESSING" = "PENDING";
+  let processingGeneration = 0;
+  const events: string[] = [];
+  let lastUpdateData: unknown;
+  let lastUpdateWhere: unknown;
+
+  const transactionClient = {
+    review: {
+      findFirst: async () => reviewRow(status, processingGeneration),
+      updateMany: async (args: { readonly data: unknown; readonly where: unknown }) => {
+        lastUpdateData = args.data;
+        lastUpdateWhere = args.where;
+        events.push("review.updateMany:PROCESSING");
+        if (status !== "PENDING") {
+          return { count: 0 };
+        }
+
+        processingGeneration +=
+          (args.data as { readonly processingGeneration?: { readonly increment?: number } })
+            .processingGeneration?.increment ?? 0;
+        status = "PROCESSING";
+        return { count: 1 };
+      },
+    },
+  } as unknown as Prisma.TransactionClient;
+
+  const prisma = {
+    transaction: async <T>(callback: (client: Prisma.TransactionClient) => Promise<T>) => {
+      events.push("transaction:start");
+      const previousStatus = status;
+      const previousGeneration = processingGeneration;
+
+      try {
+        const result = await callback(transactionClient);
+        events.push("transaction:commit");
+        return result;
+      } catch (error: unknown) {
+        status = previousStatus;
+        processingGeneration = previousGeneration;
+        events.push("transaction:rollback");
+        throw error;
+      }
+    },
+  } as unknown as PrismaService;
+
+  return {
+    events,
+    get lastUpdateData() {
+      return lastUpdateData;
+    },
+    get lastUpdateWhere() {
+      return lastUpdateWhere;
+    },
+    get processingGeneration() {
+      return processingGeneration;
+    },
+    get status() {
+      return status;
+    },
     repository: new PrismaReviewRepository(prisma),
   };
 }
@@ -109,11 +190,21 @@ describe("Prisma review result finalization", () => {
   it("conditionally completes the owner review and writes result plus usage in one transaction", async () => {
     const fixture = createRepository();
 
-    const completed = await fixture.repository.finalizeForUser(USER_ID, REVIEW_ID, EXECUTION, NOW);
+    const completed = await fixture.repository.finalizeForUser(
+      USER_ID,
+      REVIEW_ID,
+      EXECUTION,
+      NOW,
+      EXPECTED_GENERATION,
+    );
 
     assert.equal(completed?.status, "COMPLETED");
     assert.equal(fixture.status, "COMPLETED");
     assert.equal(fixture.resultInserted, true);
+    assert.equal(
+      (fixture.lastUpdateWhere as { readonly processingGeneration?: number }).processingGeneration,
+      EXPECTED_GENERATION,
+    );
     assert.deepEqual(fixture.events, [
       "transaction:start",
       "review.updateMany:COMPLETED",
@@ -127,7 +218,7 @@ describe("Prisma review result finalization", () => {
     const fixture = createRepository({ failResultInsert: insertError });
 
     await assert.rejects(
-      fixture.repository.finalizeForUser(USER_ID, REVIEW_ID, EXECUTION, NOW),
+      fixture.repository.finalizeForUser(USER_ID, REVIEW_ID, EXECUTION, NOW, EXPECTED_GENERATION),
       (error: unknown) => {
         assert.equal(error, insertError);
         return true;
@@ -141,6 +232,57 @@ describe("Prisma review result finalization", () => {
       "review.updateMany:COMPLETED",
       "reviewResult.create",
       "transaction:rollback",
+    ]);
+  });
+
+  it("rejects a stale generation without writing a result", async () => {
+    const fixture = createRepository();
+
+    const completed = await fixture.repository.finalizeForUser(
+      USER_ID,
+      REVIEW_ID,
+      EXECUTION,
+      NOW,
+      EXPECTED_GENERATION - 1,
+    );
+
+    assert.equal(completed, null);
+    assert.equal(fixture.status, "PROCESSING");
+    assert.equal(fixture.resultInserted, false);
+    assert.deepEqual(fixture.events, [
+      "transaction:start",
+      "review.updateMany:COMPLETED",
+      "transaction:commit",
+    ]);
+  });
+});
+
+describe("Prisma review processing claims", () => {
+  it("increments and returns the generation inside the claim transaction", async () => {
+    const fixture = createClaimRepository();
+
+    const claimed = await fixture.repository.transitionForUser(USER_ID, REVIEW_ID, {
+      fromStatuses: ["PENDING"],
+      now: NOW,
+      toStatus: "PROCESSING",
+    });
+
+    assert.equal(claimed?.status, "PROCESSING");
+    assert.equal(claimed?.processingGeneration, 1);
+    assert.equal(fixture.status, "PROCESSING");
+    assert.equal(fixture.processingGeneration, 1);
+    assert.deepEqual(
+      (fixture.lastUpdateData as { readonly processingGeneration?: unknown }).processingGeneration,
+      { increment: 1 },
+    );
+    const where = fixture.lastUpdateWhere as {
+      readonly AND?: readonly [{ readonly processingGeneration?: { readonly lt?: number } }];
+    };
+    assert.equal(where.AND?.[0]?.processingGeneration?.lt, 2_147_483_646);
+    assert.deepEqual(fixture.events, [
+      "transaction:start",
+      "review.updateMany:PROCESSING",
+      "transaction:commit",
     ]);
   });
 });

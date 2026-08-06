@@ -14,6 +14,7 @@ import {
   validatePersistedAiReviewExecution,
   type ReviewResultRecord,
 } from "./review-result.persistence.js";
+import { REVIEW_MAX_PROCESSING_GENERATION } from "./review.types.js";
 import type {
   CreateReviewInput,
   ReviewListInput,
@@ -30,6 +31,7 @@ function mapReview(row: PrismaReview): ReviewRecord {
     id: row.id,
     language: row.language,
     mode: row.mode,
+    processingGeneration: row.processingGeneration,
     source: row.source,
     status: row.status,
     updatedAt: row.updatedAt,
@@ -131,21 +133,40 @@ export class PrismaReviewRepository implements ReviewRepository {
       return null;
     }
 
-    const result = await this.prisma.review.updateMany({
-      data: { status: transition.toStatus, updatedAt: transition.now },
-      where: {
-        deletedAt: null,
-        id,
-        status: { in: [...transition.fromStatuses] },
-        userId,
-      },
+    const generationPredicates: Prisma.ReviewWhereInput[] = [
+      ...(transition.expectedProcessingGeneration === undefined
+        ? []
+        : [{ processingGeneration: transition.expectedProcessingGeneration }]),
+      ...(transition.toStatus === "PROCESSING"
+        ? [{ processingGeneration: { lt: REVIEW_MAX_PROCESSING_GENERATION } }]
+        : []),
+    ];
+    const where: Prisma.ReviewWhereInput = {
+      deletedAt: null,
+      id,
+      status: { in: [...transition.fromStatuses] },
+      userId,
+      ...(generationPredicates.length === 0 ? {} : { AND: generationPredicates }),
+    };
+    const data: Prisma.ReviewUpdateManyMutationInput = {
+      status: transition.toStatus,
+      updatedAt: transition.now,
+      ...(transition.toStatus === "PROCESSING" ? { processingGeneration: { increment: 1 } } : {}),
+    };
+
+    return this.prisma.transaction(async (transaction) => {
+      const result = await transaction.review.updateMany({ data, where });
+
+      if (result.count !== 1) {
+        return null;
+      }
+
+      const review = await transaction.review.findFirst({
+        where: { deletedAt: null, id, userId },
+      });
+
+      return review ? mapReview(review) : null;
     });
-
-    if (result.count !== 1) {
-      return null;
-    }
-
-    return this.findByIdForUser(userId, id);
   }
 
   async finalizeForUser(
@@ -153,13 +174,20 @@ export class PrismaReviewRepository implements ReviewRepository {
     id: string,
     execution: AiReviewExecution<ReviewResult>,
     now: Date,
+    expectedProcessingGeneration: number,
   ): Promise<ReviewRecord | null> {
     const persisted = validatePersistedAiReviewExecution(execution);
 
     return this.prisma.transaction(async (transaction) => {
       const transitioned = await transaction.review.updateMany({
         data: { status: "COMPLETED", updatedAt: now },
-        where: { deletedAt: null, id, status: "PROCESSING", userId },
+        where: {
+          deletedAt: null,
+          id,
+          processingGeneration: expectedProcessingGeneration,
+          status: "PROCESSING",
+          userId,
+        },
       });
 
       if (transitioned.count !== 1) {
@@ -193,7 +221,13 @@ export class PrismaReviewRepository implements ReviewRepository {
       });
 
       const review = await transaction.review.findFirst({
-        where: { deletedAt: null, id, userId },
+        where: {
+          deletedAt: null,
+          id,
+          processingGeneration: expectedProcessingGeneration,
+          status: "COMPLETED",
+          userId,
+        },
       });
 
       return review ? mapReview(review) : null;

@@ -54,6 +54,17 @@ function retryRequired(
   };
 }
 
+function staleClaim(
+  review: ReviewRecord,
+): Extract<ReviewProcessingOutcome, { readonly kind: "SKIPPED" }> {
+  return {
+    kind: "SKIPPED",
+    reason: "STALE_CLAIM",
+    review,
+    status: "PROCESSING",
+  };
+}
+
 function concurrentCancellation(
   review: ReviewRecord,
 ): Extract<ReviewProcessingOutcome, { readonly kind: "CANCELLED" }> {
@@ -103,7 +114,11 @@ export class ReviewProcessingService {
     );
 
     if (claimed?.status === "PROCESSING") {
-      return { kind: "CLAIMED", review: claimed };
+      return {
+        generation: claimed.processingGeneration,
+        kind: "CLAIMED",
+        review: claimed,
+      };
     }
 
     if (claimed) {
@@ -135,21 +150,21 @@ export class ReviewProcessingService {
       const mapped = mapAiError(error, input.signal);
 
       if (mapped.kind === "CANCELLED") {
-        return this.cancel(input, mapped.cancellation);
+        return this.cancel(input, claim.generation, mapped.cancellation);
       }
 
-      return this.fail(input, mapped.failure);
+      return this.fail(input, claim.generation, mapped.failure);
     }
 
     if (input.signal?.aborted) {
-      return this.cancel(input, {
+      return this.cancel(input, claim.generation, {
         code: "CANCELLED",
         kind: "CANCELLATION",
         source: "SIGNAL",
       });
     }
 
-    return this.complete(input, execution);
+    return this.complete(input, claim.generation, execution);
   }
 
   private classifyNonClaimed(
@@ -170,6 +185,7 @@ export class ReviewProcessingService {
 
   private async complete(
     input: ReviewProcessingRequest,
+    expectedProcessingGeneration: number,
     execution: Awaited<ReturnType<AiReviewService["review"]>>,
   ): Promise<ReviewProcessingOutcome> {
     const completed = await this.repository.finalizeForUser(
@@ -177,6 +193,7 @@ export class ReviewProcessingService {
       input.reviewId,
       execution,
       this.clock(),
+      expectedProcessingGeneration,
     );
 
     if (completed?.status === "COMPLETED") {
@@ -210,17 +227,22 @@ export class ReviewProcessingService {
       return retryRequired(current, "FAILED");
     }
 
+    if (current.status === "PROCESSING") {
+      return staleClaim(current);
+    }
+
     throw new ReviewProcessingBoundaryError("FINALIZATION_CONFLICT");
   }
 
   private async fail(
     input: ReviewProcessingRequest,
+    expectedProcessingGeneration: number,
     failure: Extract<ReturnType<typeof mapAiError>, { readonly kind: "FAILED" }>["failure"],
   ): Promise<ReviewProcessingOutcome> {
     const failed = await this.repository.transitionForUser(
       input.userId,
       input.reviewId,
-      createProcessingTransition("fail", this.clock()),
+      createProcessingTransition("fail", this.clock(), expectedProcessingGeneration),
     );
 
     if (failed?.status === "FAILED") {
@@ -259,17 +281,22 @@ export class ReviewProcessingService {
       return { failure, kind: "FAILED", review: current, status: "FAILED" };
     }
 
+    if (current.status === "PROCESSING") {
+      return staleClaim(current);
+    }
+
     throw new ReviewProcessingBoundaryError("FINALIZATION_CONFLICT");
   }
 
   private async cancel(
     input: ReviewProcessingRequest,
+    expectedProcessingGeneration: number,
     cancellation: ReviewProcessingCancellation,
   ): Promise<ReviewProcessingOutcome> {
     const cancelled = await this.repository.transitionForUser(
       input.userId,
       input.reviewId,
-      createProcessingTransition("cancel", this.clock()),
+      createProcessingTransition("cancel", this.clock(), expectedProcessingGeneration),
     );
 
     if (cancelled?.status === "CANCELLED") {
@@ -306,6 +333,10 @@ export class ReviewProcessingService {
 
     if (current.status === "FAILED") {
       return retryRequired(current, "FAILED");
+    }
+
+    if (current.status === "PROCESSING") {
+      return staleClaim(current);
     }
 
     throw new ReviewProcessingBoundaryError("FINALIZATION_CONFLICT");

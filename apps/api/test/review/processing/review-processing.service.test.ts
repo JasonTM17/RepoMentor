@@ -11,6 +11,7 @@ import {
   type ReviewResult,
 } from "../../../src/modules/ai/index.js";
 import { InMemoryReviewRepository } from "../../../src/modules/review/in-memory-review.repository.js";
+import { ReviewService } from "../../../src/modules/review/review.service.js";
 import {
   REVIEW_PROCESSING_TRANSITIONS,
   ReviewProcessingBoundaryError,
@@ -30,6 +31,16 @@ const VALID_RESULT = {
   schemaVersion: "v1",
   summary: "No actionable findings were detected.",
 } as const;
+const STALE_RESULT = {
+  findings: [],
+  schemaVersion: "v1",
+  summary: "Stale run must never persist this result.",
+} as const;
+const LIVE_RESULT = {
+  findings: [],
+  schemaVersion: "v1",
+  summary: "The retried run owns this result.",
+} as const;
 
 class RecordingReviewRepository extends InMemoryReviewRepository {
   readonly transitions: Array<{
@@ -44,6 +55,9 @@ class RecordingReviewRepository extends InMemoryReviewRepository {
         fromStatuses: [...transition.fromStatuses],
         now: new Date(transition.now),
         toStatus: transition.toStatus,
+        ...(transition.expectedProcessingGeneration === undefined
+          ? {}
+          : { expectedProcessingGeneration: transition.expectedProcessingGeneration }),
       },
     });
 
@@ -55,6 +69,7 @@ class RecordingReviewRepository extends InMemoryReviewRepository {
     id: string,
     execution: AiReviewExecution<ReviewResult>,
     now: Date,
+    expectedProcessingGeneration: number,
   ) {
     this.transitions.push({
       id,
@@ -62,10 +77,11 @@ class RecordingReviewRepository extends InMemoryReviewRepository {
         fromStatuses: ["PROCESSING"],
         now: new Date(now),
         toStatus: "COMPLETED",
+        expectedProcessingGeneration,
       },
     });
 
-    return super.finalizeForUser(userId, id, execution, now);
+    return super.finalizeForUser(userId, id, execution, now, expectedProcessingGeneration);
   }
 }
 
@@ -285,6 +301,116 @@ describe("review processing orchestration", () => {
     assert.equal(completedRun.reason, "ALREADY_COMPLETED");
     assert.equal(completedRun.status, "COMPLETED");
     assert.equal(provider.requests.length, 1);
+  });
+
+  it("fences stale completion after cancel, retry, and a new processing claim", async () => {
+    const repository = new RecordingReviewRepository();
+    await createReview(repository);
+    let resolveA!: (result: AiProviderResult) => void;
+    let markAStarted!: () => void;
+    const aStarted = new Promise<void>((resolve) => {
+      markAStarted = resolve;
+    });
+    const providerA = new FakeAiReviewProvider([
+      async () => {
+        markAStarted();
+        return new Promise<AiProviderResult>((resolve) => {
+          resolveA = resolve;
+        });
+      },
+    ]);
+    let resolveB!: (result: AiProviderResult) => void;
+    let markBStarted!: () => void;
+    const bStarted = new Promise<void>((resolve) => {
+      markBStarted = resolve;
+    });
+    const providerB = new FakeAiReviewProvider([
+      async () => {
+        markBStarted();
+        return new Promise<AiProviderResult>((resolve) => {
+          resolveB = resolve;
+        });
+      },
+    ]);
+    const processingA = createProcessing(repository, providerA);
+    const processingB = createProcessing(repository, providerB);
+    const reviewService = new ReviewService(repository);
+    const runA = processingA.process(request());
+    await aStarted;
+
+    await reviewService.cancel(USER_ID, REVIEW_ID, FIXED_NOW);
+    await reviewService.retry(USER_ID, REVIEW_ID, FIXED_NOW);
+    const runB = processingB.process(request());
+    await bStarted;
+
+    const claimedB = await repository.findByIdForUser(USER_ID, REVIEW_ID);
+    assert.equal(claimedB?.status, "PROCESSING");
+    assert.equal(claimedB?.processingGeneration, 2);
+
+    resolveA({ output: STALE_RESULT });
+    const staleOutcome = await runA;
+    assert.deepEqual(staleOutcome, {
+      kind: "SKIPPED",
+      reason: "STALE_CLAIM",
+      review: claimedB,
+      status: "PROCESSING",
+    });
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.processingGeneration, 2);
+
+    resolveB({ output: LIVE_RESULT, usage: { inputTokens: 4, outputTokens: 3, totalTokens: 7 } });
+    const liveOutcome = await runB;
+    assert.equal(liveOutcome.kind, "COMPLETED");
+    assert.equal(
+      (await repository.findResultForUser(USER_ID, REVIEW_ID))?.result.summary,
+      LIVE_RESULT.summary,
+    );
+  });
+
+  it("fences stale failure and cancellation finalization for a retried claim", async () => {
+    for (const terminalError of [
+      new AiProviderError("RATE_LIMITED", { retryable: true }),
+      new AiProviderError("CANCELLED"),
+    ]) {
+      const repository = new RecordingReviewRepository();
+      await createReview(repository);
+      let rejectA!: (error: unknown) => void;
+      let markAStarted!: () => void;
+      const aStarted = new Promise<void>((resolve) => {
+        markAStarted = resolve;
+      });
+      const providerA = new FakeAiReviewProvider([
+        async () => {
+          markAStarted();
+          return new Promise<AiProviderResult>((_resolve, reject) => {
+            rejectA = reject;
+          });
+        },
+      ]);
+      const runA = createProcessing(repository, providerA).process(request());
+      await aStarted;
+
+      const reviewService = new ReviewService(repository);
+      await reviewService.cancel(USER_ID, REVIEW_ID, FIXED_NOW);
+      await reviewService.retry(USER_ID, REVIEW_ID, FIXED_NOW);
+      const claimB = await createProcessing(
+        repository,
+        new FakeAiReviewProvider([{ output: LIVE_RESULT }]),
+      ).claim(request());
+      assert.equal(claimB.kind, "CLAIMED");
+      if (claimB.kind !== "CLAIMED") {
+        throw new Error("expected the retried processing claim to succeed");
+      }
+      assert.equal(claimB.generation, 2);
+
+      rejectA(terminalError);
+      const staleOutcome = await runA;
+      assert.equal(staleOutcome.kind, "SKIPPED");
+      assert.equal(staleOutcome.reason, "STALE_CLAIM");
+      assert.equal(staleOutcome.status, "PROCESSING");
+      assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.processingGeneration, 2);
+      assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
+    }
   });
 
   it("maps provider failures to a typed FAILED result", async () => {
