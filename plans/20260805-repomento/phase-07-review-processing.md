@@ -3,12 +3,40 @@
 ## Dependencies and ownership
 
 - Depends on Phase 06.
-- Processing worker owns orchestration service, transaction boundary, status
-  machine, SSE endpoint, cancellation, retry, and idempotency.
+- The processing worker owns the review-processing slices. Shared Prisma
+  schema/migration and root configuration remain sequenced coordinator-owned
+  integration points.
+
+## Accepted slice 07A — orchestration boundary
+
+Status: accepted on `main` at `6b2dfe4`.
+
+The Luna worker branch `feature/review-processing` was based on `f8eb156` and
+was accepted at the exact chain `b907af0 -> ddaacb4`. The coordinator
+cherry-picked it as `aab1d48` and `6b2dfe4`. It provides a pure
+`ReviewProcessingService` boundary with an owner-scoped repository port and
+explicit claim/finalization outcomes:
+
+- PENDING can be claimed once into PROCESSING;
+- valid Luna results complete the review through a typed result boundary;
+- provider and structured-output failures map to safe FAILED outcomes;
+- cancellation maps to CANCELLED and remains race-aware;
+- concurrent terminal claims and retry-required terminal states are explicit
+  SKIPPED outcomes;
+- repository finalization errors are not misreported as provider failures.
+
+The worker and exact-head manager review reported 13/13 focused processing
+tests, 75/75 API tests, API build/typecheck/lint, Prettier, diff-check, and a
+clean branch. Post-cherry-pick root tests pass web 16/16 and contracts 5/5 as
+well. Kongming/Terra counsel found no P0/P1 blocker.
+
+This is an orchestration seam, not end-to-end processing yet. Prisma result
+persistence, a public route/queue, SSE/reconnect transport, durable retry
+state, and live PostgreSQL/Redis/AI evidence remain required in later slices.
 
 ## Commit slices
 
-- `feat(review): add AI review processing pipeline`
+- `feat(review): add AI review processing pipeline` (07A accepted)
 - `feat(review): persist review results transactionally`
 - `feat(review): add review cancellation support`
 - `feat(streaming): stream review progress to clients`

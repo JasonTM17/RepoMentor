@@ -141,10 +141,28 @@ Kongming/Terra security counsel both accepted the exact head. This is not live
 AI or end-to-end review evidence; processing, persistence, usage/quota,
 streaming, and the full result contract remain later-phase work.
 
+Phase 07A is accepted on main at `6b2dfe4` after the exact Luna worker chain
+`f8eb156 -> b907af0 -> ddaacb4`, integrated as `aab1d48` and `6b2dfe4`.
+The slice adds a deterministic review-processing orchestration boundary with
+owner-scoped claim/finalization ports, explicit COMPLETED/FAILED/CANCELLED/
+SKIPPED outcomes, typed provider-error mapping, cancellation races, and
+terminal-state idempotency. The Luna manager and Kongming/Terra counsel
+accepted the exact worker head with no P0/P1 blockers. Post-merge evidence is
+API `75/75`, focused processing `13/13`, web `16/16`, contracts `5/5`, API
+build/typecheck/lint, root Prettier, and diff-check. The orchestration is not
+yet wired to Prisma result persistence, a public processing route or queue,
+SSE/reconnect transport, retry transport, live PostgreSQL/Redis, or live AI.
+
+The post-merge auth hardening commit `0b47a45` rejects non-canonical Base64URL
+token encodings at the verifier boundary. It was found by the post-cherry-pick
+regression run and verified by the full API and root test suites; it does not
+change the Luna or review-processing scope.
+
 The current local main checkpoint includes the accepted web-auth contract
 integration at `5ccb4cb`, review-domain integration through `b33d7d6`, truthful
 README/package/GitHub About/media updates through `3b1f3b1`, and the Docker
-slice through local `3d98a4d`, plus the Phase 06 Luna boundary at `369c958`.
+slice through local `3d98a4d`, the Phase 06 Luna boundary at `369c958`, and
+Phase 07A orchestration through `6b2dfe4` plus auth hardening at `0b47a45`.
 GitHub Actions run `31030844884` passed the
 workflow lint, Hadolint, Dockerfile contract, Compose config, API/web image
 builds, API `/health/live` smoke, and web `/` smoke. The Docker slice is
@@ -219,6 +237,8 @@ without live integration evidence.
 | `main` | 04 | Luna web-auth integration + manager arbiter | `db6a85f`, `5e5f89f`, `5ccb4cb` | accepted; strict success envelope and 16 web tests; live browser/API unverified |
 | `main` | 05 | Luna review-domain worker + manager arbiter | `2ea3732`, `a2f8761`, `272310e`, `84f5e92`, `b33d7d6` | accepted; 40 API tests and ownership/lifecycle gates; live DB unverified |
 | `main` | 06 | Luna AI worker + Luna manager arbiter + Kongming/Terra counsel | `75f05aa`, `0cae58c`, `901d1fc`, `369c958` | accepted; 62 API tests including 22 AI tests; live AI and processing pipeline deferred |
+| `main` | 07A | Luna processing worker + Luna manager arbiter + Kongming/Terra counsel | `aab1d48`, `6b2dfe4` (worker `b907af0`, `ddaacb4`) | accepted; 13 focused processing tests and 75 API tests; persistence, route/queue, SSE, retry transport, and live services deferred |
+| `main` | auth hardening | coordinator validation follow-up | `0b47a45` | accepted; rejects non-canonical Base64URL token encodings; full API/root tests pass |
 | `main` | docs/release | Faraday Luna + coordinator follow-up | `54c039f`, `d7e873c`, `2da1bd5`, `4673295`, `3b1f3b1` | accepted; README/release metadata, real UI GIF, and CI evidence; no production/public-package claim |
 | `main` | 13 | Raman Luna + manager arbiter | `014c5e7`, `9456850`, `cf2e62b`, `16a81d1`, `69f83ab`, `d910080`, `10f1b71`, `6448e67`, `952bbc5`, `dc238d3`, `14f0c3e`, `3d98a4d` | accepted; CI run `31030844884` passed Docker/Compose/build/smoke gates; registry publication pending |
 | `main` | 13 | Volta Luna + manager arbiter | `eab4557`, `6e90530`, `8c0f0c0`, `86a1c69`, `2cb9c9d` | accepted Compose/env/docs slice; local startup and live smoke pending |
@@ -252,6 +272,9 @@ without live integration evidence.
 | phase-06-manager-arbiter | reviewer/arbiter | `gpt-5.6-luna` / `max` | read-only exact-head review | accepted; manager `019fd14f-e844-7f83-988f-7a27e3639fe2` | P1 fixes verified; safe to cherry-pick |
 | phase-06-kongming-counsel | security advisor | `gpt-5.6-terra` / `max` | read-only counsel | accepted; counsel `019fd4b0-e28f-7361-b7c6-b9752bd24428` | no P0/P1 blockers; P2 hardening remains non-blocking |
 | phase-06-deepseek-advisor | advisory architecture/security | `gpt-5.6-terra` / `max` | read-only counsel | completed; no edits; DeepSeek deferred behind ADR | advisory delivered to coordinator/manager |
+| phase-07-review-processing | implementer | `gpt-5.6-luna` / `max` | `C:\Users\Admin\.codex\worktrees\5c8b\RepoMentor` (`feature/review-processing`) | accepted; worker `019fd4d0-61e8-7bb0-abdc-ce607e87a687`; merged as `aab1d48`, `6b2dfe4` | 13 focused processing tests; no persistence/route/SSE/live-service claim |
+| phase-07-manager-arbiter | reviewer/arbiter | `gpt-5.6-luna` / `max` | read-only exact-head review | accepted; manager `019fd14f-e844-7f83-988f-7a27e3639fe2` | exact chain accepted; P1 race fixes verified |
+| phase-07-kongming-counsel | security/architecture advisor | `gpt-5.6-terra` / `max` | read-only counsel | accepted; counsel `019fd4b0-e28f-7361-b7c6-b9752bd24428` | no P0/P1 blockers; persistence CAS/lease and outbox remain later slices |
 | phase-13-docs-release-media | documentation/media implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docs-release-media` | accepted; worker `019fd2ac-2034-7752-83ef-e2d7cefda10e`; merged through `4673295` | Faraday report; real 3-frame UI GIF |
 | phase-13-docker-release | Docker/CI implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-release` | accepted; worker `019fd2b1-daad-7302-824c-adef31c220ff`; merged through `3d98a4d` | Raman report; CI `31030844884` green; live registry pending |
 | phase-13-docker-compose-runtime | Compose/env/docs implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-compose-runtime` | accepted; worker `019fd2d1-eb9d-7fd0-ab68-4f5f2b44073f`; merged through `2cb9c9d` | Volta report; Docker daemon/live startup unavailable |
