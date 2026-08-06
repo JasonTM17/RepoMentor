@@ -2,6 +2,9 @@ import type { ReviewMode, ReviewStatus } from "../review/review.types.js";
 
 export const USAGE_REPOSITORY = Symbol("USAGE_REPOSITORY");
 
+export const USAGE_HISTORY_SORT_ORDERS = ["asc", "desc"] as const;
+export type UsageHistorySortOrder = (typeof USAGE_HISTORY_SORT_ORDERS)[number];
+
 export interface UsageTokenRecord {
   readonly inputTokens: number;
   readonly outputTokens: number;
@@ -22,10 +25,23 @@ export interface UsageHistoryRecord {
   readonly result: UsageHistoryResultRecord | null;
 }
 
-export interface UsageHistoryListInput {
-  readonly userId: string;
+export interface UsageHistoryQueryInput {
   readonly page: number;
   readonly limit: number;
+  readonly language?: string;
+  readonly mode?: ReviewMode;
+  readonly status?: ReviewStatus;
+  /** Case-insensitive substring match against the persisted review id only. */
+  readonly search?: string;
+  readonly sort: UsageHistorySortOrder;
+  /** Inclusive UTC lower bound. */
+  readonly from?: Date;
+  /** Exclusive UTC upper bound. */
+  readonly to?: Date;
+}
+
+export interface UsageHistoryListInput extends UsageHistoryQueryInput {
+  readonly userId: string;
 }
 
 export interface UsageHistoryListResult {

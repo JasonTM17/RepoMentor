@@ -1,9 +1,34 @@
 import { Transform } from "class-transformer";
-import { IsInt, Max, Min } from "class-validator";
+import {
+  IsDate,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+  Validate,
+  ValidatorConstraint,
+  type ValidationArguments,
+  type ValidatorConstraintInterface,
+} from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
-import { REVIEW_MODES, REVIEW_STATUSES } from "../review/review.types.js";
-import { USAGE_MAX_HISTORY_PAGE_NUMBER, USAGE_MAX_HISTORY_PAGE_SIZE } from "./usage.read-model.js";
+import {
+  REVIEW_MAX_LANGUAGE_LENGTH,
+  REVIEW_MODES,
+  REVIEW_STATUSES,
+} from "../review/review.types.js";
+import { parseStrictUtcDateTime } from "./usage.date.js";
+import {
+  USAGE_MAX_HISTORY_PAGE_NUMBER,
+  USAGE_MAX_HISTORY_PAGE_SIZE,
+  USAGE_MAX_HISTORY_SEARCH_LENGTH,
+} from "./usage.read-model.js";
+import { USAGE_HISTORY_SORT_ORDERS, type UsageHistorySortOrder } from "./usage.types.js";
 
 function toStrictInteger({ value }: { readonly value: unknown }): unknown {
   if (typeof value !== "string") {
@@ -13,6 +38,38 @@ function toStrictInteger({ value }: { readonly value: unknown }): unknown {
   const normalizedValue = value.trim();
 
   return /^\d+$/u.test(normalizedValue) ? Number(normalizedValue) : value;
+}
+
+function normalizeFilterText({ value }: { readonly value: unknown }): unknown {
+  return typeof value === "string" ? value.trim().toLowerCase() : value;
+}
+
+function toStrictUtcDate({ value }: { readonly value: unknown }): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  return parseStrictUtcDateTime(value) ?? new Date(Number.NaN);
+}
+
+@ValidatorConstraint({ name: "usageHistoryDateRange", async: false })
+class UsageHistoryDateRangeConstraint implements ValidatorConstraintInterface {
+  validate(_value: unknown, args: ValidationArguments): boolean {
+    const query = args.object as { readonly from?: unknown; readonly to?: unknown };
+
+    if (!(query.from instanceof Date) || !(query.to instanceof Date)) {
+      return true;
+    }
+
+    const from = query.from.getTime();
+    const to = query.to.getTime();
+
+    return !Number.isFinite(from) || !Number.isFinite(to) || from < to;
+  }
+
+  defaultMessage(): string {
+    return "from must be earlier than to.";
+  }
 }
 
 export class UsageHistoryQueryDto {
@@ -39,6 +96,79 @@ export class UsageHistoryQueryDto {
   @Min(1)
   @Max(USAGE_MAX_HISTORY_PAGE_SIZE)
   limit = 20;
+
+  @ApiPropertyOptional({
+    description: "Exact normalized programming-language metadata value.",
+    example: "typescript",
+    maxLength: REVIEW_MAX_LANGUAGE_LENGTH,
+    minLength: 1,
+  })
+  @Transform(normalizeFilterText)
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(REVIEW_MAX_LANGUAGE_LENGTH)
+  @Matches(/^[a-z0-9#+._-]+$/u)
+  language?: string;
+
+  @ApiPropertyOptional({ enum: REVIEW_MODES, example: "STANDARD" })
+  @IsOptional()
+  @IsString()
+  @IsIn(REVIEW_MODES)
+  mode?: (typeof REVIEW_MODES)[number];
+
+  @ApiPropertyOptional({
+    description:
+      "Bounded case-insensitive substring search over persisted review IDs only; source and title are never searched.",
+    example: "clreview",
+    maxLength: USAGE_MAX_HISTORY_SEARCH_LENGTH,
+    minLength: 1,
+  })
+  @Transform(normalizeFilterText)
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(USAGE_MAX_HISTORY_SEARCH_LENGTH)
+  @Matches(/^[a-z0-9_-]+$/u)
+  search?: string;
+
+  @ApiPropertyOptional({
+    default: "desc",
+    description: "Sort by createdAt; id is the stable tie-breaker.",
+    enum: USAGE_HISTORY_SORT_ORDERS,
+    example: "desc",
+  })
+  @IsIn(USAGE_HISTORY_SORT_ORDERS)
+  sort: UsageHistorySortOrder = "desc";
+
+  @ApiPropertyOptional({
+    description: "Inclusive UTC ISO date-time lower bound. Local dates and offsets are rejected.",
+    example: "2026-08-06T00:00:00.000Z",
+    format: "date-time",
+    type: String,
+  })
+  @Transform(toStrictUtcDate)
+  @IsOptional()
+  @IsDate()
+  @Validate(UsageHistoryDateRangeConstraint)
+  from?: Date;
+
+  @ApiPropertyOptional({
+    description: "Exclusive UTC ISO date-time upper bound. Local dates and offsets are rejected.",
+    example: "2026-08-07T00:00:00.000Z",
+    format: "date-time",
+    type: String,
+  })
+  @Transform(toStrictUtcDate)
+  @IsOptional()
+  @IsDate()
+  to?: Date;
+
+  @ApiPropertyOptional({ enum: REVIEW_STATUSES, example: "COMPLETED" })
+  @IsOptional()
+  @IsString()
+  @IsIn(REVIEW_STATUSES)
+  status?: (typeof REVIEW_STATUSES)[number];
 }
 
 export class UsageStatusCountsDto {

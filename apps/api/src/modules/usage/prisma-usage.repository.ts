@@ -36,6 +36,25 @@ const historySelect = {
 
 type HistoryRow = Prisma.ReviewGetPayload<{ select: typeof historySelect }>;
 
+function getHistoryWhere(input: UsageHistoryListInput): Prisma.ReviewWhereInput {
+  return {
+    ...(input.from || input.to
+      ? {
+          createdAt: {
+            ...(input.from ? { gte: input.from } : {}),
+            ...(input.to ? { lt: input.to } : {}),
+          },
+        }
+      : {}),
+    ...(input.language ? { language: input.language } : {}),
+    ...(input.mode ? { mode: input.mode } : {}),
+    ...(input.search ? { id: { contains: input.search, mode: "insensitive" as const } } : {}),
+    ...(input.status ? { status: input.status } : {}),
+    deletedAt: null,
+    userId: input.userId,
+  };
+}
+
 function mapHistoryRow(row: HistoryRow): UsageHistoryRecord {
   return {
     createdAt: row.createdAt,
@@ -151,14 +170,12 @@ export class PrismaUsageRepository implements UsageRepository {
   }
 
   async listHistoryForUser(input: UsageHistoryListInput): Promise<UsageHistoryListResult> {
-    const where: Prisma.ReviewWhereInput = {
-      deletedAt: null,
-      userId: input.userId,
-    };
+    const where = getHistoryWhere(input);
+    const sort = input.sort === "asc" ? "asc" : "desc";
     const [total, rows] = await Promise.all([
       this.prisma.review.count({ where }),
       this.prisma.review.findMany({
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        orderBy: [{ createdAt: sort }, { id: sort }],
         select: historySelect,
         skip: (input.page - 1) * input.limit,
         take: input.limit,

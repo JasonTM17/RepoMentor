@@ -14,7 +14,11 @@ import {
   type UsageQuotaResponse,
   type UsageSummaryResponse,
 } from "./usage.read-model.js";
-import { USAGE_REPOSITORY, type UsageRepository } from "./usage.types.js";
+import {
+  USAGE_REPOSITORY,
+  type UsageHistoryQueryInput,
+  type UsageRepository,
+} from "./usage.types.js";
 
 @Injectable()
 export class UsageService {
@@ -29,9 +33,9 @@ export class UsageService {
     return toUsageSummary(aggregate, asOf);
   }
 
-  async history(userId: string, page: number, limit: number): Promise<UsageHistoryResponse> {
-    const result = await this.repository.listHistoryForUser({ limit, page, userId });
-    return toUsageHistoryResponse(result, page, limit);
+  async history(userId: string, query: UsageHistoryQueryInput): Promise<UsageHistoryResponse> {
+    const result = await this.repository.listHistoryForUser({ ...query, userId });
+    return toUsageHistoryResponse(result, query.page, query.limit);
   }
 
   async quota(userId: string, asOf = new Date()): Promise<UsageQuotaResponse> {

@@ -10,6 +10,7 @@ import {
 } from "@nestjs/swagger";
 
 import { AuthAccessGuard, type AuthenticatedRequest } from "../auth/auth-access.guard.js";
+import { REVIEW_MODES, REVIEW_STATUSES } from "../review/review.types.js";
 import {
   UsageHistoryQueryDto,
   UsageHistoryResponseDto,
@@ -80,9 +81,56 @@ export class UsageController {
     required: false,
     type: Number,
   })
+  @ApiQuery({
+    description: "Exact normalized programming-language metadata value.",
+    maxLength: 32,
+    name: "language",
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    description: "Review mode filter.",
+    enum: REVIEW_MODES,
+    name: "mode",
+    required: false,
+  })
+  @ApiQuery({
+    description: "Review status filter.",
+    enum: REVIEW_STATUSES,
+    name: "status",
+    required: false,
+  })
+  @ApiQuery({
+    description:
+      "Bounded case-insensitive substring search over persisted review IDs only; source and title are never searched.",
+    maxLength: 25,
+    name: "search",
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    description: "Sort by createdAt; id is the stable tie-breaker. Defaults to desc.",
+    name: "sort",
+    required: false,
+    schema: { default: "desc", enum: ["asc", "desc"], type: "string" },
+  })
+  @ApiQuery({
+    description: "Inclusive UTC ISO date-time lower bound; local dates and offsets are rejected.",
+    format: "date-time",
+    name: "from",
+    required: false,
+    type: String,
+  })
+  @ApiQuery({
+    description: "Exclusive UTC ISO date-time upper bound; local dates and offsets are rejected.",
+    format: "date-time",
+    name: "to",
+    required: false,
+    type: String,
+  })
   @ApiUnauthorizedResponse({ description: "Authentication is required." })
   history(@Req() request: AuthenticatedRequest, @Query() query: UsageHistoryQueryDto) {
-    return this.usage.history(getUserId(request), query.page, query.limit);
+    return this.usage.history(getUserId(request), query);
   }
 
   @Get("quota")

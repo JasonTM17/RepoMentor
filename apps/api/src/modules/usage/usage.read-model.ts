@@ -16,6 +16,7 @@ import type {
 
 export const USAGE_MAX_HISTORY_PAGE_SIZE = 50;
 export const USAGE_MAX_HISTORY_PAGE_NUMBER = 10_000;
+export const USAGE_MAX_HISTORY_SEARCH_LENGTH = 25;
 
 export interface UsageStatusCounts {
   readonly PENDING: number;
