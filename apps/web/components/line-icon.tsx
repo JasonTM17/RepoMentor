@@ -1,7 +1,7 @@
 import type { FC, ReactNode, SVGProps } from "react";
 
 export type LineIconName =
-  "arrow-down" | "arrow-right" | "arrow-up-right" | "book-open" | "code" | "refresh";
+  "arrow-down" | "arrow-left" | "arrow-right" | "arrow-up-right" | "book-open" | "code" | "refresh";
 
 interface LineIconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   readonly name: LineIconName;
@@ -24,6 +24,14 @@ const LineIcon: FC<LineIconProps> = ({ name, ...props }) => {
         <>
           <path d="M4 12h15" />
           <path d="m13.5 6.5 5.5 5.5-5.5 5.5" />
+        </>
+      );
+      break;
+    case "arrow-left":
+      icon = (
+        <>
+          <path d="M20 12H5" />
+          <path d="m10.5 6.5-5.5 5.5 5.5 5.5" />
         </>
       );
       break;

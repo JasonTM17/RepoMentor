@@ -2659,6 +2659,228 @@ button {
     font-size: var(--text-xs);
   }
 
+  .usage-history-filter-panel {
+    min-width: 0;
+    padding: var(--space-6);
+  }
+
+  .usage-history-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+    margin-top: var(--space-5);
+  }
+
+  .usage-filter-field {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-2);
+    color: var(--color-ink-muted);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  .usage-filter-input {
+    width: 100%;
+    min-height: var(--touch-target);
+    border: var(--depth-rule);
+    border-radius: var(--radius-control);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    color: var(--color-ink-strong);
+    font: inherit;
+    font-size: 1rem;
+  }
+
+  .usage-filter-input:hover {
+    border-color: var(--color-line-strong);
+  }
+
+  .usage-filter-input:active {
+    border-color: var(--color-accent-strong);
+  }
+
+  .usage-filter-input:focus-visible {
+    outline: var(--focus-width) solid var(--color-focus);
+    outline-offset: var(--focus-offset);
+  }
+
+  .usage-filter-input:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .usage-history-boundary-note {
+    max-width: var(--measure-copy);
+    margin: var(--space-5) 0 0;
+    color: var(--color-ink-faint);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+  }
+
+  .usage-history-results {
+    min-width: 0;
+    margin-top: var(--space-7);
+  }
+
+  .usage-history-table-shell {
+    margin-top: var(--space-5);
+    border: var(--depth-rule);
+    border-radius: var(--radius-panel);
+    background: var(--color-surface);
+  }
+
+  .usage-history-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+
+  .usage-history-table th,
+  .usage-history-table td {
+    min-width: 0;
+    padding: var(--space-3);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .usage-history-table thead {
+    background: var(--color-surface-muted);
+  }
+
+  .usage-history-table thead th {
+    color: var(--color-ink-faint);
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .usage-history-table tbody tr {
+    transition: background-color var(--duration-quick) var(--ease-out-quart);
+  }
+
+  .usage-history-table tbody tr:hover {
+    background: var(--color-surface-muted);
+  }
+
+  .usage-history-table tbody th,
+  .usage-history-table tbody td {
+    border-top: var(--depth-rule);
+  }
+
+  .usage-history-table th:nth-child(1) {
+    width: 23%;
+  }
+
+  .usage-history-table th:nth-child(2),
+  .usage-history-table th:nth-child(3),
+  .usage-history-table th:nth-child(4) {
+    width: 12%;
+  }
+
+  .usage-history-table th:nth-child(5) {
+    width: 13%;
+  }
+
+  .usage-history-table th:nth-child(6),
+  .usage-history-table th:nth-child(7) {
+    width: 14%;
+  }
+
+  .usage-history-review-id {
+    overflow-wrap: anywhere;
+    color: var(--color-ink-strong);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: 600;
+  }
+
+  .usage-history-number {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .usage-history-mobile-list {
+    display: none;
+    padding: 0;
+    margin: var(--space-5) 0 0;
+    list-style: none;
+  }
+
+  .usage-history-mobile-item {
+    min-width: 0;
+    padding: var(--space-4);
+    border: var(--depth-rule);
+    border-radius: var(--radius-panel);
+    background: var(--color-surface);
+  }
+
+  .usage-history-mobile-item + .usage-history-mobile-item {
+    margin-top: var(--space-3);
+  }
+
+  .usage-history-mobile-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .usage-history-mobile-details {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin: var(--space-5) 0 0;
+  }
+
+  .usage-history-mobile-details > div {
+    min-width: 0;
+    padding-top: var(--space-2);
+    border-top: var(--depth-rule);
+  }
+
+  .usage-history-mobile-details dt {
+    color: var(--color-ink-faint);
+    font-size: var(--text-xs);
+  }
+
+  .usage-history-mobile-details dd {
+    margin: var(--space-1) 0 0;
+    overflow-wrap: anywhere;
+    color: var(--color-ink-strong);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .usage-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-top: var(--space-5);
+  }
+
+  .usage-pagination-button {
+    min-width: 8rem;
+  }
+
+  .usage-pagination-status {
+    margin: 0;
+    color: var(--color-ink-muted);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+
+  .usage-history-empty {
+    min-width: 0;
+    margin-top: var(--space-5);
+    padding: var(--space-6);
+  }
+
   .visually-hidden {
     position: absolute;
     width: 1px;
@@ -2919,6 +3141,14 @@ button {
   .usage-status-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .usage-history-table-shell {
+    display: none;
+  }
+
+  .usage-history-mobile-list {
+    display: grid;
+  }
 }
 
 @media (max-width: 30rem) {
@@ -2936,6 +3166,7 @@ button {
   }
 
   .usage-source-note,
+  .usage-history-filter-panel,
   .usage-ledger-panel,
   .usage-activity-panel,
   .usage-language-panel,
@@ -2946,6 +3177,7 @@ button {
 
   .usage-metric-grid,
   .usage-ledger-grid,
+  .usage-history-filter-grid,
   .usage-quota-grid,
   .usage-status-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -2956,6 +3188,20 @@ button {
   .usage-quota-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .usage-history-mobile-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .usage-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .usage-pagination-button {
+    width: 100%;
   }
 
   .usage-activity-row {
