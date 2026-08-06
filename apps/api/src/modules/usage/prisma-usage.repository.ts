@@ -36,6 +36,10 @@ const historySelect = {
 
 type HistoryRow = Prisma.ReviewGetPayload<{ select: typeof historySelect }>;
 
+function escapePrismaLikeSearch(value: string): string {
+  return value.replaceAll("_", "\\_");
+}
+
 function getHistoryWhere(input: UsageHistoryListInput): Prisma.ReviewWhereInput {
   return {
     ...(input.from || input.to
@@ -48,7 +52,14 @@ function getHistoryWhere(input: UsageHistoryListInput): Prisma.ReviewWhereInput 
       : {}),
     ...(input.language ? { language: input.language } : {}),
     ...(input.mode ? { mode: input.mode } : {}),
-    ...(input.search ? { id: { contains: input.search, mode: "insensitive" as const } } : {}),
+    ...(input.search
+      ? {
+          id: {
+            contains: escapePrismaLikeSearch(input.search),
+            mode: "insensitive" as const,
+          },
+        }
+      : {}),
     ...(input.status ? { status: input.status } : {}),
     deletedAt: null,
     userId: input.userId,

@@ -11,3 +11,5 @@ that requires an explicit schema and migration decision.
 History still applies the authenticated `userId` and `deletedAt IS NULL`
 predicates to both the count and page queries. Search input is length-bounded
 and restricted to review-id-safe characters before it reaches Prisma.
+The Prisma LIKE/ILIKE boundary escapes `_` so an underscore remains a literal
+review-ID character rather than a wildcard.

@@ -119,7 +119,7 @@ describe("Prisma usage repository", () => {
     assert.deepEqual(findManyArgs?.orderBy, [{ createdAt: "desc" }, { id: "desc" }]);
   });
 
-  it("composes every history filter with owner and soft-delete predicates", async () => {
+  it("composes every history filter and preserves literal underscore search semantics", async () => {
     let countWhere: unknown;
     let findManyArgs: Record<string, unknown> | undefined;
     const from = new Date("2026-08-06T00:00:00.000Z");
@@ -144,7 +144,7 @@ describe("Prisma usage repository", () => {
       limit: 5,
       mode: "DEEP",
       page: 2,
-      search: "review",
+      search: "review_id",
       sort: "asc",
       status: "COMPLETED",
       to,
@@ -154,7 +154,7 @@ describe("Prisma usage repository", () => {
     const expectedWhere = {
       createdAt: { gte: from, lt: to },
       deletedAt: null,
-      id: { contains: "review", mode: "insensitive" },
+      id: { contains: "review\\_id", mode: "insensitive" },
       language: "typescript",
       mode: "DEEP",
       status: "COMPLETED",

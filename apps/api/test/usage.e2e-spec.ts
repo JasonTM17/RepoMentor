@@ -578,6 +578,39 @@ describe("usage API", () => {
     assert.equal(JSON.stringify(boundedPage.body).includes("other-review"), false);
   });
 
+  it("treats underscores in review-id search as literal characters", async () => {
+    const owner = await createUser();
+
+    usageRepository.seed(
+      record(owner.id, {
+        createdAt: new Date("2026-08-06T00:01:00.000Z"),
+        language: "typescript",
+        mode: "QUICK",
+        result: null,
+        reviewId: "review_id-match",
+        status: "PENDING",
+      }),
+      record(owner.id, {
+        createdAt: new Date("2026-08-06T00:02:00.000Z"),
+        language: "typescript",
+        mode: "QUICK",
+        result: null,
+        reviewId: "reviewXid-broad-match",
+        status: "PENDING",
+      }),
+    );
+
+    const response = await request(app.getHttpServer())
+      .get("/api/v1/usage/history?search=review_id")
+      .set("authorization", `Bearer ${owner.accessToken}`);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(
+      response.body.data.items.map((item: { readonly reviewId: string }) => item.reviewId),
+      ["review_id-match"],
+    );
+  });
+
   it("returns truthful empty views and requires authentication", async () => {
     const emptyUser = await createUser();
     const summary = await request(app.getHttpServer())
