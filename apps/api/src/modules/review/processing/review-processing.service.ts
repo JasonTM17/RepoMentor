@@ -1,5 +1,9 @@
 import { AiReviewService } from "../../ai/ai-review.service.js";
-import { mapAiError, ReviewProcessingBoundaryError } from "./review-processing.errors.js";
+import {
+  mapAiError,
+  ReviewProcessingBoundaryError,
+  type ReviewProcessingCancellation,
+} from "./review-processing.errors.js";
 import { createProcessingTransition } from "./review-processing.policy.js";
 import type {
   ReviewProcessingClaim,
@@ -30,13 +34,20 @@ function skipped(
         status: "PROCESSING",
       };
     case "NOT_CLAIMED":
-      return {
-        kind: "SKIPPED",
-        reason: "RETRY_REQUIRED",
-        review: claim.review,
-        status: claim.status,
-      };
+      return retryRequired(claim.review, claim.status);
   }
+}
+
+function retryRequired(
+  review: ReviewRecord,
+  status: "FAILED" | "CANCELLED",
+): Extract<ReviewProcessingOutcome, { readonly kind: "SKIPPED" }> {
+  return {
+    kind: "SKIPPED",
+    reason: "RETRY_REQUIRED",
+    review,
+    status,
+  };
 }
 
 function concurrentCancellation(
@@ -68,28 +79,15 @@ export class ReviewProcessingService {
       createProcessingTransition("claim", this.clock()),
     );
 
-    if (claimed) {
+    if (claimed?.status === "PROCESSING") {
       return { kind: "CLAIMED", review: claimed };
     }
 
-    const current = await this.findCurrentOrThrow(input);
-
-    switch (current.status) {
-      case "PROCESSING":
-        return { kind: "ALREADY_PROCESSING", review: current };
-      case "COMPLETED":
-        return { kind: "ALREADY_COMPLETED", review: current };
-      case "FAILED":
-      case "CANCELLED":
-        return {
-          kind: "NOT_CLAIMED",
-          reason: "RETRY_REQUIRED",
-          review: current,
-          status: current.status,
-        };
-      case "PENDING":
-        throw new ReviewProcessingBoundaryError("CLAIM_CONFLICT");
+    if (claimed) {
+      return this.classifyNonClaimed(claimed);
     }
+
+    return this.classifyNonClaimed(await this.findCurrentOrThrow(input));
   }
 
   async process(input: ReviewProcessingRequest): Promise<ReviewProcessingOutcome> {
@@ -99,8 +97,10 @@ export class ReviewProcessingService {
       return skipped(claim);
     }
 
+    let execution: Awaited<ReturnType<AiReviewService["review"]>>;
+
     try {
-      const execution = await this.aiReviewService.review(
+      execution = await this.aiReviewService.review(
         {
           language: claim.review.language,
           mode: claim.review.mode,
@@ -108,8 +108,6 @@ export class ReviewProcessingService {
         },
         input.signal,
       );
-
-      return await this.complete(input, execution);
     } catch (error: unknown) {
       const mapped = mapAiError(error, input.signal);
 
@@ -118,6 +116,32 @@ export class ReviewProcessingService {
       }
 
       return this.fail(input, mapped.failure);
+    }
+
+    if (input.signal?.aborted) {
+      return this.cancel(input, {
+        code: "CANCELLED",
+        kind: "CANCELLATION",
+        source: "SIGNAL",
+      });
+    }
+
+    return this.complete(input, execution);
+  }
+
+  private classifyNonClaimed(
+    review: ReviewRecord,
+  ): Exclude<ReviewProcessingClaim, { readonly kind: "CLAIMED" }> {
+    switch (review.status) {
+      case "PROCESSING":
+        return { kind: "ALREADY_PROCESSING", review };
+      case "COMPLETED":
+        return { kind: "ALREADY_COMPLETED", review };
+      case "FAILED":
+      case "CANCELLED":
+        return { kind: "NOT_CLAIMED", reason: "RETRY_REQUIRED", review, status: review.status };
+      case "PENDING":
+        throw new ReviewProcessingBoundaryError("CLAIM_CONFLICT");
     }
   }
 
@@ -131,8 +155,16 @@ export class ReviewProcessingService {
       createProcessingTransition("complete", this.clock()),
     );
 
-    if (completed) {
+    if (completed?.status === "COMPLETED") {
       return { execution, kind: "COMPLETED", review: completed, status: "COMPLETED" };
+    }
+
+    if (completed?.status === "CANCELLED") {
+      return concurrentCancellation(completed);
+    }
+
+    if (completed?.status === "FAILED") {
+      return retryRequired(completed, "FAILED");
     }
 
     const current = await this.findCurrentOrThrow(input);
@@ -150,6 +182,10 @@ export class ReviewProcessingService {
       return concurrentCancellation(current);
     }
 
+    if (current.status === "FAILED") {
+      return retryRequired(current, "FAILED");
+    }
+
     throw new ReviewProcessingBoundaryError("FINALIZATION_CONFLICT");
   }
 
@@ -163,8 +199,21 @@ export class ReviewProcessingService {
       createProcessingTransition("fail", this.clock()),
     );
 
-    if (failed) {
+    if (failed?.status === "FAILED") {
       return { failure, kind: "FAILED", review: failed, status: "FAILED" };
+    }
+
+    if (failed?.status === "CANCELLED") {
+      return concurrentCancellation(failed);
+    }
+
+    if (failed?.status === "COMPLETED") {
+      return {
+        kind: "SKIPPED",
+        reason: "ALREADY_COMPLETED",
+        review: failed,
+        status: "COMPLETED",
+      };
     }
 
     const current = await this.findCurrentOrThrow(input);
@@ -191,10 +240,7 @@ export class ReviewProcessingService {
 
   private async cancel(
     input: ReviewProcessingRequest,
-    cancellation: Extract<
-      ReturnType<typeof mapAiError>,
-      { readonly kind: "CANCELLED" }
-    >["cancellation"],
+    cancellation: ReviewProcessingCancellation,
   ): Promise<ReviewProcessingOutcome> {
     const cancelled = await this.repository.transitionForUser(
       input.userId,
@@ -202,14 +248,27 @@ export class ReviewProcessingService {
       createProcessingTransition("cancel", this.clock()),
     );
 
-    if (cancelled) {
+    if (cancelled?.status === "CANCELLED") {
       return { cancellation, kind: "CANCELLED", review: cancelled, status: "CANCELLED" };
+    }
+
+    if (cancelled?.status === "FAILED") {
+      return retryRequired(cancelled, "FAILED");
+    }
+
+    if (cancelled?.status === "COMPLETED") {
+      return {
+        kind: "SKIPPED",
+        reason: "ALREADY_COMPLETED",
+        review: cancelled,
+        status: "COMPLETED",
+      };
     }
 
     const current = await this.findCurrentOrThrow(input);
 
     if (current.status === "CANCELLED") {
-      return { cancellation, kind: "CANCELLED", review: current, status: "CANCELLED" };
+      return concurrentCancellation(current);
     }
 
     if (current.status === "COMPLETED") {
@@ -219,6 +278,10 @@ export class ReviewProcessingService {
         review: current,
         status: "COMPLETED",
       };
+    }
+
+    if (current.status === "FAILED") {
+      return retryRequired(current, "FAILED");
     }
 
     throw new ReviewProcessingBoundaryError("FINALIZATION_CONFLICT");

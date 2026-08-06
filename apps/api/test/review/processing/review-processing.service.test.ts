@@ -6,6 +6,9 @@ import {
   AiReviewService,
   FakeAiReviewProvider,
   type AiProviderResult,
+  type AiReviewExecution,
+  type AiReviewRequest,
+  type ReviewResult,
 } from "../../../src/modules/ai/index.js";
 import { InMemoryReviewRepository } from "../../../src/modules/review/in-memory-review.repository.js";
 import {
@@ -14,7 +17,10 @@ import {
   ReviewProcessingService,
   type ReviewProcessingOutcome,
 } from "../../../src/modules/review/processing/index.js";
-import type { ReviewStatusTransition } from "../../../src/modules/review/review.types.js";
+import type {
+  ReviewStatus,
+  ReviewStatusTransition,
+} from "../../../src/modules/review/review.types.js";
 
 const REVIEW_ID = "review-processing-1";
 const USER_ID = "user-processing-1";
@@ -42,6 +48,79 @@ class RecordingReviewRepository extends InMemoryReviewRepository {
     });
 
     return super.transitionForUser(userId, id, transition);
+  }
+}
+
+class FinalizationErrorRepository extends RecordingReviewRepository {
+  constructor(private readonly finalizationError: Error) {
+    super();
+  }
+
+  override async transitionForUser(userId: string, id: string, transition: ReviewStatusTransition) {
+    if (transition.toStatus === "COMPLETED") {
+      throw this.finalizationError;
+    }
+
+    return super.transitionForUser(userId, id, transition);
+  }
+}
+
+class AlreadyCancelledOnCancelRepository extends RecordingReviewRepository {
+  override async transitionForUser(userId: string, id: string, transition: ReviewStatusTransition) {
+    if (transition.toStatus === "CANCELLED") {
+      await super.transitionForUser(userId, id, transition);
+      return null;
+    }
+
+    return super.transitionForUser(userId, id, transition);
+  }
+}
+
+class FailedOnCancelRepository extends RecordingReviewRepository {
+  override async transitionForUser(userId: string, id: string, transition: ReviewStatusTransition) {
+    if (transition.toStatus === "CANCELLED") {
+      await super.transitionForUser(userId, id, {
+        fromStatuses: ["PROCESSING"],
+        now: transition.now,
+        toStatus: "FAILED",
+      });
+      return null;
+    }
+
+    return super.transitionForUser(userId, id, transition);
+  }
+}
+
+class TerminalClaimRepository extends RecordingReviewRepository {
+  constructor(
+    private readonly terminalStatus: Extract<ReviewStatus, "COMPLETED" | "FAILED" | "CANCELLED">,
+  ) {
+    super();
+  }
+
+  override async transitionForUser(userId: string, id: string, transition: ReviewStatusTransition) {
+    const result = await super.transitionForUser(userId, id, transition);
+
+    if (transition.toStatus === "PROCESSING" && result) {
+      return { ...result, status: this.terminalStatus };
+    }
+
+    return result;
+  }
+}
+
+class AbortAfterValidResultAiReviewService extends AiReviewService {
+  constructor(private readonly controller: AbortController) {
+    super(new FakeAiReviewProvider([{ output: VALID_RESULT }]));
+  }
+
+  override async review(
+    input: AiReviewRequest,
+    signal?: AbortSignal,
+  ): Promise<AiReviewExecution<ReviewResult>> {
+    const execution = await super.review(input, signal);
+    this.controller.abort();
+    return execution;
   }
 }
 
@@ -115,6 +194,27 @@ describe("review processing orchestration", () => {
         { fromStatuses: ["PENDING"], toStatus: "PROCESSING" },
         { fromStatuses: ["PROCESSING"], toStatus: "COMPLETED" },
       ],
+    );
+  });
+
+  it("does not remap a repository finalization error as an AI failure", async () => {
+    const finalizationError = new ReviewProcessingBoundaryError("FINALIZATION_CONFLICT");
+    const repository = new FinalizationErrorRepository(finalizationError);
+    await createReview(repository);
+    const provider = new FakeAiReviewProvider([{ output: VALID_RESULT }]);
+
+    await assert.rejects(
+      createProcessing(repository, provider).process(request()),
+      (error: unknown) => {
+        assert.equal(error, finalizationError);
+        return true;
+      },
+    );
+    assert.equal(provider.requests.length, 1);
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "PROCESSING");
+    assert.deepEqual(
+      repository.transitions.map(({ transition }) => transition.toStatus),
+      ["PROCESSING"],
     );
   });
 
@@ -234,6 +334,72 @@ describe("review processing orchestration", () => {
     );
     assert.equal(provider.requests.length, 0);
     assert.equal(repository.transitions.at(-1)?.transition.toStatus, "CANCELLED");
+  });
+
+  it("cancels after a valid AI result when the caller aborts before finalization", async () => {
+    const repository = new AlreadyCancelledOnCancelRepository();
+    await createReview(repository);
+    const controller = new AbortController();
+    const processing = new ReviewProcessingService(
+      repository,
+      new AbortAfterValidResultAiReviewService(controller),
+      () => new Date(FIXED_NOW),
+    );
+
+    const outcome = await processing.process(request(controller.signal));
+
+    assert.equal(outcome.kind, "CANCELLED");
+    assert.deepEqual(
+      (outcome as Extract<ReviewProcessingOutcome, { kind: "CANCELLED" }>).cancellation,
+      {
+        code: "CANCELLED",
+        kind: "CANCELLATION",
+        source: "CONCURRENT_TRANSITION",
+      },
+    );
+    assert.deepEqual(
+      repository.transitions.map(({ transition }) => transition.toStatus),
+      ["PROCESSING", "CANCELLED"],
+    );
+    assert.equal(
+      repository.transitions.some(({ transition }) => transition.toStatus === "COMPLETED"),
+      false,
+    );
+  });
+
+  it("returns a retry-required terminal skip when cancellation loses to FAILED", async () => {
+    const repository = new FailedOnCancelRepository();
+    await createReview(repository);
+    const provider = new FakeAiReviewProvider([new AiProviderError("CANCELLED")]);
+
+    const outcome = await createProcessing(repository, provider).process(request());
+
+    assert.equal(outcome.kind, "SKIPPED");
+    assert.equal(outcome.reason, "RETRY_REQUIRED");
+    assert.equal(outcome.status, "FAILED");
+    assert.equal(outcome.review.status, "FAILED");
+    assert.equal(provider.requests.length, 1);
+  });
+
+  it("does not invoke AI when the claim transition returns a terminal record", async () => {
+    const terminalStatuses = ["CANCELLED", "FAILED", "COMPLETED"] as const;
+
+    for (const terminalStatus of terminalStatuses) {
+      const repository = new TerminalClaimRepository(terminalStatus);
+      await createReview(repository);
+      const provider = new FakeAiReviewProvider([{ output: VALID_RESULT }]);
+
+      const outcome = await createProcessing(repository, provider).process(request());
+
+      assert.equal(outcome.kind, "SKIPPED");
+      assert.equal(outcome.status, terminalStatus);
+      assert.equal(
+        outcome.reason,
+        terminalStatus === "COMPLETED" ? "ALREADY_COMPLETED" : "RETRY_REQUIRED",
+      );
+      assert.equal(outcome.review.status, terminalStatus);
+      assert.equal(provider.requests.length, 0);
+    }
   });
 
   it("does not reclaim a failed or cancelled review without an explicit retry transition", async () => {
