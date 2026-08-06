@@ -228,7 +228,7 @@ const UsageOverview: FC<UsageOverviewProps> = ({ transport = demoTransport }): R
         description="Token and operation counts are visible where the accepted response supports them. Deferred fields stay named instead of guessed."
         kicker="Usage"
         source={transport.source}
-        title="Read the ledger. Leave the theatre out."
+        title="Read the usage ledger."
       />
       {body}
       <p className="usage-snapshot-note">

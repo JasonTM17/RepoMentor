@@ -279,7 +279,7 @@ const UsageDashboard: FC<UsageDashboardProps> = ({ transport = demoTransport }):
         description="A bounded review ledger for activity, tokens, language mix, and daily run limits."
         kicker="Dashboard"
         source={transport.source}
-        title="See the review work without inventing a story."
+        title="Keep the review ledger honest."
       />
       {body}
       <p className="usage-snapshot-note">
