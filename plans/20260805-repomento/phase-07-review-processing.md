@@ -63,16 +63,18 @@ blocker.
 
 The migration and repository transaction have not been exercised against a
 live or disposable PostgreSQL instance in this environment. Database-level
-enforcement that every COMPLETED review has a result, claim-generation/lease
-fencing for multiple workers, and live isolation/rollback/concurrency checks
-remain P2 follow-ups before queues, retries, or public result transport.
+enforcement that every COMPLETED review has a result and live
+isolation/rollback/concurrency checks remain P2 follow-ups. The 07C follow-up
+adds a bounded persisted processing generation fence for the synchronous
+transport; durable multi-worker leases remain later work.
 
 ## Slice 07C — authenticated synchronous processing transport
 
 Status: implemented on `feature/review-processing-command`, based on
 `81b6bbd`; coordinator integration and final branch acceptance remain pending.
 Implementation commit: `ad32a51` (`feat(review): expose synchronous processing
-transport`).
+transport`), with a focused generation-fence and transport-hardening follow-up
+on the same branch.
 
 The slice adds a narrow HTTP seam over the accepted processing and persistence
 boundaries:
@@ -87,6 +89,12 @@ boundaries:
   raw provider payloads;
 - not-found, conflict, provider failure, cancellation, invalid state, and
   unexpected persistence paths map to existing safe API problem categories;
+- stale process-owned runs are fenced by a persisted bounded generation token;
+  Luna timeout, unavailable, and rate-limit failures map to 504, 503, and 429
+  safe envelopes respectively;
+- HTTP response DTOs expose ISO timestamp strings, and the processing/result
+  operations document their empty body, envelope, success variants, and safe
+  dependency responses in Swagger;
 - controller/e2e coverage uses in-memory repositories and a fake Luna provider
   for auth, ownership, idempotency, invalid IDs/states, failure/cancellation,
   result retrieval, and leakage checks.

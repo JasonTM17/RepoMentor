@@ -172,8 +172,9 @@ scan. This remains a deterministic boundary: live PostgreSQL migration,
 isolation/rollback, Redis, AI, route/queue, retry transport, SSE, and result
 DTO evidence are still deferred. The manager and Kongming/Terra counsel found
 no P0/P1 blocker; P2 follow-ups are database-level COMPLETED/result
-enforcement, claim-generation fencing before multiple workers, and disposable
-PostgreSQL concurrency checks.
+enforcement and disposable PostgreSQL concurrency checks. The 07C synchronous
+transport follow-up now carries a bounded persisted processing generation
+fence; durable multi-worker leases remain later work.
 
 The current local main checkpoint includes the accepted web-auth contract
 integration at `5ccb4cb`, review-domain integration through `b33d7d6`, truthful

@@ -425,6 +425,25 @@ describe("review API", () => {
     assert.equal(JSON.stringify(result.body).includes(source), false);
   });
 
+  it("documents processing and result transport envelopes in Swagger", async () => {
+    const documentation = await request(app.getHttpServer()).get("/api/docs-json");
+
+    assert.equal(documentation.status, 200);
+    const processOperation = documentation.body.paths["/api/v1/reviews/{id}/process"].post;
+    const resultOperation = documentation.body.paths["/api/v1/reviews/{id}/result"].get;
+
+    assert.equal(processOperation.requestBody.required, false);
+    assert.match(
+      JSON.stringify(processOperation.responses["200"]),
+      /ReviewProcessingCompletedResponseDto/u,
+    );
+    assert.match(
+      JSON.stringify(processOperation.responses["200"]),
+      /ReviewProcessingAlreadyProcessingResponseDto/u,
+    );
+    assert.match(JSON.stringify(resultOperation.responses["200"]), /ReviewResultResponseDto/u);
+  });
+
   it("keeps processing and result retrieval isolated by owner and authentication", async () => {
     const owner = await createUser();
     const other = await createUser();
@@ -470,7 +489,32 @@ describe("review API", () => {
     assert.equal(JSON.stringify(failed.body).includes(failedSource), false);
     assert.equal(JSON.stringify(failed.body).includes("stack"), false);
 
+    const providerMappingCases = [
+      { code: "AUTHENTICATION", problemCode: "DEPENDENCY_UNAVAILABLE", status: 502 },
+      { code: "TIMEOUT", problemCode: "DEPENDENCY_UNAVAILABLE", status: 504 },
+      { code: "UNAVAILABLE", problemCode: "DEPENDENCY_UNAVAILABLE", status: 503 },
+      { code: "RATE_LIMITED", problemCode: "RATE_LIMITED", status: 429 },
+    ] as const;
+    for (const mappingCase of providerMappingCases) {
+      providerFailure = new AiProviderError(mappingCase.code, { retryable: true });
+      rateLimiter.clear();
+      const mappedUser = await createUser();
+      const mappedSource = `const ${mappingCase.code.toLowerCase()}Source = 'private';`;
+      const mappedReview = await createReview(mappedUser, mappedSource);
+      const mapped = await request(app.getHttpServer())
+        .post(`/api/v1/reviews/${mappedReview.id}/process`)
+        .set("authorization", `Bearer ${mappedUser.accessToken}`)
+        .send({});
+
+      assert.equal(mapped.status, mappingCase.status);
+      assert.equal(mapped.body.error.code, mappingCase.problemCode);
+      assert.equal(JSON.stringify(mapped.body).includes(mappedSource), false);
+      assert.equal(JSON.stringify(mapped.body).includes("providerCode"), false);
+      assert.equal(JSON.stringify(mapped.body).includes("stack"), false);
+    }
+
     providerFailure = new AiProviderError("CANCELLED");
+    rateLimiter.clear();
     const cancelledUser = await createUser();
     const cancelledReview = await createReview(cancelledUser, "const cancellationSource = true;");
     const cancelled = await request(app.getHttpServer())
@@ -481,7 +525,7 @@ describe("review API", () => {
     assert.equal(cancelled.status, 409);
     assert.equal(cancelled.body.error.code, "CONFLICT");
     assert.equal(JSON.stringify(cancelled.body).includes("CANCELLED"), false);
-    assert.equal(provider.requests.length, 2);
+    assert.equal(provider.requests.length, 6);
   });
 
   it("maps invalid identifiers and pending result reads without exposing state data", async () => {

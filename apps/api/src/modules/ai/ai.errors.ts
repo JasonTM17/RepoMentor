@@ -30,6 +30,7 @@ const PROVIDER_ERROR_MESSAGES: Readonly<Record<AiProviderErrorCode, string>> = {
 };
 
 export interface AiProviderErrorOptions {
+  readonly normalizedFromUnknown?: boolean;
   readonly retryable?: boolean;
   readonly statusCode?: number;
   readonly attempts?: number;
@@ -37,6 +38,7 @@ export interface AiProviderErrorOptions {
 
 export class AiProviderError extends Error {
   readonly code: AiProviderErrorCode;
+  readonly normalizedFromUnknown: boolean;
   readonly provider = AI_PROVIDER;
   readonly retryable: boolean;
   readonly statusCode?: number;
@@ -45,6 +47,7 @@ export class AiProviderError extends Error {
   constructor(code: AiProviderErrorCode, options: AiProviderErrorOptions = {}) {
     super(PROVIDER_ERROR_MESSAGES[code]);
     this.name = "AiProviderError";
+    this.normalizedFromUnknown = options.normalizedFromUnknown ?? false;
     this.code = code;
     this.retryable = options.retryable ?? false;
 
@@ -60,6 +63,7 @@ export class AiProviderError extends Error {
   withAttempts(attempts: number): AiProviderError {
     const options: AiProviderErrorOptions = {
       attempts,
+      normalizedFromUnknown: this.normalizedFromUnknown,
       retryable: this.retryable,
       ...(this.statusCode === undefined ? {} : { statusCode: this.statusCode }),
     };
@@ -102,5 +106,5 @@ export function asAiProviderError(error: unknown): AiProviderError {
     return error;
   }
 
-  return new AiProviderError("UNAVAILABLE");
+  return new AiProviderError("UNAVAILABLE", { normalizedFromUnknown: true });
 }

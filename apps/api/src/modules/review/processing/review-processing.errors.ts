@@ -75,7 +75,7 @@ function mapProviderFailure(error: AiProviderError): ReviewProcessingFailure {
     ...(error.attempts === undefined ? {} : { attempts: error.attempts }),
     code: `AI_PROVIDER_${error.code}`,
     kind: "FAILURE",
-    providerCode: error.code,
+    ...(error.normalizedFromUnknown ? {} : { providerCode: error.code }),
     retryable: error.retryable,
   };
 }

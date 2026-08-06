@@ -14,12 +14,16 @@ import {
 } from "@nestjs/common";
 import {
   ApiBadGatewayResponse,
+  ApiBody,
   ApiConflictResponse,
+  ApiExtraModels,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiResponse,
   ApiTags,
   ApiUnauthorizedResponse,
+  getSchemaPath,
 } from "@nestjs/swagger";
 
 import { AuthAccessGuard, type AuthenticatedRequest } from "../auth/auth-access.guard.js";
@@ -27,6 +31,10 @@ import { CreateReviewDto, ReviewIdParamDto, ReviewListQueryDto } from "./review.
 import {
   assertEmptyProcessBody,
   mapReviewProcessingError,
+  ReviewProcessingAlreadyCompletedResponseDto,
+  ReviewProcessingAlreadyProcessingResponseDto,
+  ReviewProcessingCompletedResponseDto,
+  ReviewResultResponseDto,
   toReviewProcessingResponse,
   toReviewResultResponse,
 } from "./processing/review-processing.transport.js";
@@ -44,6 +52,12 @@ function getUserId(request: AuthenticatedRequest): string {
 @Controller("reviews")
 @UseGuards(AuthAccessGuard)
 @ApiTags("reviews")
+@ApiExtraModels(
+  ReviewProcessingAlreadyCompletedResponseDto,
+  ReviewProcessingAlreadyProcessingResponseDto,
+  ReviewProcessingCompletedResponseDto,
+  ReviewResultResponseDto,
+)
 export class ReviewController {
   constructor(
     private readonly reviews: ReviewService,
@@ -88,10 +102,42 @@ export class ReviewController {
 
   @Post(":id/process")
   @HttpCode(HttpStatus.OK)
+  @ApiBody({
+    description: "The body must be empty; provider, model, and prompt are server-controlled.",
+    required: false,
+    schema: { additionalProperties: false, example: {}, type: "object" },
+  })
   @ApiBadGatewayResponse({ description: "The Luna dependency could not complete the review." })
   @ApiConflictResponse({ description: "The review is not ready for a new processing run." })
   @ApiNotFoundResponse({ description: "The owned review was not found." })
-  @ApiOkResponse({ description: "The bounded processing run completed or was safely skipped." })
+  @ApiOkResponse({
+    description: "The bounded processing run completed or was safely skipped.",
+    schema: {
+      properties: {
+        data: {
+          oneOf: [
+            { $ref: getSchemaPath(ReviewProcessingCompletedResponseDto) },
+            { $ref: getSchemaPath(ReviewProcessingAlreadyCompletedResponseDto) },
+            { $ref: getSchemaPath(ReviewProcessingAlreadyProcessingResponseDto) },
+          ],
+        },
+      },
+      required: ["data"],
+      type: "object",
+    },
+  })
+  @ApiResponse({
+    description: "Luna rate limit was reached; the response contains no provider details.",
+    status: HttpStatus.TOO_MANY_REQUESTS,
+  })
+  @ApiResponse({
+    description: "Luna is unavailable; the response contains no provider details.",
+    status: HttpStatus.SERVICE_UNAVAILABLE,
+  })
+  @ApiResponse({
+    description: "Luna timed out; the response contains no provider details.",
+    status: HttpStatus.GATEWAY_TIMEOUT,
+  })
   @ApiOperation({ summary: "Process one owned review through pinned Luna" })
   @ApiUnauthorizedResponse({ description: "Authentication is required." })
   async process(
@@ -115,7 +161,16 @@ export class ReviewController {
   @Get(":id/result")
   @ApiConflictResponse({ description: "The review has no completed persisted result yet." })
   @ApiNotFoundResponse({ description: "The owned review was not found." })
-  @ApiOkResponse({ description: "The validated persisted review result and safe execution data." })
+  @ApiOkResponse({
+    description: "The validated persisted review result and safe execution data.",
+    schema: {
+      properties: {
+        data: { $ref: getSchemaPath(ReviewResultResponseDto) },
+      },
+      required: ["data"],
+      type: "object",
+    },
+  })
   @ApiOperation({ summary: "Read one owned completed review result" })
   @ApiUnauthorizedResponse({ description: "Authentication is required." })
   async result(@Req() request: AuthenticatedRequest, @Param() params: ReviewIdParamDto) {
