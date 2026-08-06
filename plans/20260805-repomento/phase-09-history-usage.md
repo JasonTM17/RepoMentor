@@ -106,3 +106,34 @@ search/pagination should be profiled before high-volume production use.
 This is a server-filter checkpoint, not completion of Phase 09: Redis atomic
 enforcement, guest quotas, live auth/API wiring, live PostgreSQL/Redis, and
 cursor/snapshot consistency remain later work.
+
+## Accepted checkpoint: Phase 09D1 Redis quota and lock primitives
+
+Phase 09D1 is accepted on local `main` at `0eda9cf` after cherry-picking the
+exact Luna worker chain `cb4ce7f -> d50da34 -> 42b6464 -> 62d921f`, based on
+`41a2d63`. The API now has a reusable node-redis 6.2.0 adapter with validated
+Redis URL handling, lazy construction, `isReady` gating, disabled offline
+queue, no automatic reconnect, bounded unref'd connect/command deadlines, and
+redacted typed unavailable errors. Quota reservation is one atomic Lua/EVAL
+operation with authenticated defaults (`QUICK=20`, `STANDARD=10`, `DEEP=3`),
+guest QUICK default `3`, UTC-day expiry, bounded namespaced keys, and safe
+result parsing. Review locks use `SET NX PX` plus compare-and-delete Lua
+release with opaque bounded tokens and operation-specific error context.
+
+Post-merge evidence is focused Redis `17/17`, API `129/129` across 28 suites,
+API build, typecheck, lint, Prettier, Prisma validate/generate with a
+non-secret placeholder `DATABASE_URL`, diff-check, and commit-range
+credential-shaped scan with no matches. The Luna manager and Kongming/Terra
+counsel accepted exact worker head
+`62d921fb81836cb462cb796e4328a5a3f8ace21f` with no P0/P1 blocker after the
+fail-fast and operation-context remediation.
+
+This is a primitives-only checkpoint, not production readiness or Phase 09
+completion. No live Redis/PostgreSQL execution or HTTP/guest endpoint wiring
+was claimed. A timed-out Redis command remains indeterminate and must not be
+blindly retried; identities must be derived server-side before integration;
+lock lease duration must align with processing/fencing; and a configured
+`USAGE_REDIS_QUOTA_TTL_MAX_SECONDS` below the remaining UTC day safely rejects
+reservation rather than shortening a daily quota window. Endpoint enforcement,
+durable usage reconciliation, live Redis tests, and cancellation/provider
+failure compensation remain the next integration slice.
