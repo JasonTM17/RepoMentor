@@ -4,11 +4,13 @@ RepoMentor is a developer-first workspace for AI-assisted code review and
 programming practice. It is a production-oriented monorepo, but the current
 repository checkpoint is an application slice, not a production release.
 
-The documentation below describes the exact local checkpoint at
-`eab8131fdf8f6937b0e21c85aedc43c3e9e38013`, including the quota-admission
-fingerprint configuration wired at this head. The accepted 09D2A integration
-gate is recorded at `0b573a2`; neither SHA is a release, tag, registry, or
-package-publication claim.
+The source/evidence baseline for this documentation refresh is the exact code
+checkpoint `48502a7a2a41e365b110286b2167be6cf519b757` (`48502a7`), with the
+shared Redis executor seam integrated at `d7122db353de11f21dcd74c3f2ddad1c0ae7e2f6`
+(`d7122db`). The two commits created by this task are docs-only commits that
+follow that code baseline. Their later `HEAD` values must not be treated as
+exact-head code or test evidence. These SHAs are not a release, tag, registry,
+license, package-publication, deployment, or production-readiness claim.
 
 ## Current status
 
@@ -29,23 +31,40 @@ This checkpoint contains:
   PostgreSQL, and Redis, with localhost-bound ports and health-gated startup;
 - owner-scoped usage summary, history, and quota read routes;
 - an authenticated quota-admission path for `POST /api/v1/reviews` with a
-  bounded `Idempotency-Key`, Redis reservation markers, durable Prisma
+  bounded `Idempotency-Key`, atomic Redis admission markers, durable Prisma
   `QuotaAdmission` state, versioned keyed request fingerprints, and a
   Prisma-backed review finalizer;
+- one shared server-side Redis executor/configuration seam used by the
+  authenticated admission boundary and the Redis quota/lock primitives;
 - focused unit and in-memory controller tests for the implemented boundaries.
 
-The review API now includes a narrow authenticated synchronous processing and
-persisted-result transport seam plus authenticated quota admission. Admission
-canonicalizes the request, hashes idempotency material, reserves the
-authenticated Redis quota, and finalizes the preallocated review and admission
-state through the Prisma boundary. It is tested with deterministic Redis
-executors, in-memory repositories, and a fake Luna provider; there is no live
-PostgreSQL, Redis/EVAL, HTTP provider, or external Luna call. A guest HTTP
-route, process-lock wiring, queue, SSE or other result streaming, connected
-editor, production deployment, registry publication, and package publication
-remain outside this checkpoint. The container workflow is prepared for
-validation and a future release, but it is not a registry publication or
-deployment.
+The authenticated admission contract requires Bearer authentication and a
+bounded `Idempotency-Key`. It canonicalizes the language (NFC, trim, and
+lowercase), preserves source as data, resolves an omitted mode to `STANDARD`,
+and rejects a null or invalid mode before mutation. The server normalizes and
+hashes the idempotency material, computes a version-1 HMAC-SHA-256 request
+fingerprint over the canonical source/language/mode, creates an owner-scoped
+durable `QuotaAdmission` intent, and reserves the authenticated UTC-day quota
+with one Redis `EVAL` operation. The finalizer then creates or safely replays
+the owned pending review through the Prisma boundary; raw idempotency material
+and the fingerprint secret are not stored in durable records. A new admission
+returns `201`, an identical owner replay returns `200`, a conflicting reuse is
+`409`, confirmed quota denial is `429` with bounded `Retry-After`, and uncertain
+Redis or persistence outcomes fail closed into safe unavailable/reconciliation
+states rather than being blindly retried or compensated.
+
+`QUOTA_ADMISSION_FINGERPRINT_SECRET` is server-only configuration. It must be
+32 to 4096 UTF-8 bytes outside test-only injection; HTTP callers cannot supply
+the fingerprint or its version metadata. The shared `REDIS_COMMAND_EXECUTOR`
+and `USAGE_REDIS_CONFIG` seam feeds the lazy node-redis adapter, which disables
+the offline queue and reconnects, applies bounded command/connect deadlines,
+and preserves operation-specific redacted errors. The review lock primitive is
+`SET NX PX` with an opaque token and compare-and-delete Lua release, but no
+processing route currently acquires it. Guest QUICK quota is only a Redis
+primitive/configuration boundary; there is no guest HTTP route. There is no
+queue, SSE/reconnect result stream, or live PostgreSQL, Redis/EVAL, HTTP
+provider, or external Luna evidence. Processing remains a bounded synchronous
+transport seam, and the web usage surfaces remain deterministic/demo-labelled.
 
 ## Architecture
 
@@ -149,8 +168,9 @@ limits default to QUICK/STANDARD/DEEP `20/10/3` and are configured with
 `USER_DEEP_REVIEWS_PER_DAY` (each bounded from `0` to `100000`).
 `QUOTA_ADMISSION_FINGERPRINT_SECRET` is required outside test-only injection,
 must be a non-empty UTF-8 secret of 32 to 4096 bytes, and is used only by the
-server to derive versioned request-fingerprint hashes. Compose requires it;
-keep the `.env.example` placeholder empty and never commit a real value.
+server to derive versioned request-fingerprint hashes. HTTP callers cannot
+provide this secret or the resulting fingerprint metadata. Compose requires
+it; keep the `.env.example` placeholder empty and never commit a real value.
 
 The Redis primitive configuration also accepts `GUEST_QUICK_REVIEWS_PER_DAY`
 (default `3`), `USAGE_REDIS_QUOTA_TTL_MAX_SECONDS` (default `86400`, bounded
@@ -260,20 +280,25 @@ safe statuses rather than being silently retried.
 
 ## Validation evidence
 
-The following checks were run in this worktree on Node `v24.12.0` and pnpm
-`11.0.9`. The Prisma commands used a syntactically valid local-only URL in
-the process environment; they did not connect to PostgreSQL.
+The fresh checks below ran against the source/evidence baseline
+`48502a7a2a41e365b110286b2167be6cf519b757`, with the shared Redis seam from
+`d7122db353de11f21dcd74c3f2ddad1c0ae7e2f6`, before these docs-only commits.
+They use Node `v24.12.0`, pnpm `11.0.9`, deterministic test doubles, and
+non-secret local-only environment values where needed. They do not prove live
+PostgreSQL, Redis, HTTP provider, Luna, deployment, or production readiness.
 
-| Check                                          | Result and evidence                                                                                                                                                                                                                                                                          |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Accepted 09D2A API gate                        | Pass: the repository plan records `192/192` API tests across 38 suites at the accepted authenticated-admission integration checkpoint `0b573a2`.                                                                                                                                             |
-| Current exact-head API rerun                   | Pass: `pnpm --filter @repomentor/api test` at `eab8131fdf8f6937b0e21c85aedc43c3e9e38013` reports `192` tests, `38` suites, `192` passed, `0` failed. The run uses deterministic adapters, in-memory repositories, and fake Luna; it is not live-service evidence.                            |
-| Focused admission/config evidence              | Pass within the current API run, not additive to `192/192`: authenticated HTTP orchestration `10/10`, fingerprint configuration `6/6`, and fingerprint derivation `6/6`.                                                                                                                     |
-| Prisma and shared-contract preparation         | Pass: `pnpm db:generate`, `pnpm --filter @repomentor/contracts build`, and `pnpm db:validate` with a local-only URL; no PostgreSQL connection.                                                                                                                                               |
-| `docker compose config --quiet`                | Pass with safe dummy values, including the required fingerprint secret; this validates configuration only.                                                                                                                                                                                   |
-| Historical GitHub Actions container validation | Pass: run [`31030844884`](https://github.com/JasonTM17/RepoMentor/actions/runs/31030844884) linted workflows/Dockerfiles, validated Compose, built API/web images, and smoked `/health/live` and `/`. It is historical infrastructure evidence, not exact-head release or publication proof. |
-| Local Docker daemon and live Compose smoke     | Not available in this environment; the Docker Desktop daemon was not running, so local startup and PostgreSQL/Redis dependency health remain unverified.                                                                                                                                     |
-| Real UI media capture                          | Pass: Chrome captured the running Next UI at `/`, `/login`, and `/register`; ImageMagick encoded the committed GIF. This is media evidence, not browser visual QA.                                                                                                                           |
+| Check                                    | Result and evidence                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API compile and deterministic test suite | Pass: direct TypeScript test compilation plus `node --test` reports `193/193` tests across `39` suites, with `0` failed and `0` cancelled. The suite includes the shared Redis seam and authenticated admission paths; it uses in-memory repositories, deterministic Redis executors, and fake Luna. |
+| Contracts test suite                     | Pass: direct build/test compilation plus `node --test` reports `5/5` contracts tests.                                                                                                                                                                                                                |
+| Web shell test suite                     | Pass: `node --test apps/web/test/shell.test.mjs` reports `32/32` tests.                                                                                                                                                                                                                              |
+| TypeScript and API build checks          | Pass: direct `tsc --noEmit` for contracts/API/web and direct API build.                                                                                                                                                                                                                              |
+| Prisma preparation                       | Pass: direct Prisma generate with a syntactically valid local-only `DATABASE_URL`; no PostgreSQL connection was attempted.                                                                                                                                                                           |
+| `docker compose config --quiet`          | Pass with safe dummy values, including the required fingerprint secret; this validates configuration only.                                                                                                                                                                                           |
+| `@repomentor/contracts` pack dry-run     | Pass without publishing: `npm pack --dry-run --json` returned JSON for `@repomentor/contracts@0.1.0` with `33` entries. The local payload included `dist/.test-dist` because test compilation had run; this is not an approved publication payload.                                                  |
+| Frozen workspace install                 | Attempted with `pnpm run deps:install`; pnpm installed the dependency tree but exited with `ERR_PNPM_IGNORED_BUILDS` while requesting build approval. No approval was enabled; direct local binaries were used for the checks above.                                                                 |
+| Docker daemon and live Compose smoke     | Not run: `docker compose config` passed, but `docker info` could not connect to the local Docker Desktop Linux engine. No image build, service startup, live PostgreSQL/Redis check, or HTTP smoke is claimed.                                                                                       |
+| Full root test/build and browser capture | Not run in this docs refresh. The checked-in GIF is documented below only as a narrow running-UI-shell capture, not as current backend or live-review evidence.                                                                                                                                      |
 
 ## Security and environment boundaries
 
@@ -295,41 +320,46 @@ DeepSeek secret is added, documented, or stored in this checkpoint.
 
 ## Release and media notes
 
-The root package is intentionally private and there is no public package
-artifact or deployment in this checkpoint. See [docs/release.md](docs/release.md)
-for prerelease/tag guidance, immutable artifact expectations, GitHub About
-values, and the missing-license release blocker.
+The root package and every current workspace package remain private. There is
+no npm/public package artifact, tag, registry publication, or deployment in
+this checkpoint. `@repomentor/contracts` is only a future package candidate;
+see [docs/release.md](docs/release.md) for exact package, image, tag, and
+license gates. The GitHub About table there contains intended values only;
+external About state was not changed or verified by this task.
 
 ![RepoMentor UI shell capture](docs/media/repomentor-ui.gif)
 
-_This is a real capture of the running Next web UI shell. It shows static
-routes only; it does not show a live API session, authenticated data,
-PostgreSQL, Redis, AI output, or a production deployment._
+_This is a real capture of the running Next web UI shell only. It shows static
+routes; it does not show a live API session, authenticated data, backend review
+processing, PostgreSQL, Redis, AI output, or a production deployment._
 
 ## Known limitations
 
-- No live PostgreSQL or Redis service was available or verified by the checks
-  above. API integration tests override the Prisma repositories with in-memory
-  implementations.
+- No live PostgreSQL or Redis service was started or verified by the checks
+  above. API tests use in-memory repositories and deterministic Redis
+  executors.
 - The authenticated quota-admission path and synchronous processing/result
   routes are covered with deterministic Redis executors, fake Luna, and
   in-memory repositories only. There is no live Redis EVAL, PostgreSQL
   transaction/isolation, HTTP provider, or external Luna call.
 - Guest quota is not exposed through an HTTP route, and the Redis process-lock
   primitive is not wired into the processing route.
+- There is no queue or SSE/reconnect result stream; processing is a bounded
+  synchronous transport seam.
 - The web shell is not connected to a review dashboard or repository data.
 - The captured GIF is not a browser visual-regression baseline and does not
   claim a live browser session or backend integration.
-- The Compose definition now covers local API, web, PostgreSQL, and Redis
-  services. GitHub Actions validated image builds and HTTP smoke, but the
-  local Docker daemon was unavailable, so local Compose startup and
-  PostgreSQL/Redis dependency health remain unverified.
+- The Compose definition covers local API, web, PostgreSQL, and Redis services.
+  Configuration validation passed, but the local Docker daemon was unavailable,
+  so image builds, service startup, HTTP smoke, and PostgreSQL/Redis dependency
+  health remain unverified.
 - `NEXT_PUBLIC_API_ORIGIN` is a web build-time value; changing the browser API
   origin requires rebuilding the web image. The Compose healthchecks do not
   provide dependency-aware API readiness.
 - The root package and every current workspace package are private; no npm or
-  other public package artifact is claimed. No tag, registry publication, or
-  deployment has happened.
+  other public package artifact is claimed. `@repomentor/contracts` remains a
+  future candidate only. No tag, registry publication, or deployment has
+  happened.
 - No license file or package `license` field is present. Treat licensing as a
   blocker for a public package or public release until the project owner adds
   a license supported by repository evidence.
