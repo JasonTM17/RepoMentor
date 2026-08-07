@@ -6,8 +6,8 @@ package publication, or production readiness.
 
 ## Source/evidence baseline
 
-- Current implementation checkpoint: `b827991`.
-- Current documentation checkpoint: `f776d87`.
+- Current implementation checkpoint: `389f426`.
+- Latest plan evidence checkpoint: `4105016`.
 - These SHAs are exact-head evidence anchors for the local checks recorded in
   the current checkpoint addendum; they do not establish a tag, release,
   registry artifact, license, deployment, or production certification.
@@ -111,11 +111,13 @@ checkpoint addendum follows the table.
 
 ## Current checkpoint addendum — 2026-08-08
 
-The merged implementation checkpoint `b827991` passed API `250/250`, web
-`40/40`, and contracts `7/7`; root typecheck, lint, format check, production
+The merged implementation checkpoint `389f426` passed API `250/250`, web
+`41/41`, and contracts `7/7`; root typecheck, lint, format check, production
 build, and package payload verification also passed. The authenticated usage
 transport emits a Bearer header only for a current memory-only access token;
-guest usage remains an explicit fixture boundary. Playwright discovery is
+guest usage remains an explicit fixture boundary. Web logout validates the
+API-owned refresh-cookie response before clearing its memory-only access
+token. Playwright discovery is
 `1/1`, but the browser run is not claimed because Chromium revision
 `chromium-1161` is unavailable locally. No Docker image, registry artifact,
 semantic tag, public package, GitHub release, or deployment was created.
