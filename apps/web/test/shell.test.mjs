@@ -27,6 +27,7 @@ const source = Object.freeze({
   login: readTrackedSource("app/login/page.tsx"),
   register: readTrackedSource("app/register/page.tsx"),
   authPage: readTrackedSource("features/auth/components/AuthPage.tsx"),
+  authSessionAction: readTrackedSource("features/auth/components/AuthSessionAction.tsx"),
   authField: readTrackedSource("features/auth/components/AuthField.tsx"),
   passwordField: readTrackedSource("features/auth/components/PasswordField.tsx"),
   authClient: readTrackedSource("features/auth/api/authClient.ts"),
@@ -243,6 +244,7 @@ const shellTsxSources = Object.freeze({
   "app/loading.tsx": source.loading,
   "app/not-found.tsx": source.notFound,
   "components/review-preview.tsx": source.preview,
+  "features/auth/components/AuthSessionAction.tsx": source.authSessionAction,
 });
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -420,6 +422,10 @@ test("auth routes expose the intended mode and API endpoint seam", () => {
   assert.match(source.authPage, /apiPath:\s*"POST \/api\/v1\/auth\/login"/u);
   assert.match(source.authPage, /apiPath:\s*"POST \/api\/v1\/auth\/register"/u);
   assert.match(source.authPage, /data-api-endpoint=\{copy\.apiPath\}/u);
+  assert.match(source.layout, /<AuthSessionAction\s*\/>/u);
+  assert.match(source.authSessionAction, /authClient\.logout\(\)/u);
+  assert.match(source.authSessionAction, /aria-busy=\{status === "loading"\}/u);
+  assert.match(source.authSessionAction, /role="alert"/u);
   assert.match(source.authClient, /credentials:\s*"include"/u);
   assert.match(source.authClient, /validates the response envelope/u);
   assert.match(source.authClient, /\/api\/v1\/auth\/\$\{endpoint\}/u);
@@ -434,6 +440,7 @@ test("auth routes expose the intended mode and API endpoint seam", () => {
 
 test("auth client matches the integrated response envelopes and token boundary", () => {
   assert.match(source.authTypes, /interface RegisterResponse[\s\S]*accepted:\s*true/u);
+  assert.match(source.authTypes, /interface LogoutResponse[\s\S]*loggedOut:\s*true/u);
   assert.match(
     source.authTypes,
     /interface LoginResponse[\s\S]*accessToken:\s*string[\s\S]*tokenType:\s*"Bearer"[\s\S]*expiresInSeconds:\s*number[\s\S]*user:\s*AuthUser/u,
@@ -460,6 +467,7 @@ test("auth client matches the integrated response envelopes and token boundary",
   assert.match(source.authClient, /value\.total\s*>=\s*0/u);
   assert.match(source.authClient, /hasExactKeys\(value,\s*\[\s*"accessToken"/u);
   assert.match(source.authClient, /hasExactKeys\(value,\s*\["accepted"\]\)/u);
+  assert.match(source.authClient, /hasExactKeys\(value,\s*\["loggedOut"\]\)/u);
   assert.match(source.authClient, /!parseData\(body\.data\)/u);
   assert.match(source.authClient, /value\.tokenType\s*===\s*"Bearer"/u);
   assert.match(source.authClient, /Number\.isInteger\(value\.expiresInSeconds\)/u);
@@ -520,6 +528,41 @@ test("auth client accepts valid metadata and rejects extra envelope keys at runt
       () => authClient.login(authRequest),
       (error) => error instanceof AuthClientError && error.status === 201,
     );
+  } finally {
+    clearAccessToken();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("auth client logs out through the refresh-cookie boundary and clears memory", async () => {
+  const { authClient, AuthClientError, clearAccessToken, getAccessToken, setAccessToken } =
+    await authClientRuntime;
+  const originalFetch = globalThis.fetch;
+  let request;
+
+  try {
+    clearAccessToken();
+    setAccessToken(validLoginData.accessToken);
+    globalThis.fetch = async (url, init) => {
+      request = { init, url };
+      return createJsonResponse(201, { data: { loggedOut: true } });
+    };
+
+    await assert.deepEqual(await authClient.logout(), { loggedOut: true });
+    assert.equal(request.url, "/api/v1/auth/logout");
+    assert.equal(request.init.method, "POST");
+    assert.equal(request.init.credentials, "include");
+    assert.equal(request.init.headers, undefined);
+    assert.equal(getAccessToken(), undefined);
+
+    setAccessToken(validLoginData.accessToken);
+    globalThis.fetch = async () =>
+      createJsonResponse(201, { data: { loggedOut: true, unexpected: true } });
+    await assert.rejects(
+      () => authClient.logout(),
+      (error) => error instanceof AuthClientError && error.status === 201,
+    );
+    assert.equal(getAccessToken(), validLoginData.accessToken);
   } finally {
     clearAccessToken();
     globalThis.fetch = originalFetch;

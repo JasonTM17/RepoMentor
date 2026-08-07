@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactElement, ReactNode } from "react";
 
 import LineIcon from "@/components/line-icon";
+import AuthSessionAction from "@/features/auth/components/AuthSessionAction";
 
 import "./globals.css";
 
@@ -54,13 +55,7 @@ const RootLayout = ({ children }: RootLayoutProps): ReactElement => (
               </a>
             </nav>
 
-            <a className="header-action" href="/reviews/new" aria-label="Review workspace">
-              <span className="header-action-label header-action-label-full">Review workspace</span>
-              <span className="header-action-label header-action-label-compact" aria-hidden="true">
-                Review
-              </span>
-              <LineIcon name="arrow-up-right" />
-            </a>
+            <AuthSessionAction />
           </div>
         </header>
 
