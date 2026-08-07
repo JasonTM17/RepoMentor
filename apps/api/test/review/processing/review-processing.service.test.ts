@@ -27,6 +27,8 @@ import {
   REVIEW_PROCESSING_TRANSITIONS,
   ReviewProcessingBoundaryError,
   ReviewProcessingService,
+  type ReviewProcessingTimer,
+  type ReviewProcessingTimerHandle,
   type ReviewProcessingOutcome,
 } from "../../../src/modules/review/processing/index.js";
 import type {
@@ -59,10 +61,11 @@ const LIVE_RESULT = {
 } as const;
 const OTHER_USER_ID = "review-processing-other-user";
 
-function processingRedisConfig(): UsageRedisConfig {
+function processingRedisConfig(overrides: Partial<UsageRedisConfig> = {}): UsageRedisConfig {
   return {
     authenticatedDailyLimits: { ...USAGE_DEFAULT_DAILY_LIMITS },
     ...USAGE_DEFAULT_REDIS_CONFIG,
+    ...overrides,
   };
 }
 
@@ -79,6 +82,13 @@ class ProcessingRedisExecutor implements RedisCommandExecutor {
     readonly value: string;
   }> = [];
   acquisitionError: Error | undefined;
+  renewalError: Error | undefined;
+  renewalPending: Promise<unknown> | undefined;
+  renewalResult: boolean | undefined;
+  renewalHook: (() => void) | undefined;
+  renewalCalls = 0;
+  activeRenewals = 0;
+  maxConcurrentRenewals = 0;
   releaseError: Error | undefined;
   private heldToken: string | undefined;
 
@@ -92,6 +102,32 @@ class ProcessingRedisExecutor implements RedisCommandExecutor {
       operation,
       script,
     });
+
+    if (operation === "lock-renewal") {
+      this.renewalCalls += 1;
+      this.activeRenewals += 1;
+      this.maxConcurrentRenewals = Math.max(this.maxConcurrentRenewals, this.activeRenewals);
+
+      try {
+        if (this.renewalError) {
+          throw this.renewalError;
+        }
+
+        this.renewalHook?.();
+
+        if (this.renewalPending !== undefined) {
+          return await this.renewalPending;
+        }
+
+        if (this.renewalResult !== undefined) {
+          return this.renewalResult ? 1 : 0;
+        }
+
+        return this.heldToken === options.arguments[0] ? 1 : 0;
+      } finally {
+        this.activeRenewals -= 1;
+      }
+    }
 
     if (operation !== "lock-release") {
       throw new RedisCommandError(operation);
@@ -272,14 +308,120 @@ function createProcessing(
   repository: InMemoryReviewRepository,
   provider: FakeAiReviewProvider,
   redisExecutor = new ProcessingRedisExecutor(),
+  config = processingRedisConfig(),
+  timer?: ReviewProcessingTimer,
 ): ReviewProcessingService {
   return new ReviewProcessingService(
     repository,
     new AiReviewService(provider),
     redisExecutor,
-    processingRedisConfig(),
+    config,
     () => new Date(FIXED_NOW),
+    timer,
   );
+}
+
+class FakeProcessingTimer implements ReviewProcessingTimer {
+  private nowMs = 0;
+  private nextId = 1;
+  private readonly handles = new Map<number, FakeProcessingTimerHandle>();
+
+  now(): number {
+    return this.nowMs;
+  }
+
+  setTimeout(callback: () => void, delayMs: number): ReviewProcessingTimerHandle {
+    const handle: FakeProcessingTimerHandle = {
+      callback,
+      dueAt: this.nowMs + delayMs,
+      id: this.nextId++,
+      unrefCalls: 0,
+      unref() {
+        handle.unrefCalls += 1;
+      },
+    };
+    this.handles.set(handle.id, handle);
+    return handle;
+  }
+
+  clearTimeout(handle: ReviewProcessingTimerHandle): void {
+    this.handles.delete((handle as FakeProcessingTimerHandle).id);
+  }
+
+  async advance(milliseconds: number): Promise<void> {
+    this.nowMs += milliseconds;
+
+    while (true) {
+      const due = [...this.handles.values()]
+        .filter((handle) => handle.dueAt <= this.nowMs)
+        .sort((left, right) => left.dueAt - right.dueAt || left.id - right.id);
+
+      if (due.length === 0) {
+        return;
+      }
+
+      for (const handle of due) {
+        this.handles.delete(handle.id);
+        handle.callback();
+      }
+
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+  }
+
+  pendingCount(): number {
+    return this.handles.size;
+  }
+}
+
+interface FakeProcessingTimerHandle extends ReviewProcessingTimerHandle {
+  readonly callback: () => void;
+  readonly dueAt: number;
+  readonly id: number;
+  unrefCalls: number;
+}
+
+class DelayedClaimProcessingService extends ReviewProcessingService {
+  readonly claimStarted: Promise<void>;
+  private readonly claimGate: Promise<void>;
+  private resolveClaimStarted!: () => void;
+  releaseClaim!: () => void;
+  private readonly testRepository: InMemoryReviewRepository;
+
+  constructor(
+    repository: InMemoryReviewRepository,
+    provider: FakeAiReviewProvider,
+    redisExecutor: ProcessingRedisExecutor,
+    config: UsageRedisConfig,
+    timer: ReviewProcessingTimer,
+  ) {
+    super(
+      repository,
+      new AiReviewService(provider),
+      redisExecutor,
+      config,
+      () => new Date(FIXED_NOW),
+      timer,
+    );
+    this.testRepository = repository;
+    this.claimStarted = new Promise<void>((resolve) => {
+      this.resolveClaimStarted = resolve;
+    });
+    this.claimGate = new Promise<void>((resolve) => {
+      this.releaseClaim = resolve;
+    });
+  }
+
+  override async claim(
+    input: Parameters<ReviewProcessingService["claim"]>[0],
+  ): ReturnType<ReviewProcessingService["claim"]> {
+    this.resolveClaimStarted();
+    await this.claimGate;
+    const review = await this.testRepository.findByIdForUser(input.userId, input.reviewId);
+    assert.ok(review);
+    return { kind: "ALREADY_PROCESSING", review };
+  }
 }
 
 function request(signal?: AbortSignal, userId = USER_ID) {
@@ -388,6 +530,256 @@ describe("review processing orchestration", () => {
         { fromStatuses: ["PROCESSING"], toStatus: "COMPLETED" },
       ],
     );
+  });
+
+  it("renews the owned lock on a monotonic lease cycle and cleans up timers", async () => {
+    const repository = new RecordingReviewRepository();
+    await createReview(repository);
+    let markProviderStarted!: () => void;
+    const providerStarted = new Promise<void>((resolve) => {
+      markProviderStarted = resolve;
+    });
+    let resolveProvider!: (result: AiProviderResult) => void;
+    const provider = new FakeAiReviewProvider([
+      () => {
+        markProviderStarted();
+        return new Promise<AiProviderResult>((resolve) => {
+          resolveProvider = resolve;
+        });
+      },
+    ]);
+    const redisExecutor = new ProcessingRedisExecutor();
+    const timer = new FakeProcessingTimer();
+    const processing = createProcessing(
+      repository,
+      provider,
+      redisExecutor,
+      processingRedisConfig({ lockTtlMs: 3_000 }),
+      timer,
+    );
+
+    const run = processing.process(request());
+    await providerStarted;
+    assert.equal(timer.pendingCount(), 2);
+
+    await timer.advance(999);
+    assert.equal(redisExecutor.renewalCalls, 0);
+    await timer.advance(1);
+    assert.equal(redisExecutor.renewalCalls, 1);
+    assert.equal(redisExecutor.maxConcurrentRenewals, 1);
+    assert.equal(timer.pendingCount(), 2);
+
+    await timer.advance(1_000);
+    assert.equal(redisExecutor.renewalCalls, 2);
+    assert.equal(redisExecutor.maxConcurrentRenewals, 1);
+    assert.equal(timer.pendingCount(), 2);
+
+    const providerSignal = provider.requests[0]?.signal;
+    assert.ok(providerSignal);
+    assert.equal(providerSignal.aborted, false);
+
+    resolveProvider({ output: VALID_RESULT });
+    const outcome = await run;
+
+    assert.equal(outcome.kind, "COMPLETED");
+    assert.equal(redisExecutor.hasHeldLock(), false);
+    assert.equal(timer.pendingCount(), 0);
+    assert.equal(redisExecutor.evalCalls.at(-1)?.operation, "lock-release");
+  });
+
+  it("cancels a claimed generation on renewal failure without retry or provider leakage", async () => {
+    for (const failure of ["false", "error"] as const) {
+      const repository = new RecordingReviewRepository();
+      await createReview(repository);
+      let markProviderStarted!: () => void;
+      const providerStarted = new Promise<void>((resolve) => {
+        markProviderStarted = resolve;
+      });
+      let providerSignal!: AbortSignal;
+      const provider = new FakeAiReviewProvider([
+        (providerRequest) => {
+          providerSignal = providerRequest.signal as AbortSignal;
+          markProviderStarted();
+          return new Promise<AiProviderResult>(() => undefined);
+        },
+      ]);
+      const redisExecutor = new ProcessingRedisExecutor();
+      if (failure === "false") {
+        redisExecutor.renewalResult = false;
+      } else {
+        redisExecutor.renewalError = new RedisUnavailableError("lock-renewal");
+      }
+      const timer = new FakeProcessingTimer();
+      const processing = createProcessing(
+        repository,
+        provider,
+        redisExecutor,
+        processingRedisConfig({ lockTtlMs: 3_000 }),
+        timer,
+      );
+
+      const run = processing.process(request());
+      await providerStarted;
+      await timer.advance(1_000);
+      const outcome = await run;
+
+      assert.equal(outcome.kind, "CANCELLED");
+      if (outcome.kind !== "CANCELLED") {
+        throw new Error("expected lock renewal cancellation");
+      }
+      assert.deepEqual(outcome.cancellation, {
+        code: "CANCELLED",
+        kind: "CANCELLATION",
+        source: "LOCK_RENEWAL",
+      });
+      assert.equal(provider.requests.length, 1);
+      assert.equal(providerSignal.aborted, true);
+      assert.deepEqual(
+        repository.transitions.map(({ transition }) => transition.toStatus),
+        ["PROCESSING", "CANCELLED"],
+      );
+      assert.equal(repository.transitions.at(-1)?.transition.expectedProcessingGeneration, 1);
+      assert.equal(
+        repository.transitions.some(({ transition }) =>
+          ["COMPLETED", "FAILED"].includes(transition.toStatus),
+        ),
+        false,
+      );
+      assert.equal(redisExecutor.renewalCalls, 1);
+      assert.equal(redisExecutor.maxConcurrentRenewals, 1);
+      assert.equal(redisExecutor.hasHeldLock(), false);
+      assert.equal(timer.pendingCount(), 0);
+    }
+  });
+
+  it("fails closed at the watchdog deadline without overlapping or retrying renewal", async () => {
+    const repository = new RecordingReviewRepository();
+    await createReview(repository);
+    let markProviderStarted!: () => void;
+    const providerStarted = new Promise<void>((resolve) => {
+      markProviderStarted = resolve;
+    });
+    let providerSignal!: AbortSignal;
+    const provider = new FakeAiReviewProvider([
+      (providerRequest) => {
+        providerSignal = providerRequest.signal as AbortSignal;
+        markProviderStarted();
+        return new Promise<AiProviderResult>(() => undefined);
+      },
+    ]);
+    let resolveRenewal!: (result: unknown) => void;
+    const redisExecutor = new ProcessingRedisExecutor();
+    redisExecutor.renewalPending = new Promise<unknown>((resolve) => {
+      resolveRenewal = resolve;
+    });
+    const timer = new FakeProcessingTimer();
+    const processing = createProcessing(
+      repository,
+      provider,
+      redisExecutor,
+      processingRedisConfig({ lockTtlMs: 3_000 }),
+      timer,
+    );
+
+    const run = processing.process(request());
+    await providerStarted;
+    await timer.advance(1_000);
+    assert.equal(redisExecutor.renewalCalls, 1);
+    assert.equal(redisExecutor.activeRenewals, 1);
+    await timer.advance(1_000);
+    const outcome = await run;
+
+    assert.equal(outcome.kind, "CANCELLED");
+    if (outcome.kind !== "CANCELLED") {
+      throw new Error("expected watchdog cancellation");
+    }
+    assert.equal(outcome.cancellation.source, "LOCK_RENEWAL");
+    assert.equal(provider.requests.length, 1);
+    assert.equal(providerSignal.aborted, true);
+    assert.equal(redisExecutor.renewalCalls, 1);
+    assert.equal(redisExecutor.maxConcurrentRenewals, 1);
+    assert.equal(redisExecutor.hasHeldLock(), false);
+    assert.equal(timer.pendingCount(), 0);
+
+    await timer.advance(5_000);
+    assert.equal(redisExecutor.renewalCalls, 1);
+    resolveRenewal(1);
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(redisExecutor.activeRenewals, 0);
+  });
+
+  it("returns the generic lock-unavailable boundary before a generation is claimed", async () => {
+    const repository = new RecordingReviewRepository();
+    await createReview(repository);
+    const provider = new FakeAiReviewProvider([{ output: VALID_RESULT }]);
+    const redisExecutor = new ProcessingRedisExecutor();
+    redisExecutor.renewalResult = false;
+    const timer = new FakeProcessingTimer();
+    const processing = new DelayedClaimProcessingService(
+      repository,
+      provider,
+      redisExecutor,
+      processingRedisConfig({ lockTtlMs: 3_000 }),
+      timer,
+    );
+
+    const run = processing.process(request());
+    await processing.claimStarted;
+    await timer.advance(1_000);
+    processing.releaseClaim();
+
+    await assert.rejects(run, (error: unknown) => {
+      assert.ok(error instanceof ReviewProcessingBoundaryError);
+      assert.equal(error.code, "PROCESSING_LOCK_UNAVAILABLE");
+      return true;
+    });
+    assert.equal(provider.requests.length, 0);
+    assert.equal(repository.transitions.length, 0);
+    assert.equal(redisExecutor.hasHeldLock(), false);
+    assert.equal(timer.pendingCount(), 0);
+  });
+
+  it("keeps caller signal cancellation precedence when renewal fails", async () => {
+    const repository = new RecordingReviewRepository();
+    await createReview(repository);
+    let markProviderStarted!: () => void;
+    const providerStarted = new Promise<void>((resolve) => {
+      markProviderStarted = resolve;
+    });
+    let providerSignal!: AbortSignal;
+    const provider = new FakeAiReviewProvider([
+      (providerRequest) => {
+        providerSignal = providerRequest.signal as AbortSignal;
+        markProviderStarted();
+        return new Promise<AiProviderResult>(() => undefined);
+      },
+    ]);
+    const controller = new AbortController();
+    const redisExecutor = new ProcessingRedisExecutor();
+    redisExecutor.renewalResult = false;
+    redisExecutor.renewalHook = () => controller.abort();
+    const timer = new FakeProcessingTimer();
+    const processing = createProcessing(
+      repository,
+      provider,
+      redisExecutor,
+      processingRedisConfig({ lockTtlMs: 3_000 }),
+      timer,
+    );
+
+    const run = processing.process(request(controller.signal));
+    await providerStarted;
+    await timer.advance(1_000);
+    const outcome = await run;
+
+    assert.equal(outcome.kind, "CANCELLED");
+    if (outcome.kind !== "CANCELLED") {
+      throw new Error("expected caller cancellation");
+    }
+    assert.equal(outcome.cancellation.source, "SIGNAL");
+    assert.equal(providerSignal.aborted, true);
+    assert.equal(redisExecutor.hasHeldLock(), false);
   });
 
   it("releases the process lock after provider failure and cancellation", async () => {

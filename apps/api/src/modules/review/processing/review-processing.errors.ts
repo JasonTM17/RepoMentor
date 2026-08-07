@@ -21,7 +21,8 @@ export interface ReviewProcessingFailure {
   readonly attempts?: number;
 }
 
-export type ReviewProcessingCancellationSource = "SIGNAL" | "AI_PROVIDER" | "CONCURRENT_TRANSITION";
+export type ReviewProcessingCancellationSource =
+  "SIGNAL" | "AI_PROVIDER" | "CONCURRENT_TRANSITION" | "LOCK_RENEWAL";
 
 export interface ReviewProcessingCancellation {
   readonly kind: "CANCELLATION";

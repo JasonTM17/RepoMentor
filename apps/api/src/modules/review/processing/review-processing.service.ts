@@ -1,8 +1,10 @@
+import { performance } from "node:perf_hooks";
+
 import { Inject, Injectable, Optional } from "@nestjs/common";
 
 import { AiReviewService } from "../../ai/ai-review.service.js";
 import { RedisCommandError, RedisUnavailableError } from "../../redis/redis.errors.js";
-import { acquireReviewLock, releaseReviewLock } from "../../redis/redis.lock.js";
+import { acquireReviewLock, releaseReviewLock, renewReviewLock } from "../../redis/redis.lock.js";
 import { REDIS_COMMAND_EXECUTOR, type RedisCommandExecutor } from "../../redis/redis.types.js";
 import { USAGE_REDIS_CONFIG, type UsageRedisConfig } from "../../usage/usage.config.js";
 import {
@@ -22,6 +24,196 @@ import type { ReviewRecord } from "../review.types.js";
 import type { ReviewResultRecord } from "../review-result.persistence.js";
 
 export type ReviewProcessingClock = () => Date;
+
+export interface ReviewProcessingTimerHandle {
+  unref(): void;
+}
+
+export interface ReviewProcessingTimer {
+  now(): number;
+  setTimeout(callback: () => void, delayMs: number): ReviewProcessingTimerHandle;
+  clearTimeout(handle: ReviewProcessingTimerHandle): void;
+}
+
+const DEFAULT_REVIEW_PROCESSING_TIMER: ReviewProcessingTimer = {
+  now: () => performance.now(),
+  setTimeout(callback, delayMs) {
+    return setTimeout(callback, delayMs);
+  },
+  clearTimeout(handle) {
+    clearTimeout(handle as NodeJS.Timeout);
+  },
+};
+
+const LOCK_RENEWAL_ABORT = Symbol("LOCK_RENEWAL_ABORT");
+
+function createLinkedAbortController(callerSignal: AbortSignal | undefined): {
+  readonly controller: AbortController;
+  readonly dispose: () => void;
+} {
+  const controller = new AbortController();
+
+  if (callerSignal?.aborted) {
+    controller.abort();
+    return { controller, dispose: () => undefined };
+  }
+
+  if (callerSignal === undefined) {
+    return { controller, dispose: () => undefined };
+  }
+
+  const onAbort = (): void => {
+    controller.abort();
+  };
+  callerSignal.addEventListener("abort", onAbort, { once: true });
+
+  return {
+    controller,
+    dispose: () => callerSignal.removeEventListener("abort", onAbort),
+  };
+}
+
+class ReviewLockKeepalive {
+  private readonly lostPromise: Promise<void>;
+  private resolveLost!: () => void;
+  private renewalTimer: ReviewProcessingTimerHandle | undefined;
+  private watchdogTimer: ReviewProcessingTimerHandle | undefined;
+  private renewalInFlight = false;
+  private stopped = false;
+  private lost = false;
+  private cycleSequence = 0;
+
+  constructor(
+    private readonly executor: RedisCommandExecutor,
+    private readonly config: UsageRedisConfig,
+    private readonly reviewId: string,
+    private readonly token: string,
+    private readonly timer: ReviewProcessingTimer,
+    private readonly onLost: () => void,
+  ) {
+    this.lostPromise = new Promise<void>((resolve) => {
+      this.resolveLost = resolve;
+    });
+  }
+
+  start(): void {
+    this.scheduleCycle(this.timer.now());
+  }
+
+  stop(): void {
+    this.stopped = true;
+    this.clearRenewalTimer();
+    this.clearWatchdogTimer();
+  }
+
+  isLost(): boolean {
+    return this.lost;
+  }
+
+  waitForLoss(): Promise<void> {
+    return this.lostPromise;
+  }
+
+  private scheduleCycle(startedAt: number): void {
+    const cycle = ++this.cycleSequence;
+    const leaseMs = this.config.lockTtlMs;
+    const renewalDeadline = startedAt + leaseMs / 3;
+    const watchdogDeadline = startedAt + (leaseMs * 2) / 3;
+
+    this.renewalTimer = this.scheduleAt(renewalDeadline, () => {
+      if (this.cycleSequence !== cycle) {
+        return;
+      }
+
+      this.renewalTimer = undefined;
+
+      if (this.stopped || this.lost) {
+        return;
+      }
+
+      if (this.timer.now() >= watchdogDeadline || this.renewalInFlight) {
+        this.lose();
+        return;
+      }
+
+      this.renewalInFlight = true;
+      void renewReviewLock(this.executor, this.config, {
+        reviewId: this.reviewId,
+        token: this.token,
+      }).then(
+        (renewed) => {
+          this.renewalInFlight = false;
+
+          if (this.stopped || this.lost) {
+            return;
+          }
+
+          if (this.cycleSequence !== cycle) {
+            return;
+          }
+
+          const completedAt = this.timer.now();
+
+          if (!renewed || completedAt >= watchdogDeadline) {
+            this.lose();
+            return;
+          }
+
+          this.clearWatchdogTimer();
+          this.scheduleCycle(completedAt);
+        },
+        () => {
+          this.renewalInFlight = false;
+          this.lose();
+        },
+      );
+    });
+
+    this.watchdogTimer = this.scheduleAt(watchdogDeadline, () => {
+      if (this.cycleSequence !== cycle) {
+        return;
+      }
+
+      this.watchdogTimer = undefined;
+
+      if (this.stopped || this.lost) {
+        return;
+      }
+
+      this.lose();
+    });
+  }
+
+  private scheduleAt(deadline: number, callback: () => void): ReviewProcessingTimerHandle {
+    const handle = this.timer.setTimeout(callback, Math.max(0, deadline - this.timer.now()));
+    handle.unref();
+    return handle;
+  }
+
+  private clearRenewalTimer(): void {
+    if (this.renewalTimer !== undefined) {
+      this.timer.clearTimeout(this.renewalTimer);
+      this.renewalTimer = undefined;
+    }
+  }
+
+  private clearWatchdogTimer(): void {
+    if (this.watchdogTimer !== undefined) {
+      this.timer.clearTimeout(this.watchdogTimer);
+      this.watchdogTimer = undefined;
+    }
+  }
+
+  private lose(): void {
+    if (this.stopped || this.lost) {
+      return;
+    }
+
+    this.lost = true;
+    this.onLost();
+    this.resolveLost();
+  }
+}
 
 function skipped(
   claim: Exclude<ReviewProcessingClaim, { readonly kind: "CLAIMED" }>,
@@ -121,6 +313,8 @@ export class ReviewProcessingService {
     private readonly redisConfig: UsageRedisConfig,
     @Optional()
     private readonly clock: ReviewProcessingClock = () => new Date(),
+    @Optional()
+    private readonly timer: ReviewProcessingTimer = DEFAULT_REVIEW_PROCESSING_TIMER,
   ) {}
 
   async getResult(input: ReviewProcessingRequest): Promise<ReviewResultRecord> {
@@ -187,39 +381,89 @@ export class ReviewProcessingService {
       throw error;
     }
 
+    const linked = createLinkedAbortController(input.signal);
+    const keepalive = new ReviewLockKeepalive(
+      this.redisExecutor,
+      this.redisConfig,
+      input.reviewId,
+      lockToken,
+      this.timer,
+      () => {
+        linked.controller.abort();
+      },
+    );
+
     try {
-      return await this.processWithLock(input);
+      keepalive.start();
+      return await this.processWithLock(input, linked.controller.signal, keepalive);
     } finally {
+      keepalive.stop();
+      linked.dispose();
       await this.releaseLockBestEffort(input.reviewId, lockToken);
     }
   }
 
-  private async processWithLock(input: ReviewProcessingRequest): Promise<ReviewProcessingOutcome> {
+  private async processWithLock(
+    input: ReviewProcessingRequest,
+    providerSignal: AbortSignal,
+    keepalive: ReviewLockKeepalive,
+  ): Promise<ReviewProcessingOutcome> {
+    if (keepalive.isLost() && !input.signal?.aborted) {
+      throw new ReviewProcessingBoundaryError("PROCESSING_LOCK_UNAVAILABLE");
+    }
+
     const claim = await this.claim(input);
 
     if (claim.kind !== "CLAIMED") {
+      if (keepalive.isLost() && !input.signal?.aborted) {
+        throw new ReviewProcessingBoundaryError("PROCESSING_LOCK_UNAVAILABLE");
+      }
+
       return skipped(claim);
+    }
+
+    if (keepalive.isLost()) {
+      return this.cancel(input, claim.generation, this.lockLossCancellation(input));
     }
 
     let execution: Awaited<ReturnType<AiReviewService["review"]>>;
 
     try {
-      execution = await this.aiReviewService.review(
+      const executionPromise = this.aiReviewService.review(
         {
           language: claim.review.language,
           mode: claim.review.mode,
           source: claim.review.source,
         },
-        input.signal,
+        providerSignal,
       );
+      const lockLossPromise = keepalive.waitForLoss().then(() => {
+        throw LOCK_RENEWAL_ABORT;
+      });
+
+      execution = await Promise.race([executionPromise, lockLossPromise]);
     } catch (error: unknown) {
+      if (input.signal?.aborted) {
+        return this.cancel(input, claim.generation, {
+          code: "CANCELLED",
+          kind: "CANCELLATION",
+          source: "SIGNAL",
+        });
+      }
+
+      if (keepalive.isLost()) {
+        return this.cancel(input, claim.generation, this.lockLossCancellation(input));
+      }
+
       const mapped = mapAiError(error, input.signal);
 
       if (mapped.kind === "CANCELLED") {
         return this.cancel(input, claim.generation, mapped.cancellation);
       }
 
-      return this.fail(input, claim.generation, mapped.failure);
+      return this.runFinalizationWithLock(input, claim.generation, keepalive, () =>
+        this.fail(input, claim.generation, mapped.failure),
+      );
     }
 
     if (input.signal?.aborted) {
@@ -230,7 +474,73 @@ export class ReviewProcessingService {
       });
     }
 
-    return this.complete(input, claim.generation, execution);
+    if (keepalive.isLost()) {
+      return this.cancel(input, claim.generation, this.lockLossCancellation(input));
+    }
+
+    return this.runFinalizationWithLock(input, claim.generation, keepalive, () =>
+      this.complete(input, claim.generation, execution),
+    );
+  }
+
+  private lockLossCancellation(input: ReviewProcessingRequest): ReviewProcessingCancellation {
+    if (input.signal?.aborted) {
+      return {
+        code: "CANCELLED",
+        kind: "CANCELLATION",
+        source: "SIGNAL",
+      };
+    }
+
+    return {
+      code: "CANCELLED",
+      kind: "CANCELLATION",
+      source: "LOCK_RENEWAL",
+    };
+  }
+
+  private async runFinalizationWithLock(
+    input: ReviewProcessingRequest,
+    expectedProcessingGeneration: number,
+    keepalive: ReviewLockKeepalive,
+    finalize: () => Promise<ReviewProcessingOutcome>,
+  ): Promise<ReviewProcessingOutcome> {
+    const finalizationPromise = finalize();
+    const lockLossPromise = keepalive.waitForLoss().then(() => {
+      throw LOCK_RENEWAL_ABORT;
+    });
+
+    try {
+      const outcome = await Promise.race([finalizationPromise, lockLossPromise]);
+
+      if (input.signal?.aborted) {
+        return this.cancel(input, expectedProcessingGeneration, {
+          code: "CANCELLED",
+          kind: "CANCELLATION",
+          source: "SIGNAL",
+        });
+      }
+
+      if (keepalive.isLost()) {
+        return this.cancel(input, expectedProcessingGeneration, this.lockLossCancellation(input));
+      }
+
+      return outcome;
+    } catch (error: unknown) {
+      if (input.signal?.aborted) {
+        return this.cancel(input, expectedProcessingGeneration, {
+          code: "CANCELLED",
+          kind: "CANCELLATION",
+          source: "SIGNAL",
+        });
+      }
+
+      if (keepalive.isLost() || error === LOCK_RENEWAL_ABORT) {
+        return this.cancel(input, expectedProcessingGeneration, this.lockLossCancellation(input));
+      }
+
+      throw error;
+    }
   }
 
   /**
