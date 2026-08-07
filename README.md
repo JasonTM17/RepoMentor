@@ -5,7 +5,7 @@ programming practice. It is a production-oriented monorepo, but the current
 repository checkpoint is an application slice, not a production release.
 
 The current code/evidence baseline is the exact implementation checkpoint
-`389f426`, and the latest plan evidence checkpoint is `4105016`. These SHAs
+`4b2dfb7`, and the latest plan evidence checkpoint is `34a9610`. These SHAs
 are exact-head evidence anchors for the local checks recorded below; they are
 not a release, tag, registry, license, package-publication, deployment, or
 production-readiness claim.
@@ -33,6 +33,8 @@ This checkpoint contains:
   fixtures when no session is present;
 - strict web logout through the API-owned refresh-cookie boundary, with an
   accessible sign-in/sign-out header action and retry-safe failure state;
+- authenticated review cancellation through the API-owned cancel boundary,
+  with strict `CANCELLED` response validation and reset/unmount cleanup;
 - an authenticated quota-admission path for `POST /api/v1/reviews` with a
   bounded `Idempotency-Key`, atomic Redis admission markers, durable Prisma
   `QuotaAdmission` state, versioned keyed request fingerprints, and a
@@ -319,14 +321,16 @@ deployment, or production readiness.
 
 ## Current checkpoint evidence — 2026-08-08
 
-The implementation checkpoint `389f426` passed `pnpm test` with API `250/250`,
-contracts `7/7`, and web `41/41`. `pnpm typecheck`, `pnpm lint`,
+The implementation checkpoint `4b2dfb7` passed `pnpm test` with API `250/250`,
+contracts `7/7`, and web `42/42`. `pnpm typecheck`, `pnpm lint`,
 `pnpm format:check`, `pnpm build`, and `pnpm package:check` also passed.
-The authenticated usage transport now sends a memory-only Bearer token when
-present and keeps the guest fixture boundary explicit. Playwright discovery
-is `1/1`, but execution remains blocked because Chromium revision `chromium-
-1161` is not installed locally. No Docker image, registry artifact, tag,
-public package, GitHub release, or deployment was created or claimed.
+The authenticated usage and review transports send a memory-only Bearer token
+when present and keep guest fixtures explicit. The review workspace now
+requests server cancellation when an authenticated run is reset, superseded,
+or unmounted, and rejects a non-`CANCELLED` success payload. Playwright
+discovery is `1/1`, but execution remains blocked because Chromium revision
+`chromium-1161` is not installed locally. No Docker image, registry artifact,
+tag, public package, GitHub release, or deployment was created or claimed.
 
 ## Security and environment boundaries
 
