@@ -1,6 +1,10 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 
 import { AiReviewService } from "../../ai/ai-review.service.js";
+import { RedisCommandError, RedisUnavailableError } from "../../redis/redis.errors.js";
+import { acquireReviewLock, releaseReviewLock } from "../../redis/redis.lock.js";
+import { REDIS_COMMAND_EXECUTOR, type RedisCommandExecutor } from "../../redis/redis.types.js";
+import { USAGE_REDIS_CONFIG, type UsageRedisConfig } from "../../usage/usage.config.js";
 import {
   mapAiError,
   ReviewProcessingBoundaryError,
@@ -80,12 +84,41 @@ function concurrentCancellation(
   };
 }
 
+function lockContention(review: ReviewRecord): ReviewProcessingOutcome {
+  switch (review.status) {
+    case "COMPLETED":
+      return {
+        kind: "SKIPPED",
+        reason: "ALREADY_COMPLETED",
+        review,
+        status: "COMPLETED",
+      };
+    case "PROCESSING":
+      return {
+        kind: "SKIPPED",
+        reason: "ALREADY_PROCESSING",
+        review,
+        status: "PROCESSING",
+      };
+    default:
+      throw new ReviewProcessingBoundaryError("CLAIM_CONFLICT");
+  }
+}
+
+function isRedisLockFailure(error: unknown): boolean {
+  return error instanceof RedisCommandError || error instanceof RedisUnavailableError;
+}
+
 @Injectable()
 export class ReviewProcessingService {
   constructor(
     @Inject(REVIEW_REPOSITORY)
     private readonly repository: ReviewProcessingRepository,
     private readonly aiReviewService: AiReviewService,
+    @Inject(REDIS_COMMAND_EXECUTOR)
+    private readonly redisExecutor: RedisCommandExecutor,
+    @Inject(USAGE_REDIS_CONFIG)
+    private readonly redisConfig: UsageRedisConfig,
     @Optional()
     private readonly clock: ReviewProcessingClock = () => new Date(),
   ) {}
@@ -129,6 +162,39 @@ export class ReviewProcessingService {
   }
 
   async process(input: ReviewProcessingRequest): Promise<ReviewProcessingOutcome> {
+    await this.findCurrentOrThrow(input);
+
+    let lockToken: string;
+    try {
+      const lock = await acquireReviewLock(this.redisExecutor, this.redisConfig, {
+        reviewId: input.reviewId,
+      });
+
+      if (!lock.acquired) {
+        return lockContention(await this.findCurrentOrThrow(input));
+      }
+
+      if (lock.token === undefined) {
+        throw new ReviewProcessingBoundaryError("PROCESSING_LOCK_UNAVAILABLE");
+      }
+
+      lockToken = lock.token;
+    } catch (error: unknown) {
+      if (isRedisLockFailure(error)) {
+        throw new ReviewProcessingBoundaryError("PROCESSING_LOCK_UNAVAILABLE");
+      }
+
+      throw error;
+    }
+
+    try {
+      return await this.processWithLock(input);
+    } finally {
+      await this.releaseLockBestEffort(input.reviewId, lockToken);
+    }
+  }
+
+  private async processWithLock(input: ReviewProcessingRequest): Promise<ReviewProcessingOutcome> {
     const claim = await this.claim(input);
 
     if (claim.kind !== "CLAIMED") {
@@ -165,6 +231,22 @@ export class ReviewProcessingService {
     }
 
     return this.complete(input, claim.generation, execution);
+  }
+
+  /**
+   * Redis release is best-effort: an unavailable or malformed release result
+   * cannot safely be retried, so the bounded acquisition TTL is the fallback.
+   */
+  private async releaseLockBestEffort(reviewId: string, token: string): Promise<void> {
+    try {
+      await releaseReviewLock(this.redisExecutor, reviewId, token);
+    } catch (error: unknown) {
+      if (isRedisLockFailure(error)) {
+        return;
+      }
+
+      throw error;
+    }
   }
 
   private classifyNonClaimed(

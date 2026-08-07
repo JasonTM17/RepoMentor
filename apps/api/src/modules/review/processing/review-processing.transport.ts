@@ -249,6 +249,8 @@ export function mapReviewProcessingError(error: unknown): HttpException {
       case "FINALIZATION_CONFLICT":
       case "RESULT_NOT_READY":
         return new ConflictException();
+      case "PROCESSING_LOCK_UNAVAILABLE":
+        return new ServiceUnavailableException();
       case "RESULT_UNAVAILABLE":
         return new InternalServerErrorException();
     }

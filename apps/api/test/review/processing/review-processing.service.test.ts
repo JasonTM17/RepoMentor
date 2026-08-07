@@ -12,6 +12,17 @@ import {
 } from "../../../src/modules/ai/index.js";
 import { InMemoryReviewRepository } from "../../../src/modules/review/in-memory-review.repository.js";
 import { ReviewService } from "../../../src/modules/review/review.service.js";
+import { acquireReviewLock } from "../../../src/modules/redis/redis.lock.js";
+import {
+  RedisCommandError,
+  RedisUnavailableError,
+  type RedisOperation,
+} from "../../../src/modules/redis/redis.errors.js";
+import type {
+  RedisCommandExecutor,
+  RedisEvalOptions,
+  RedisSetOptions,
+} from "../../../src/modules/redis/redis.types.js";
 import {
   REVIEW_PROCESSING_TRANSITIONS,
   ReviewProcessingBoundaryError,
@@ -22,6 +33,11 @@ import type {
   ReviewStatus,
   ReviewStatusTransition,
 } from "../../../src/modules/review/review.types.js";
+import {
+  USAGE_DEFAULT_DAILY_LIMITS,
+  USAGE_DEFAULT_REDIS_CONFIG,
+  type UsageRedisConfig,
+} from "../../../src/modules/usage/usage.config.js";
 
 const REVIEW_ID = "review-processing-1";
 const USER_ID = "user-processing-1";
@@ -41,6 +57,91 @@ const LIVE_RESULT = {
   schemaVersion: "v1",
   summary: "The retried run owns this result.",
 } as const;
+const OTHER_USER_ID = "review-processing-other-user";
+
+function processingRedisConfig(): UsageRedisConfig {
+  return {
+    authenticatedDailyLimits: { ...USAGE_DEFAULT_DAILY_LIMITS },
+    ...USAGE_DEFAULT_REDIS_CONFIG,
+  };
+}
+
+class ProcessingRedisExecutor implements RedisCommandExecutor {
+  readonly evalCalls: Array<{
+    readonly options: RedisEvalOptions;
+    readonly operation: RedisOperation;
+    readonly script: string;
+  }> = [];
+  readonly setCalls: Array<{
+    readonly key: string;
+    readonly operation: RedisOperation;
+    readonly options: RedisSetOptions;
+    readonly value: string;
+  }> = [];
+  acquisitionError: Error | undefined;
+  releaseError: Error | undefined;
+  private heldToken: string | undefined;
+
+  async eval(
+    script: string,
+    options: RedisEvalOptions,
+    operation: RedisOperation,
+  ): Promise<unknown> {
+    this.evalCalls.push({
+      options: { arguments: [...options.arguments], keys: [...options.keys] },
+      operation,
+      script,
+    });
+
+    if (operation !== "lock-release") {
+      throw new RedisCommandError(operation);
+    }
+
+    if (this.releaseError) {
+      throw this.releaseError;
+    }
+
+    if (this.heldToken === options.arguments[0]) {
+      this.heldToken = undefined;
+      return 1;
+    }
+
+    return 0;
+  }
+
+  async set(
+    key: string,
+    value: string,
+    options: RedisSetOptions,
+    operation: RedisOperation,
+  ): Promise<"OK" | null> {
+    this.setCalls.push({
+      key,
+      operation,
+      options: { ...options },
+      value,
+    });
+
+    if (operation !== "lock-acquisition") {
+      throw new RedisCommandError(operation);
+    }
+
+    if (this.acquisitionError) {
+      throw this.acquisitionError;
+    }
+
+    if (this.heldToken !== undefined) {
+      return null;
+    }
+
+    this.heldToken = value;
+    return "OK";
+  }
+
+  hasHeldLock(): boolean {
+    return this.heldToken !== undefined;
+  }
+}
 
 class RecordingReviewRepository extends InMemoryReviewRepository {
   readonly transitions: Array<{
@@ -170,20 +271,55 @@ async function createReview(repository: InMemoryReviewRepository): Promise<void>
 function createProcessing(
   repository: InMemoryReviewRepository,
   provider: FakeAiReviewProvider,
+  redisExecutor = new ProcessingRedisExecutor(),
 ): ReviewProcessingService {
   return new ReviewProcessingService(
     repository,
     new AiReviewService(provider),
+    redisExecutor,
+    processingRedisConfig(),
     () => new Date(FIXED_NOW),
   );
 }
 
-function request(signal?: AbortSignal) {
+function request(signal?: AbortSignal, userId = USER_ID) {
   return {
     reviewId: REVIEW_ID,
-    userId: USER_ID,
+    userId,
     ...(signal === undefined ? {} : { signal }),
   };
+}
+
+async function holdProcessingLock(redisExecutor: ProcessingRedisExecutor): Promise<void> {
+  const result = await acquireReviewLock(redisExecutor, processingRedisConfig(), {
+    reviewId: REVIEW_ID,
+    token: "held-by-another-processing-run",
+  });
+  assert.deepEqual(result, { acquired: true, token: "held-by-another-processing-run" });
+}
+
+async function completeReview(repository: InMemoryReviewRepository): Promise<void> {
+  const processing = await repository.transitionForUser(USER_ID, REVIEW_ID, {
+    fromStatuses: ["PENDING"],
+    now: FIXED_NOW,
+    toStatus: "PROCESSING",
+  });
+  assert.ok(processing);
+  const execution = await new AiReviewService(
+    new FakeAiReviewProvider([{ output: VALID_RESULT }]),
+  ).review({
+    language: "typescript",
+    mode: "STANDARD",
+    source: "const answer = 42;",
+  });
+  const completed = await repository.finalizeForUser(
+    USER_ID,
+    REVIEW_ID,
+    execution,
+    FIXED_NOW,
+    processing.processingGeneration,
+  );
+  assert.ok(completed);
 }
 
 describe("review processing orchestration", () => {
@@ -205,7 +341,8 @@ describe("review processing orchestration", () => {
         usage: { inputTokens: 10, outputTokens: 8, totalTokens: 18 },
       },
     ]);
-    const processing = createProcessing(repository, provider);
+    const redisExecutor = new ProcessingRedisExecutor();
+    const processing = createProcessing(repository, provider, redisExecutor);
 
     const outcome = await processing.process(request());
 
@@ -228,6 +365,19 @@ describe("review processing orchestration", () => {
     assert.ok(persisted.durationMs >= 0);
     assert.deepEqual(persisted.result, VALID_RESULT);
     assert.deepEqual(persisted.usage, { inputTokens: 10, outputTokens: 8, totalTokens: 18 });
+    const acquisition = redisExecutor.setCalls[0];
+    const release = redisExecutor.evalCalls[0];
+    assert.ok(acquisition);
+    assert.ok(release);
+    assert.equal(acquisition.operation, "lock-acquisition");
+    assert.equal(acquisition.key, "repomentor:lock:review:review-processing-1");
+    assert.equal(acquisition.options.NX, true);
+    assert.equal(acquisition.options.PX, 10_000);
+    assert.notEqual(acquisition.value, REVIEW_ID);
+    assert.notEqual(acquisition.value, USER_ID);
+    assert.equal(release.operation, "lock-release");
+    assert.deepEqual(release.options.arguments, [acquisition.value]);
+    assert.equal(redisExecutor.hasHeldLock(), false);
     assert.deepEqual(
       repository.transitions.map(({ transition }) => ({
         fromStatuses: transition.fromStatuses,
@@ -238,6 +388,156 @@ describe("review processing orchestration", () => {
         { fromStatuses: ["PROCESSING"], toStatus: "COMPLETED" },
       ],
     );
+  });
+
+  it("releases the process lock after provider failure and cancellation", async () => {
+    for (const providerError of [
+      new AiProviderError("RATE_LIMITED", { retryable: true }),
+      new AiProviderError("CANCELLED"),
+    ]) {
+      const repository = new RecordingReviewRepository();
+      await createReview(repository);
+      const provider = new FakeAiReviewProvider([providerError]);
+      const redisExecutor = new ProcessingRedisExecutor();
+
+      const outcome = await createProcessing(repository, provider, redisExecutor).process(
+        request(),
+      );
+
+      assert.ok(outcome.kind === "FAILED" || outcome.kind === "CANCELLED");
+      assert.equal(provider.requests.length, 1);
+      assert.equal(redisExecutor.setCalls.length, 1);
+      assert.equal(redisExecutor.evalCalls.length, 1);
+      assert.equal(redisExecutor.hasHeldLock(), false);
+    }
+  });
+
+  it("keeps provider outcome when release is unavailable and relies on the bounded TTL", async () => {
+    const repository = new RecordingReviewRepository();
+    await createReview(repository);
+    const provider = new FakeAiReviewProvider([{ output: VALID_RESULT }]);
+    const redisExecutor = new ProcessingRedisExecutor();
+    redisExecutor.releaseError = new RedisUnavailableError("lock-release");
+
+    const outcome = await createProcessing(repository, provider, redisExecutor).process(request());
+
+    assert.equal(outcome.kind, "COMPLETED");
+    assert.equal(provider.requests.length, 1);
+    assert.equal(redisExecutor.evalCalls.length, 1);
+    assert.equal(redisExecutor.hasHeldLock(), true);
+  });
+
+  it("rechecks an owned PROCESSING review on lock contention", async () => {
+    const repository = new RecordingReviewRepository();
+    await createReview(repository);
+    const transitioned = await repository.transitionForUser(USER_ID, REVIEW_ID, {
+      fromStatuses: ["PENDING"],
+      now: FIXED_NOW,
+      toStatus: "PROCESSING",
+    });
+    assert.ok(transitioned);
+    const provider = new FakeAiReviewProvider([{ output: VALID_RESULT }]);
+    const redisExecutor = new ProcessingRedisExecutor();
+    await holdProcessingLock(redisExecutor);
+
+    const outcome = await createProcessing(repository, provider, redisExecutor).process(request());
+
+    assert.deepEqual(outcome, {
+      kind: "SKIPPED",
+      reason: "ALREADY_PROCESSING",
+      review: await repository.findByIdForUser(USER_ID, REVIEW_ID),
+      status: "PROCESSING",
+    });
+    assert.equal(provider.requests.length, 0);
+    assert.equal(redisExecutor.evalCalls.length, 0);
+  });
+
+  it("rechecks an owned COMPLETED review on lock contention", async () => {
+    const repository = new RecordingReviewRepository();
+    await createReview(repository);
+    await completeReview(repository);
+    const provider = new FakeAiReviewProvider([{ output: VALID_RESULT }]);
+    const redisExecutor = new ProcessingRedisExecutor();
+    await holdProcessingLock(redisExecutor);
+
+    const outcome = await createProcessing(repository, provider, redisExecutor).process(request());
+
+    assert.deepEqual(outcome, {
+      kind: "SKIPPED",
+      reason: "ALREADY_COMPLETED",
+      review: await repository.findByIdForUser(USER_ID, REVIEW_ID),
+      status: "COMPLETED",
+    });
+    assert.equal(provider.requests.length, 0);
+    assert.equal(redisExecutor.evalCalls.length, 0);
+  });
+
+  it("maps unresolved PENDING lock contention to the existing claim conflict", async () => {
+    const repository = new RecordingReviewRepository();
+    await createReview(repository);
+    const provider = new FakeAiReviewProvider([{ output: VALID_RESULT }]);
+    const redisExecutor = new ProcessingRedisExecutor();
+    await holdProcessingLock(redisExecutor);
+
+    await assert.rejects(
+      createProcessing(repository, provider, redisExecutor).process(request()),
+      (error: unknown) => {
+        assert.ok(error instanceof ReviewProcessingBoundaryError);
+        assert.equal(error.code, "CLAIM_CONFLICT");
+        return true;
+      },
+    );
+    assert.equal(provider.requests.length, 0);
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "PENDING");
+    assert.equal(redisExecutor.evalCalls.length, 0);
+  });
+
+  it("fails closed on lock acquisition unavailability or command failure", async () => {
+    for (const acquisitionError of [
+      new RedisUnavailableError("lock-acquisition"),
+      new RedisCommandError("lock-acquisition"),
+    ]) {
+      const repository = new RecordingReviewRepository();
+      await createReview(repository);
+      const provider = new FakeAiReviewProvider([{ output: VALID_RESULT }]);
+      const redisExecutor = new ProcessingRedisExecutor();
+      redisExecutor.acquisitionError = acquisitionError;
+
+      await assert.rejects(
+        createProcessing(repository, provider, redisExecutor).process(request()),
+        (error: unknown) => {
+          assert.ok(error instanceof ReviewProcessingBoundaryError);
+          assert.equal(error.code, "PROCESSING_LOCK_UNAVAILABLE");
+          return true;
+        },
+      );
+      assert.equal(provider.requests.length, 0);
+      assert.equal(repository.transitions.length, 0);
+      assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "PENDING");
+      assert.equal(redisExecutor.evalCalls.length, 0);
+    }
+  });
+
+  it("checks ownership before attempting lock acquisition", async () => {
+    const repository = new RecordingReviewRepository();
+    await createReview(repository);
+    const provider = new FakeAiReviewProvider([{ output: VALID_RESULT }]);
+    const redisExecutor = new ProcessingRedisExecutor();
+
+    await assert.rejects(
+      createProcessing(repository, provider, redisExecutor).process(
+        request(undefined, OTHER_USER_ID),
+      ),
+      (error: unknown) => {
+        assert.ok(error instanceof ReviewProcessingBoundaryError);
+        assert.equal(error.code, "REVIEW_NOT_FOUND");
+        return true;
+      },
+    );
+    assert.equal(redisExecutor.setCalls.length, 0);
+    assert.equal(redisExecutor.evalCalls.length, 0);
+    assert.equal(provider.requests.length, 0);
+    assert.equal(repository.transitions.length, 0);
   });
 
   it("does not remap a repository finalization error as an AI failure", async () => {
@@ -499,6 +799,8 @@ describe("review processing orchestration", () => {
     const processing = new ReviewProcessingService(
       repository,
       new AbortAfterValidResultAiReviewService(controller),
+      new ProcessingRedisExecutor(),
+      processingRedisConfig(),
       () => new Date(FIXED_NOW),
     );
 
