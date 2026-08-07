@@ -1,6 +1,7 @@
 import type {
   ReviewFinding,
   ReviewAdmissionResponse,
+  ReviewCancelResponse,
   ReviewLifecycleEvent,
   ReviewDraft,
   ReviewProcessResponse,
@@ -182,6 +183,9 @@ const isReviewAdmissionResponse = (value: unknown): value is ReviewAdmissionResp
     isIsoDateTime(value.updatedAt)
   );
 };
+
+const isReviewCancelResponse = (value: unknown): value is ReviewCancelResponse =>
+  isReviewAdmissionResponse(value) && value.status === "CANCELLED";
 
 const reviewLifecycleStatuses = [
   "PENDING",
@@ -569,6 +573,14 @@ const createReviewTransport = (
   getAccessToken: (() => string | undefined) | undefined,
 ): ReviewTransport => {
   const transport: ReviewTransport = {
+    cancel: (reviewId) =>
+      request(
+        origin,
+        getAccessToken,
+        `/api/v1/reviews/${encodeURIComponent(reviewId)}/cancel`,
+        { credentials: "include", method: "POST" },
+        isReviewCancelResponse,
+      ),
     create: (draft: ReviewDraft) =>
       request(
         origin,

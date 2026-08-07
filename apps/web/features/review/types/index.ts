@@ -105,6 +105,10 @@ export interface ReviewAdmissionResponse {
   readonly updatedAt: string;
 }
 
+export interface ReviewCancelResponse extends Omit<ReviewAdmissionResponse, "status"> {
+  readonly status: "CANCELLED";
+}
+
 export type ReviewFieldErrors = Partial<Record<ReviewTextField, string>>;
 
 export interface ReviewMetrics {
@@ -188,6 +192,7 @@ export type ReviewProcessResponse =
     };
 
 export interface ReviewTransport {
+  readonly cancel?: (reviewId: string) => Promise<ReviewCancelResponse>;
   readonly create?: (draft: ReviewDraft) => Promise<ReviewAdmissionResponse>;
   readonly process: (reviewId: string) => Promise<ReviewProcessResponse>;
   readonly getResult: (reviewId: string) => Promise<ReviewResultResponse>;
