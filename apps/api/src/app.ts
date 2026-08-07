@@ -7,10 +7,12 @@ import type { NextFunction, Request, Response } from "express";
 import { AppModule } from "./app.module.js";
 import { ApiExceptionFilter } from "./common/http/api-exception.filter.js";
 import { requestIdMiddleware } from "./common/http/request-id.middleware.js";
+import { createHealthMetricsMiddleware } from "./modules/health/health.metrics.middleware.js";
+import { HealthMetricsService } from "./modules/health/health.metrics.js";
 
 const API_PREFIX = "api/v1";
 const SWAGGER_PATH = "api/docs";
-const HEALTH_ROUTES = ["health/live", "health/ready"];
+const HEALTH_ROUTES = ["health/live", "health/ready", "health/metrics"];
 
 export interface AppConfigurationOptions {
   readonly enableSwagger?: boolean;
@@ -33,6 +35,7 @@ export function configureApp(
   options: AppConfigurationOptions = {},
 ): INestApplication {
   app.use(securityHeadersMiddleware);
+  app.use(createHealthMetricsMiddleware(app.get(HealthMetricsService)));
   app.use(requestIdMiddleware);
   app.setGlobalPrefix(API_PREFIX, { exclude: HEALTH_ROUTES });
   app.useGlobalPipes(

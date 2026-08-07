@@ -7,9 +7,14 @@ import type {
   ApiErrorEnvelope,
   ApiSuccessEnvelope,
   LivenessHealthPayload,
+  MetricsHealthPayload,
   ReadinessHealthPayload,
 } from "@repomentor/contracts";
-import { API_PROBLEM_CODES, apiErrorEnvelopeSchema } from "@repomentor/contracts";
+import {
+  API_PROBLEM_CODES,
+  apiErrorEnvelopeSchema,
+  metricsHealthPayloadSchema,
+} from "@repomentor/contracts";
 import request from "supertest";
 
 import { AppModule } from "../src/app.module.js";
@@ -83,6 +88,33 @@ describe("health bootstrap", () => {
     assert.equal(JSON.stringify(response.body).includes("DATABASE_URL"), false);
     assert.equal(JSON.stringify(response.body).includes("REDIS_URL"), false);
     assert.equal(JSON.stringify(response.body).includes("OPENAI_API_KEY"), false);
+  });
+
+  it("returns aggregate metrics without sensitive or high-cardinality fields", async () => {
+    const response = await request(app.getHttpServer()).get("/health/metrics");
+    const payload = (response.body as ApiSuccessEnvelope<MetricsHealthPayload>).data;
+
+    assert.equal(response.status, 200);
+    assert.equal(metricsHealthPayloadSchema.safeParse(payload).success, true);
+    assert.ok(Number.isInteger(payload.requests.total));
+    assert.ok(Number.isInteger(payload.requests.inFlight));
+    assert.ok(Number.isInteger(payload.requests.completed));
+    assert.ok(payload.requests.total >= payload.requests.inFlight);
+    assert.ok(payload.requests.completed >= 0);
+
+    const serializedPayload = JSON.stringify(payload);
+    for (const forbiddenValue of [
+      "source",
+      "result",
+      "provider",
+      "model",
+      "authorization",
+      "DATABASE_URL",
+      "REDIS_URL",
+      "OPENAI_API_KEY",
+    ]) {
+      assert.equal(serializedPayload.includes(forbiddenValue), false);
+    }
   });
 
   it("serves the configured Swagger document", async () => {

@@ -13,6 +13,7 @@ import {
   authRegisterInputSchema,
   createApiSuccessEnvelopeSchema,
   livenessHealthPayloadSchema,
+  metricsHealthPayloadSchema,
   publicUserSchema,
   readinessHealthPayloadSchema,
   reviewEventSchema,
@@ -94,6 +95,49 @@ test("keeps readiness scoped to application health", () => {
   );
   assert.equal(
     readinessHealthPayloadSchema.safeParse({ status: "ok", scope: "dependencies" }).success,
+    false,
+  );
+});
+
+test("keeps metrics aggregate-only and bounded to application scope", () => {
+  assert.equal(
+    metricsHealthPayloadSchema.safeParse({
+      scope: "application",
+      requests: {
+        total: 12,
+        inFlight: 1,
+        completed: 11,
+        clientErrors: 2,
+        serverErrors: 1,
+      },
+    }).success,
+    true,
+  );
+  assert.equal(
+    metricsHealthPayloadSchema.safeParse({
+      scope: "application",
+      requests: {
+        total: 12,
+        inFlight: 1,
+        completed: 11,
+        clientErrors: 2,
+        serverErrors: 1,
+        source: "private review source",
+      },
+    }).success,
+    false,
+  );
+  assert.equal(
+    metricsHealthPayloadSchema.safeParse({
+      scope: "dependencies",
+      requests: {
+        total: 12,
+        inFlight: 1,
+        completed: 11,
+        clientErrors: 2,
+        serverErrors: 1,
+      },
+    }).success,
     false,
   );
 });

@@ -17,9 +17,15 @@ export type { ApiErrorEnvelope, ApiMeta, ApiSuccessEnvelope } from "./envelopes.
 export {
   healthStatusSchema,
   livenessHealthPayloadSchema,
+  metricsHealthPayloadSchema,
   readinessHealthPayloadSchema,
 } from "./health.js";
-export type { HealthStatus, LivenessHealthPayload, ReadinessHealthPayload } from "./health.js";
+export type {
+  HealthStatus,
+  LivenessHealthPayload,
+  MetricsHealthPayload,
+  ReadinessHealthPayload,
+} from "./health.js";
 
 export {
   accessTokenAuthResultSchema,
