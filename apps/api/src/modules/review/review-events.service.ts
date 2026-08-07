@@ -132,6 +132,8 @@ function toResetSnapshot(record: ReviewEventRecord): ReviewEvent {
 }
 
 function toHeartbeat(record: ReviewEventRecord): ReviewEvent {
+  // Heartbeats reuse the latest durable lifecycle ID; they never allocate an
+  // in-memory cursor that could be lost on restart or differ across instances.
   return reviewEventSchema.parse({ ...baseEvent(record), type: "heartbeat" });
 }
 
