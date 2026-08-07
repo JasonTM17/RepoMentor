@@ -815,6 +815,43 @@ The branch is complete and no longer active; historical refs and worktrees
 remain frozen and are not eligible for wholesale cleanup. The next bounded
 scope must be selected only after this clean pushed checkpoint.
 
+## Web review cancellation resolution — 2026-08-08
+
+The next bounded web quality slice was `feature/web-review-cancel`, based
+exactly on main `e303c18`. Its scope closed the server-cancellation gap behind
+the existing `Cancel run` action: the authenticated web transport now calls
+`POST /api/v1/reviews/:id/cancel`, validates the source-free summary with a
+strict `CANCELLED` status, and sends only credentials plus the memory-only
+Bearer token. The review hook keeps one cancellation handle for the active
+server run and calls it when the run is reset, superseded, or unmounted; the
+deterministic demo transport remains local and unchanged. A malformed or
+non-terminal success payload is rejected instead of being treated as a
+successful cancellation.
+
+The branch finished clean and was fast-forward integrated as three focused
+commits:
+
+- `4a21adf`: expose the typed authenticated cancellation transport;
+- `d331e1d`: cancel active server runs from the workspace lifecycle;
+- `4b2dfb7`: cover the endpoint, credential, source-free, and strict-status
+  boundary in the web runtime/static suite.
+
+Exact-head review confirmed base `e303c18`, exactly three unique commits,
+four intended files, clean status, valid ancestry, no diff-check errors, and
+no cherry-pick duplicate before merge. Merged-main evidence on `4b2dfb7` is
+API `250/250`, web `42/42`, contracts `7/7`, root typecheck, lint, production
+build, format check, package payload verification, and Prisma client
+generation with a process-local configuration. The bounded Luna
+advisor/Kongminh read-only audit timed out and was closed without a verdict;
+this is recorded as no independent ACCEPT, not as review evidence.
+
+No live PostgreSQL, Redis, Luna, browser, Docker daemon, registry, tag,
+package publication, GitHub release, or deployment evidence was created.
+Playwright discovery remains `1/1`, while the local Chromium revision is
+unavailable. The branch and its newly created worktree are no longer active;
+historical refs and worktrees remain frozen and protected generated
+`AGENTS.md`/`CLAUDE.md` files are preserved.
+
 ## Web logout resolution — 2026-08-08
 
 The next bounded auth slice was `feature/web-auth-logout`, based exactly on
