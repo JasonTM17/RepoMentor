@@ -741,6 +741,7 @@ test("review transport preserves the accepted process and result endpoints", () 
   assert.match(source.reviewApi, /Idempotency-Key/u);
   assert.match(source.reviewApi, /JSON\.stringify\(\{[\s\S]*draft\.language/u);
   assert.match(source.reviewApi, /isReviewAdmissionResponse/u);
+  assert.match(source.reviewApi, /isReviewCancelResponse/u);
   assert.match(
     source.reviewApi,
     /\/api\/v1\/reviews\/\$\{encodeURIComponent\(reviewId\)\}\/process/u,
@@ -808,6 +809,53 @@ test("review API admission uses a bounded idempotency key and forwards only acce
   }
 });
 
+test("review API cancellation is authenticated, source-free, and status-strict", async () => {
+  const { ReviewApiError, createReviewApiTransport } = await reviewApiRuntime;
+  const originalFetch = globalThis.fetch;
+  const fetchCalls = [];
+  const cancellation = {
+    createdAt: "2026-01-01T00:00:00.000Z",
+    id: "review-cancel-1",
+    language: "typescript",
+    mode: "STANDARD",
+    status: "CANCELLED",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+
+  try {
+    globalThis.fetch = async (url, init) => {
+      fetchCalls.push({ init, url });
+      return createJsonResponse(201, { data: cancellation });
+    };
+
+    const transport = createReviewApiTransport({
+      apiOrigin: "https://api.example.test",
+      getAccessToken: () => "access-token-fixture",
+    });
+    assert.ok(transport.cancel);
+    const cancelled = await transport.cancel("review/1");
+
+    assert.deepEqual(cancelled, cancellation);
+    assert.equal(fetchCalls.length, 1);
+    assert.equal(fetchCalls[0].url, "https://api.example.test/api/v1/reviews/review%2F1/cancel");
+    assert.equal(fetchCalls[0].init.method, "POST");
+    assert.equal(fetchCalls[0].init.credentials, "include");
+    assert.equal(fetchCalls[0].init.headers.Authorization, "Bearer access-token-fixture");
+    assert.equal(fetchCalls[0].init.body, undefined);
+
+    globalThis.fetch = async () =>
+      createJsonResponse(201, {
+        data: { ...cancellation, status: "PROCESSING" },
+      });
+    await assert.rejects(
+      () => transport.cancel("review-1"),
+      (error) => error instanceof ReviewApiError && error.status === 201,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("review lifecycle transport uses authenticated fetch SSE without query credentials", async () => {
   assert.match(source.reviewApi, /getReader\(\)/u);
   assert.match(source.reviewApi, /text\/event-stream/u);
@@ -816,6 +864,8 @@ test("review lifecycle transport uses authenticated fetch SSE without query cred
   assert.doesNotMatch(source.reviewApi, /EventSource/u);
   assert.doesNotMatch(source.reviewApi, /events\?[^`]*token/iu);
   assert.match(source.reviewHook, /transport\.stream/u);
+  assert.match(source.reviewHook, /transport\.cancel/u);
+  assert.match(source.reviewHook, /requestActiveCancellation/u);
   assert.match(source.reviewHook, /transport\.create/u);
   assert.match(source.reviewHook, /const reviewId =/u);
   assert.match(source.reviewHook, /getReviewResultWithPolling/u);
