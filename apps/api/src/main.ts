@@ -11,7 +11,7 @@ async function bootstrap(): Promise<void> {
     parseQuotaAdmissionFingerprintConfig();
   }
 
-  const app = await createApp();
+  const app = await createApp({ enableSwagger: config.nodeEnv !== "production" });
   await app.listen(config.port);
 }
 

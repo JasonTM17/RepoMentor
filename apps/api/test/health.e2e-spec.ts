@@ -61,6 +61,13 @@ describe("health bootstrap", () => {
     const response = await request(app.getHttpServer()).get("/health/live");
 
     assert.equal(response.status, 200);
+    assert.equal(response.headers["x-content-type-options"], "nosniff");
+    assert.equal(response.headers["x-frame-options"], "DENY");
+    assert.equal(response.headers["referrer-policy"], "no-referrer");
+    assert.equal(
+      response.headers["permissions-policy"],
+      "camera=(), geolocation=(), microphone=()",
+    );
     assert.deepEqual(response.body as ApiSuccessEnvelope<LivenessHealthPayload>, {
       data: expectedLivenessPayload,
     });
@@ -84,6 +91,24 @@ describe("health bootstrap", () => {
 
     assert.equal(response.status, 200);
     assert.equal(document.info?.title, "RepoMentor API");
+  });
+
+  it("does not expose Swagger when production configuration disables it", async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    })
+      .overrideProvider(QUOTA_ADMISSION_FINGERPRINT_CONFIG)
+      .useValue({ fingerprintSecret: TEST_QUOTA_ADMISSION_FINGERPRINT_SECRET })
+      .compile();
+    const productionApp = configureApp(moduleRef.createNestApplication(), {
+      enableSwagger: false,
+    });
+
+    await productionApp.init();
+    const response = await request(productionApp.getHttpServer()).get("/api/docs-json");
+
+    assert.equal(response.status, 404);
+    await productionApp.close();
   });
 
   it("returns a safe error envelope for an unknown API route", async () => {
