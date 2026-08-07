@@ -4,7 +4,7 @@
   "compilerOptions": {
     "declaration": false,
     "noEmit": false,
-    "outDir": "dist/.test-dist",
+    "outDir": ".test-dist",
     "rootDir": ".",
     "sourceMap": true
   },

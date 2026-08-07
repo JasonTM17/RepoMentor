@@ -18,7 +18,7 @@
     "build:test": "tsc -p tsconfig.test.json",
     "format:check": "prettier . --check",
     "lint": "eslint .",
-    "test": "pnpm run build:test && node --test ./dist/.test-dist/test/contracts.test.js",
+    "test": "pnpm run build:test && node --test ./.test-dist/test/contracts.test.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
