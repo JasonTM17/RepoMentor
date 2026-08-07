@@ -104,6 +104,18 @@ function validateVersion(value: unknown): number {
   return value;
 }
 
+export function assertQuotaAdmissionFingerprintHash(value: unknown): string {
+  if (typeof value !== "string" || !FINGERPRINT_HASH_PATTERN.test(value)) {
+    invalid("input");
+  }
+
+  return value;
+}
+
+export function assertQuotaAdmissionFingerprintVersion(value: unknown): number {
+  return validateVersion(value);
+}
+
 function validateSource(value: unknown): Buffer {
   if (
     typeof value !== "string" ||
