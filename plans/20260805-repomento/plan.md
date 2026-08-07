@@ -392,6 +392,10 @@ without live integration evidence.
 | `main` | 09D1 | Luna Redis primitive worker + Luna manager arbiter + Kongming/Terra counsel | `e2be702`, `08edbab`, `3518f76`, `0eda9cf` (worker `cb4ce7f`, `d50da34`, `42b6464`, `62d921f`) | accepted bounded Redis quota/lock primitives; 17 focused, 129 API tests; no live Redis, HTTP/guest wiring, or production-readiness claim |
 | `main` | 09D2 | Luna quota-admission worker + Luna manager arbiter + Kongming/Terra counsel | `28e0c7b`, `53146aa`, `f92491c`, `829ad06` (worker `fe04d207`, `02978e02`) | accepted foundation at exact `main` `829ad06`; 141/141 compiled API across 33 suites and focused Redis 6/6; no live Redis/Postgres/HTTP/guest/process-lock or production-readiness claim |
 | `docs/phase-09d2-quota-admission` | docs | coordinator | `docs(plan): record Phase 09D2 admission checkpoint` (parent `829ad06`; this commit) | docs-only update; exactly the two Phase 09D2 planning files |
+| `main` | 09D2A | Luna quota-admission integration worker + Luna manager arbiter | `ea1d48d` ... `0b573a2` (worker chain `e9289e2` ... `dfe6f24`) | accepted authenticated `POST /api/v1/reviews`, fingerprint-bound finalizer and idempotent replay; 192/192 API tests across 38 suites; live PostgreSQL/Redis/HTTP, guest/process-lock, and production readiness deferred |
+| `D:\worktrees\RepoMentor-quota-admission-integration` | 09D2A | Luna worker | `feature/quota-admission-integration` | accepted after focused `mode: null` remediation at `dfe6f24`; unrelated `pnpm-workspace.yaml` edit preserved and excluded |
+| `main` | 09D2A-manager | Luna manager/arbiter | read-only exact-head review, thread `019fd14f-e844-7f83-988f-7a27e3639fe2` | `ACCEPT`; exact head `dfe6f24`, P0/P1 none; P2 live dependency/runtime limits recorded |
+| read-only counsel | 09D2A-Kongming | Terra advisor | fresh exact-head rerun was shutdown after timeout; no edits or acceptance claim | predecessor Terra findings were used as design input; final acceptance remained Luna-owned and the `mode: null` P1 was re-arbitrated by Luna |
 | `main` | auth hardening | coordinator validation follow-up | `0b47a45` | accepted; rejects non-canonical Base64URL token encodings; full API/root tests pass |
 | `main` | docs/release | Faraday Luna + coordinator follow-up | `54c039f`, `d7e873c`, `2da1bd5`, `4673295`, `3b1f3b1` | accepted; README/release metadata, real UI GIF, and CI evidence; no production/public-package claim |
 | `main` | 13 | Raman Luna + manager arbiter | `014c5e7`, `9456850`, `cf2e62b`, `16a81d1`, `69f83ab`, `d910080`, `10f1b71`, `6448e67`, `952bbc5`, `dc238d3`, `14f0c3e`, `3d98a4d` | accepted; CI run `31030844884` passed Docker/Compose/build/smoke gates; registry publication pending |
@@ -467,7 +471,9 @@ without live integration evidence.
 - Phase 02 checks prove the application/UI foundation and transport boundary;
   readiness is still application-only, Swagger production exposure remains a
   hardening follow-up, and full browser E2E begins in the later quality phase.
-- Phase 09D2 D2A integration is blocked pending a safe durable-ledger design;
-  no commit was made. Custom caller-supplied `admissionId`/`reviewId` conflict
-  policy and replay `retryAfter` remain follow-ups, while live EVAL and
-  migration/DB-isolation evidence remain P2.
+- Phase 09D2A authenticated admission integration is accepted as a bounded
+  checkpoint at `0b573a2`; it is not production readiness. Live Redis EVAL,
+  PostgreSQL migration/transaction isolation, HTTP process, guest quota,
+  process-lock, external Luna, registry, and deployment evidence remain
+  deferred. Custom caller-supplied `admissionId`/`reviewId` conflict policy
+  and replay `retryAfter` remain follow-ups.

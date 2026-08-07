@@ -164,3 +164,36 @@ P2. Caller-supplied custom `admissionId`/`reviewId` conflict policy and replay
 `retryAfter` remain follow-ups. D2A integration is blocked on a design
 decision: no commit was made, and a safe durable ledger is required before
 integration wiring.
+
+## Accepted checkpoint: Phase 09D2A authenticated quota admission integration
+
+Phase 09D2A is accepted on exact `main` at `0b573a2`, based on `75a95cd`,
+after the coordinator cherry-picked the 20 focused commits from
+`feature/quota-admission-integration`, whose worker chain ends at `dfe6f24`.
+The chain adds server-computed HMAC request fingerprints and persisted
+fingerprint metadata, fail-closed secret configuration, a finalizer-only
+`ADMITTED` invariant, owner/review-scoped transactional Prisma finalization,
+authenticated quota admission orchestration, and the idempotent
+`POST /api/v1/reviews` route. The route returns source-free summaries, requires a
+bounded `Idempotency-Key`, replays without a second Redis reservation or
+Review, maps conflicts and bounded quota denial safely, and treats Redis
+uncertainty as indeterminate rather than blindly compensating. The final
+micro-commit `dfe6f24` fixes the reviewed `mode: null` boundary: it returns
+400 without mutation or leakage while an omitted mode remains `STANDARD`.
+
+The Luna Manager exact-head re-arbitration accepted `dfe6f244fa2f63fb3dd3ef5d2318c6d1678394a5`
+with no P0/P1 blocker and authorized the full chain. Evidence on the worker
+head and after cherry-pick is Prisma validate/generate with a non-secret
+placeholder `DATABASE_URL`, contracts/API build and test compilation, API
+ESLint, Prettier, compiled API `192/192` across `38` suites, diff-check, and a
+credential-shaped scan with no matches. Review e2e uses deterministic in-memory
+repositories, fake Redis, and a fake finalizer; it proves idempotency replay,
+conflict, missing-key, null-mode, source/key redaction, and no-mutation paths.
+
+This is an authenticated integration checkpoint, not production readiness or
+completion of Phase 09. No live PostgreSQL migration/transaction, Redis EVAL,
+HTTP process, guest quota, process-lock, external Luna, registry, or deployment
+evidence was run or claimed. The next safe slices are deployment secret/env
+contract hardening, guest/process-lock integration, and then live dependency
+evidence; caller-supplied custom identity conflict policy and replay
+`retryAfter` remain explicit follow-ups.
