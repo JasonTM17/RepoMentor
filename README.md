@@ -5,9 +5,9 @@ programming practice. It is a production-oriented monorepo, but the current
 repository checkpoint is an application slice, not a production release.
 
 The current code/evidence baseline is the exact implementation checkpoint
-`b827991`, and this documentation checkpoint is `f776d87`. These SHAs are
-exact-head evidence anchors for the local checks recorded below; they are not
-a release, tag, registry, license, package-publication, deployment, or
+`389f426`, and the latest plan evidence checkpoint is `4105016`. These SHAs
+are exact-head evidence anchors for the local checks recorded below; they are
+not a release, tag, registry, license, package-publication, deployment, or
 production-readiness claim.
 
 ## Current status
@@ -31,6 +31,8 @@ This checkpoint contains:
 - authenticated review and usage web transports that keep access tokens in
   memory only, use explicit Bearer headers, and retain deterministic guest
   fixtures when no session is present;
+- strict web logout through the API-owned refresh-cookie boundary, with an
+  accessible sign-in/sign-out header action and retry-safe failure state;
 - an authenticated quota-admission path for `POST /api/v1/reviews` with a
   bounded `Idempotency-Key`, atomic Redis admission markers, durable Prisma
   `QuotaAdmission` state, versioned keyed request fingerprints, and a
@@ -317,8 +319,8 @@ deployment, or production readiness.
 
 ## Current checkpoint evidence — 2026-08-08
 
-The implementation checkpoint `b827991` passed `pnpm test` with API `250/250`,
-contracts `7/7`, and web `40/40`. `pnpm typecheck`, `pnpm lint`,
+The implementation checkpoint `389f426` passed `pnpm test` with API `250/250`,
+contracts `7/7`, and web `41/41`. `pnpm typecheck`, `pnpm lint`,
 `pnpm format:check`, `pnpm build`, and `pnpm package:check` also passed.
 The authenticated usage transport now sends a memory-only Bearer token when
 present and keeps the guest fixture boundary explicit. Playwright discovery
