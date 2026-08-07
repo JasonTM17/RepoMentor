@@ -5,6 +5,10 @@ import {
 } from "./quota-admission.errors.js";
 import { assertIdempotencyKeyHash, assertSafeOpaqueId } from "./quota-admission.hash.js";
 import {
+  assertQuotaAdmissionFingerprintHash,
+  assertQuotaAdmissionFingerprintVersion,
+} from "./quota-admission.fingerprint.js";
+import {
   isAllowedQuotaAdmissionTransition,
   type CreateQuotaAdmissionRecordInput,
   type QuotaAdmissionCreateOrGetResult,
@@ -36,9 +40,24 @@ export class InMemoryQuotaAdmissionRepository implements QuotaAdmissionRepositor
     const idempotencyKeyHash = assertIdempotencyKeyHash(input.idempotencyKeyHash);
     const id = assertSafeOpaqueId(input.id, "admissionId");
     const reviewId = assertSafeOpaqueId(input.reviewId, "reviewId");
+    const requestFingerprintHash =
+      input.requestFingerprintHash === undefined
+        ? undefined
+        : assertQuotaAdmissionFingerprintHash(input.requestFingerprintHash);
+    const fingerprintVersion =
+      input.fingerprintVersion === undefined
+        ? undefined
+        : assertQuotaAdmissionFingerprintVersion(input.fingerprintVersion);
     const existing = this.byHash.get(hashKey(userId, idempotencyKeyHash));
 
     if (existing) {
+      if (
+        existing.requestFingerprintHash !== requestFingerprintHash ||
+        existing.fingerprintVersion !== fingerprintVersion
+      ) {
+        throw new QuotaAdmissionConflictError();
+      }
+
       return { created: false, record: copyRecord(existing) };
     }
 
@@ -50,6 +69,8 @@ export class InMemoryQuotaAdmissionRepository implements QuotaAdmissionRepositor
       createdAt: new Date(input.now),
       id,
       idempotencyKeyHash,
+      ...(requestFingerprintHash === undefined ? {} : { requestFingerprintHash }),
+      ...(fingerprintVersion === undefined ? {} : { fingerprintVersion }),
       mode: input.mode,
       reviewId,
       status: "PENDING",
