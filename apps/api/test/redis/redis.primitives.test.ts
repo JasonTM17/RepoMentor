@@ -23,8 +23,10 @@ import {
 } from "../../src/modules/redis/redis.keys.js";
 import {
   acquireReviewLock,
+  RENEW_LOCK_SCRIPT,
   RELEASE_LOCK_SCRIPT,
   releaseReviewLock,
+  renewReviewLock,
 } from "../../src/modules/redis/redis.lock.js";
 import {
   getUtcDayTtlSeconds,
@@ -122,6 +124,26 @@ class FakeRedisExecutor implements RedisCommandExecutor {
       }
 
       return 0;
+    }
+
+    if (script === RENEW_LOCK_SCRIPT) {
+      const key = options.keys[0];
+      const token = options.arguments[0];
+      const ttlMs = Number(options.arguments[1]);
+      if (key === undefined || token === undefined || !Number.isSafeInteger(ttlMs)) {
+        throw new Error("malformed renewal input");
+      }
+
+      const current = this.values.get(key);
+      if (current?.value !== token) {
+        return 0;
+      }
+
+      this.values.set(key, {
+        value: current.value,
+        expiresAtMs: this.nowMs + ttlMs,
+      });
+      return 1;
     }
 
     throw new Error("unexpected script");
@@ -472,6 +494,99 @@ describe("review request lock", () => {
         RedisInputError,
       );
     }
+  });
+
+  it("renews only the current token and resets the lease atomically", async () => {
+    const executor = new FakeRedisExecutor();
+    const config = makeConfig({ lockTtlMs: 5_000 });
+    const acquired = await acquireReviewLock(executor, config, {
+      reviewId: "review_renewing",
+      token: "owner-token",
+      ttlMs: 5_000,
+    });
+    assert.deepEqual(acquired, { acquired: true, token: "owner-token" });
+
+    executor.advance(4_000);
+    assert.equal(
+      await renewReviewLock(executor, config, {
+        reviewId: "review_renewing",
+        token: "owner-token",
+      }),
+      true,
+    );
+    assert.equal(executor.evalCalls.at(-1)?.operation, "lock-renewal");
+    assert.deepEqual(executor.evalCalls.at(-1)?.options.arguments, ["owner-token", "5000"]);
+
+    executor.advance(4_999);
+    assert.equal(executor.valueFor(buildReviewLockKey("review_renewing")), "owner-token");
+    assert.equal(
+      await renewReviewLock(executor, config, {
+        reviewId: "review_renewing",
+        token: "wrong-token",
+      }),
+      false,
+    );
+    assert.equal(
+      await renewReviewLock(executor, config, {
+        reviewId: "review_renewing",
+        token: "owner-token",
+      }),
+      true,
+    );
+  });
+
+  it("returns false after expiry, rejects malformed results, and preserves renewal errors", async () => {
+    const executor = new FakeRedisExecutor();
+    const config = makeConfig();
+    await acquireReviewLock(executor, config, {
+      reviewId: "review_expired_renewal",
+      token: "owner-token",
+    });
+    executor.advance(config.lockTtlMs);
+
+    assert.equal(
+      await renewReviewLock(executor, config, {
+        reviewId: "review_expired_renewal",
+        token: "owner-token",
+      }),
+      false,
+    );
+
+    const malformed: RedisCommandExecutor = {
+      async eval(): Promise<unknown> {
+        return "not-a-lock-result";
+      },
+      async set(): Promise<"OK" | null> {
+        return "OK";
+      },
+    };
+    await assert.rejects(
+      renewReviewLock(malformed, config, {
+        reviewId: "review_malformed_renewal",
+        token: "owner-token",
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof RedisCommandError);
+        assert.equal(error.operation, "lock-renewal");
+        return true;
+      },
+    );
+
+    const unavailable: RedisCommandExecutor = {
+      async eval(): Promise<unknown> {
+        throw new Error("renewal unavailable");
+      },
+      async set(): Promise<"OK" | null> {
+        return "OK";
+      },
+    };
+    await assert.rejects(
+      renewReviewLock(unavailable, config, {
+        reviewId: "review_unavailable_renewal",
+        token: "owner-token",
+      }),
+      unavailableFor("lock-renewal"),
+    );
   });
 });
 

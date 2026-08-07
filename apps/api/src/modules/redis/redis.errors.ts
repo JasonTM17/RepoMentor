@@ -5,6 +5,7 @@ export type RedisOperation =
   | "quota-admission-reservation"
   | "quota-admission-compensation"
   | "lock-acquisition"
+  | "lock-renewal"
   | "lock-release";
 
 export class RedisUnavailableError extends Error {

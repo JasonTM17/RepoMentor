@@ -12,6 +12,13 @@ end
 return 0
 `.trim();
 
+export const RENEW_LOCK_SCRIPT = `
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+  return redis.call("PEXPIRE", KEYS[1], ARGV[2])
+end
+return 0
+`.trim();
+
 const SAFE_LOCK_TOKEN = /^[A-Za-z0-9._~-]+$/u;
 
 export interface AcquireReviewLockInput {
@@ -24,6 +31,12 @@ export interface AcquireReviewLockInput {
 export interface ReviewLockResult {
   readonly acquired: boolean;
   readonly token?: string;
+}
+
+export interface RenewReviewLockInput {
+  readonly reviewId: string;
+  readonly token: string;
+  readonly ttlMs?: number;
 }
 
 function assertLockToken(token: string): void {
@@ -101,7 +114,7 @@ export async function acquireReviewLock(
   return { acquired: true, token };
 }
 
-function parseReleaseResult(value: unknown): number {
+function parseLockResult(value: unknown, operation: "lock-release" | "lock-renewal"): number {
   const parsed =
     typeof value === "number"
       ? value
@@ -112,10 +125,42 @@ function parseReleaseResult(value: unknown): number {
           : Number.NaN;
 
   if (!Number.isSafeInteger(parsed) || (parsed !== 0 && parsed !== 1)) {
-    throw new RedisCommandError("lock-release");
+    throw new RedisCommandError(operation);
   }
 
   return parsed;
+}
+
+export async function renewReviewLock(
+  executor: RedisCommandExecutor,
+  config: UsageRedisConfig,
+  input: RenewReviewLockInput,
+): Promise<boolean> {
+  const key = buildReviewLockKey(input.reviewId);
+  const ttlMs = input.ttlMs ?? config.lockTtlMs;
+  assertLockTtl(config, ttlMs);
+  assertLockToken(input.token);
+
+  let rawResult: unknown;
+
+  try {
+    rawResult = await executor.eval(
+      RENEW_LOCK_SCRIPT,
+      {
+        keys: [key],
+        arguments: [input.token, String(ttlMs)],
+      },
+      "lock-renewal",
+    );
+  } catch (error) {
+    if (error instanceof RedisUnavailableError) {
+      throw error;
+    }
+
+    throw new RedisUnavailableError("lock-renewal");
+  }
+
+  return parseLockResult(rawResult, "lock-renewal") === 1;
 }
 
 export async function releaseReviewLock(
@@ -145,5 +190,5 @@ export async function releaseReviewLock(
     throw new RedisUnavailableError("lock-release");
   }
 
-  return parseReleaseResult(rawResult) === 1;
+  return parseLockResult(rawResult, "lock-release") === 1;
 }
