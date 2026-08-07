@@ -19,7 +19,7 @@ import {
   type QuotaAdmissionStatus,
 } from "./quota-admission.types.js";
 
-type QuotaAdmissionRow = Prisma.QuotaAdmissionGetPayload<{}>;
+type QuotaAdmissionRow = Prisma.QuotaAdmissionGetPayload<Record<string, never>>;
 
 function isUniqueViolation(error: unknown): boolean {
   return (
