@@ -781,3 +781,36 @@ unconnected. The Luna read-only advisor/Kongming reviewer timed out and was
 shut down without a verdict; this is recorded as no independent ACCEPT. The
 branch is complete and no longer active; historical refs/worktrees remain
 frozen and protected generated `AGENTS.md`/`CLAUDE.md` files are preserved.
+
+## Web live usage resolution — 2026-08-08
+
+The next bounded web slice was `feature/web-live-usage`, based exactly on
+main `245da5f`. Its scope was limited to connecting the existing memory-only
+auth session to the usage read model: the API transport now accepts an
+optional access-token getter and emits a Bearer header only when a current
+non-empty token exists; dashboard, history, and usage overview select that
+transport for authenticated sessions and retain deterministic fixtures for
+guests. The existing API page/limit-only history boundary, source-free rows,
+strict envelopes, and demo-only client filters remain unchanged.
+
+The branch finished clean and was fast-forward integrated as two focused
+commits:
+
+- `c18b30c`: authenticated usage API transport and shared stable transport
+  selection hook;
+- `b827991`: runtime/static coverage for header presence, header absence,
+  memory-only selection, and the guest/API UI boundary.
+
+Exact-head review confirmed base `245da5f`, the intended seven-file scope,
+two focused commits, clean status, valid ancestry, and no diff-check errors.
+The independent Luna Kongminh/advisor reviewer timed out and was shut down
+without a verdict; this is recorded as no independent ACCEPT, not as review
+evidence. Merged-main evidence on `b827991` is API `250/250`, web `40/40`,
+contracts `7/7`, plus typecheck, lint, production build, format check,
+package payload verification, and a credential-shaped scan with no real
+secret matches. Live PostgreSQL, Redis, Luna, browser interaction, Docker,
+registry, and deployment evidence remain unverified.
+
+The branch is complete and no longer active; historical refs and worktrees
+remain frozen and are not eligible for wholesale cleanup. The next bounded
+scope must be selected only after this clean pushed checkpoint.
