@@ -583,6 +583,19 @@ test("review source input uses a real SSR-safe Monaco seam with accessible state
   assert.match(source.reviewSourceEditor, /role:\s*"textbox"/u);
   assert.match(source.reviewSourceEditor, /MonacoLoadingState/u);
   assert.match(source.reviewSourceEditor, /MonacoUnavailableState/u);
+  assert.match(source.reviewSourceEditor, /ReviewSourceTextareaFallback/u);
+  assert.match(source.reviewSourceEditor, /data-editor-fallback="textarea"/u);
+  assert.match(source.reviewSourceEditor, /<textarea\b/u);
+  assert.match(source.reviewSourceEditor, /aria-describedby=\{describedBy\}/u);
+  assert.match(source.reviewSourceEditor, /aria-labelledby=\{labelId\}/u);
+  assert.match(source.reviewSourceEditor, /aria-invalid=\{invalid \? "true" : undefined\}/u);
+  assert.match(source.reviewSourceEditor, /disabled=\{disabled\}/u);
+  assert.match(
+    source.reviewSourceEditor,
+    /onChange=\{\(event\) =>[\s\S]*TextareaValueTarget[\s\S]*\.value\)\}/u,
+  );
+  assert.match(source.reviewSourceEditor, /value=\{value\}/u);
+  assert.match(source.reviewSourceEditor, /required/u);
   assert.match(source.reviewWorkspace, /review-source-hint review-source-metrics/u);
   assert.match(source.reviewWorkspace, /review-source-error/u);
 });
@@ -854,14 +867,20 @@ test("review exports remain source-free by default and include optional data onl
   const optionalData = {
     generatedTest: 'test("guard", () => expect(true).toBe(true));',
     improvedCode: "return fallback;",
+    improvedSource: "const improved = true;",
     learningQuestion: "Which boundary is easiest to explain?",
+    originalSource: "const original = true;",
   };
   const optionalPayload = createReviewExportPayload(result, optionalData);
 
   assert.deepEqual(optionalPayload.optional, optionalData);
-  assert.match(formatReviewMarkdown(result, optionalData), /## Improved code/u);
-  assert.match(formatReviewMarkdown(result, optionalData), /## Generated test/u);
-  assert.match(formatReviewMarkdown(result, optionalData), /## Learning question/u);
+  const markdown = formatReviewMarkdown(result, optionalData);
+  assert.match(markdown, /## Original source[\s\S]*const original = true;/u);
+  assert.match(markdown, /## Improved source[\s\S]*const improved = true;/u);
+  assert.match(markdown, /## Improved code[\s\S]*return fallback;/u);
+  assert.match(markdown, /## Generated test[\s\S]*test\("guard"/u);
+  assert.match(markdown, /## Learning question[\s\S]*Which boundary/u);
+  assert.deepEqual(JSON.parse(formatReviewJson(result, optionalData)).optional, optionalData);
 });
 
 test("review fixture remains deterministic and has an explicit empty-result path", () => {
@@ -916,7 +935,16 @@ test("review CSS preserves product accessibility and responsive contracts", () =
   assert.match(source.styles, /\.review-input:focus-visible\s*\{[\s\S]*outline:/u);
   assert.match(source.styles, /\.review-input:disabled\s*\{[\s\S]*cursor:\s*not-allowed/u);
   assert.match(source.styles, /\.review-monaco-viewport:focus-within\s*,[\s\S]*outline:/u);
+  assert.match(source.styles, /\.review-monaco-fallback\s*\{/u);
+  assert.match(source.styles, /\.review-source-fallback\s*\{/u);
   assert.match(source.styles, /\.review-finding-jump:focus-visible\s*\{[\s\S]*outline:/u);
+  const findingJumpActiveBlock = extractBalancedBlock(
+    source.styles,
+    /\.review-finding-jump:active\s*/u,
+    "review finding active styles",
+  );
+  assert.match(findingJumpActiveBlock, /translateY\(var\(--space-1\)\)/u);
+  assert.doesNotMatch(findingJumpActiveBlock, /translateY\(1px\)/u);
   assert.match(source.styles, /\.review-finding-jump\[aria-pressed="true"\]/u);
   assert.match(source.styles, /\.review-code-context-line-selected\s*\{/u);
   assert.match(source.styles, /\.review-workspace-grid\s*\{[\s\S]*grid-template-columns:/u);

@@ -96,6 +96,14 @@ export const formatReviewMarkdown = (
 
   const optional = payload.optional;
 
+  if (optional?.originalSource) {
+    lines.push("## Original source", "", "```", optional.originalSource, "```", "");
+  }
+
+  if (optional?.improvedSource) {
+    lines.push("## Improved source", "", "```", optional.improvedSource, "```", "");
+  }
+
   if (optional?.improvedCode) {
     lines.push("## Improved code", "", "```", optional.improvedCode, "```", "");
   }

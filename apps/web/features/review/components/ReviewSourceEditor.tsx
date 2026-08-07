@@ -8,6 +8,10 @@ import type { DiffEditorProps, EditorProps } from "@monaco-editor/react";
 import { getMonacoLanguage } from "@/features/review/helpers/reviewHelpers";
 import type { ReviewLanguage } from "@/features/review/types";
 
+interface TextareaValueTarget {
+  readonly value: string;
+}
+
 const MonacoEditor = dynamic<EditorProps>(
   () => import("@monaco-editor/react").then((module) => module.default),
   {
@@ -52,16 +56,10 @@ const MonacoLoadingState: FC<{ readonly label: string }> = ({ label }): ReactEle
   </div>
 );
 
-const MonacoUnavailableState: FC<{ readonly kind: "source" | "diff" }> = ({
-  kind,
-}): ReactElement => (
+const MonacoUnavailableState: FC = (): ReactElement => (
   <div className="review-monaco-state review-monaco-state-error" role="alert">
     <span className="status-label">Editor unavailable</span>
-    <p>
-      {kind === "source"
-        ? "The source editor is unavailable in this browser. No source was sent."
-        : "The comparison editor is unavailable in this browser. The optional diff is not shown."}
-    </p>
+    <p>The comparison editor is unavailable in this browser. The optional diff is not shown.</p>
   </div>
 );
 
@@ -76,6 +74,38 @@ export interface ReviewSourceEditorProps {
   readonly value: string;
 }
 
+type ReviewSourceTextareaFallbackProps = Omit<ReviewSourceEditorProps, "language">;
+
+const ReviewSourceTextareaFallback: FC<ReviewSourceTextareaFallbackProps> = ({
+  describedBy,
+  disabled,
+  invalid,
+  labelId,
+  onBlur,
+  onChange,
+  value,
+}): ReactElement => (
+  <div className="review-monaco-fallback" data-editor-fallback="textarea">
+    <div className="review-monaco-state review-monaco-state-error" role="alert">
+      <span className="status-label">Editor unavailable</span>
+      <p>Monaco could not load. Continue with the accessible source field below.</p>
+    </div>
+    <textarea
+      className="review-input review-source-input review-source-fallback"
+      aria-describedby={describedBy}
+      aria-invalid={invalid ? "true" : undefined}
+      aria-labelledby={labelId}
+      disabled={disabled}
+      onBlur={onBlur}
+      onChange={(event) => onChange((event.target as unknown as TextareaValueTarget).value)}
+      required
+      rows={18}
+      spellCheck={false}
+      value={value}
+    />
+  </div>
+);
+
 const ReviewSourceEditor: FC<ReviewSourceEditorProps> = ({
   describedBy,
   disabled,
@@ -87,7 +117,19 @@ const ReviewSourceEditor: FC<ReviewSourceEditorProps> = ({
   value,
 }): ReactElement => (
   <div className="review-monaco-viewport" data-editor-engine="monaco">
-    <MonacoErrorBoundary fallback={<MonacoUnavailableState kind="source" />}>
+    <MonacoErrorBoundary
+      fallback={
+        <ReviewSourceTextareaFallback
+          describedBy={describedBy}
+          disabled={disabled}
+          invalid={invalid}
+          labelId={labelId}
+          onBlur={onBlur}
+          onChange={onChange}
+          value={value}
+        />
+      }
+    >
       <MonacoEditor
         className="review-monaco-editor"
         height="100%"
@@ -135,7 +177,7 @@ export const ReviewDiffEditor: FC<ReviewDiffEditorProps> = ({
   original,
 }): ReactElement => (
   <div className="review-monaco-diff-viewport" data-editor-engine="monaco-diff">
-    <MonacoErrorBoundary fallback={<MonacoUnavailableState kind="diff" />}>
+    <MonacoErrorBoundary fallback={<MonacoUnavailableState />}>
       <MonacoDiffEditor
         className="review-monaco-diff-editor"
         height="100%"

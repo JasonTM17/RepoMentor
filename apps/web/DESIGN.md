@@ -103,7 +103,7 @@ The demo fixture uses the server's `gpt-5.6-luna` and `max` metadata shape witho
 
 ### Product and data boundary
 
-- Monaco and the DiffEditor are dynamically loaded on the client only. Loading and error states are visible, generic, and do not expose loader details or source content.
+- Monaco and the DiffEditor are dynamically loaded on the client only. Loading and error states are visible, generic, and do not expose loader details or source content. If Monaco cannot load, the source field keeps an accessible native textarea fallback so draft entry remains available.
 - Issue location buttons are native keyboard controls with `aria-pressed` state and `aria-controls` linkage. Selecting an issue colors only the referenced source window, and the visible window moves to a selected line when it falls beyond the first 24 lines.
 - Improved code, generated test, learning question, and original-versus-improved diff sections render supplied optional data. Each renders `Not supplied` when its value is absent. The current deterministic fixture supplies none of these optional values.
 - Copy actions require supplied optional code/test values. Markdown and JSON downloads contain the result contract plus explicitly supplied optional data, omit execution metadata, and run only from the user-triggered browser action.
@@ -111,12 +111,12 @@ The demo fixture uses the server's `gpt-5.6-luna` and `max` metadata shape witho
 
 ### Verification evidence
 
-- Static and runtime shell/UI contract: 25 tests passed, including bounded conflict polling, request-version cancellation, duplicate-safe learning-note IDs, strict result timestamp/usage validation, the ten-language option set, exact endpoint/body checks, state copy, result sections, focus/target CSS, responsive rules, reduced motion, and banned-copy checks.
+- Static and runtime shell/UI contract: 37 tests passed, including bounded conflict polling, request-version cancellation, duplicate-safe learning-note IDs, strict result timestamp/usage validation, the ten-language option set, exact endpoint/body checks, state copy, result sections, export parity, the native editor fallback, focus/target CSS, responsive rules, reduced motion, and banned-copy checks.
 - `pnpm --filter @repomentor/web lint`: passed.
 - `pnpm --filter @repomentor/web typecheck`: passed.
 - `pnpm --filter @repomentor/web build`: passed. The build generated `/reviews/new` as a static route.
 - Prettier check and `git diff --check`: passed.
-- Browser QA reran against the local production build at 375px and 1440px. At 375px, the document and body measured 360px, the field grid composed to one 294.4px column, and there was no horizontal overflow. At 1440px, the document measured 1425px and the editor/sidebar grid measured approximately 748.8px and 403.2px with no horizontal overflow. The demo run was exercised through processing into the structured result.
+- Browser QA captured the local production build at 375px and 1440px output sizes. The available headless Chrome reports a 500px CSS `innerWidth` minimum even when the output is requested at 375px, so that capture is not treated as authoritative true-375px CSS overflow evidence. The 1440px capture was visually clean; no browser interaction runner was available for live copy/download or keyboard-flow E2E evidence.
 - Screenshots were transient QA evidence only and are not checked in. No live AI, authenticated session, PostgreSQL, Redis, or provider integration was claimed.
 
 ## Phase 09B usage surfaces
