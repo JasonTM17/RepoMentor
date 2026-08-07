@@ -96,6 +96,15 @@ export interface ReviewDraft {
   readonly context: string;
 }
 
+export interface ReviewAdmissionResponse {
+  readonly createdAt: string;
+  readonly id: string;
+  readonly language: string;
+  readonly mode: ReviewMode;
+  readonly status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED";
+  readonly updatedAt: string;
+}
+
 export type ReviewFieldErrors = Partial<Record<ReviewTextField, string>>;
 
 export interface ReviewMetrics {
@@ -179,6 +188,7 @@ export type ReviewProcessResponse =
     };
 
 export interface ReviewTransport {
+  readonly create?: (draft: ReviewDraft) => Promise<ReviewAdmissionResponse>;
   readonly process: (reviewId: string) => Promise<ReviewProcessResponse>;
   readonly getResult: (reviewId: string) => Promise<ReviewResultResponse>;
   readonly stream?: (

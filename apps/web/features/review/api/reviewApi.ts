@@ -1,6 +1,8 @@
 import type {
   ReviewFinding,
+  ReviewAdmissionResponse,
   ReviewLifecycleEvent,
+  ReviewDraft,
   ReviewProcessResponse,
   ReviewResult,
   ReviewResultResponse,
@@ -154,6 +156,30 @@ const isReviewProcessResponse = (value: unknown): value is ReviewProcessResponse
     hasExactKeys(value, ["id", "outcome", "reason", "resultAvailable", "status"]) &&
     value.resultAvailable === false &&
     value.status === "PROCESSING"
+  );
+};
+
+const reviewAdmissionStatuses = [
+  "PENDING",
+  "PROCESSING",
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED",
+] as const;
+
+const isReviewAdmissionResponse = (value: unknown): value is ReviewAdmissionResponse => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    hasExactKeys(value, ["createdAt", "id", "language", "mode", "status", "updatedAt"]) &&
+    isBoundedString(value.id, maxReviewIdLength) &&
+    isBoundedString(value.language, 32) &&
+    ["QUICK", "STANDARD", "DEEP"].includes(value.mode as string) &&
+    reviewAdmissionStatuses.includes(value.status as (typeof reviewAdmissionStatuses)[number]) &&
+    isIsoDateTime(value.createdAt) &&
+    isIsoDateTime(value.updatedAt)
   );
 };
 
@@ -426,6 +452,16 @@ const parseSseFrame = (frame: string): ReviewLifecycleEvent | undefined => {
 const isTerminalEvent = (event: ReviewLifecycleEvent): boolean =>
   event.status === "COMPLETED" || event.status === "FAILED" || event.status === "CANCELLED";
 
+const createIdempotencyKey = (): string => {
+  const randomUuid = globalThis.crypto?.randomUUID?.();
+
+  if (randomUuid) {
+    return `web-review-${randomUuid}`;
+  }
+
+  return `web-review-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
+
 export const consumeReviewEventStream = async (
   origin: string,
   getAccessToken: (() => string | undefined) | undefined,
@@ -533,6 +569,26 @@ const createReviewTransport = (
   getAccessToken: (() => string | undefined) | undefined,
 ): ReviewTransport => {
   const transport: ReviewTransport = {
+    create: (draft: ReviewDraft) =>
+      request(
+        origin,
+        getAccessToken,
+        "/api/v1/reviews",
+        {
+          body: JSON.stringify({
+            language: draft.language,
+            mode: draft.mode,
+            source: draft.source,
+          }),
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": createIdempotencyKey(),
+          },
+          method: "POST",
+        },
+        isReviewAdmissionResponse,
+      ),
     getResult: (reviewId) =>
       request(
         origin,

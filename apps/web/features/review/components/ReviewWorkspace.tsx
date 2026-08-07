@@ -4,6 +4,10 @@ import { useCallback, useMemo, useState } from "react";
 import type { ChangeEvent, FC, FormEvent, ReactElement } from "react";
 
 import LineIcon from "@/components/line-icon";
+import { getAccessToken } from "@/features/auth/api/authClient";
+import { useAuthSession, useInitializeAuthSession } from "@/features/auth/authSession";
+import { createReviewApiTransport } from "@/features/review/api/reviewApi";
+import { createDemoReviewTransport } from "@/features/review/api/demoReviewTransport";
 import ReviewResultPanel from "@/features/review/components/ReviewResultPanel";
 import ReviewSourceEditor from "@/features/review/components/ReviewSourceEditor";
 import {
@@ -81,6 +85,37 @@ const statusCopy: Record<ReviewStatus, string> = {
   success: "Structured findings are ready to read.",
 };
 
+type ReviewTransportMode = "api" | "custom" | "demo";
+
+const transportCopy: Record<
+  ReviewTransportMode,
+  {
+    readonly chip: string;
+    readonly description: string;
+    readonly noteTitle: string;
+    readonly submitLabel: string;
+  }
+> = {
+  api: {
+    chip: "Authenticated API",
+    description: "Server review bridge",
+    noteTitle: "Authenticated API transport active.",
+    submitLabel: "Start API review",
+  },
+  custom: {
+    chip: "Configured transport",
+    description: "Application-provided bridge",
+    noteTitle: "Configured review transport active.",
+    submitLabel: "Start review",
+  },
+  demo: {
+    chip: "Demo transport",
+    description: "Deterministic fixture",
+    noteTitle: "Demo transport active.",
+    submitLabel: "Start demo review",
+  },
+};
+
 const fieldError = (
   field: ReviewTextField,
   errors: ReviewFieldErrors,
@@ -144,11 +179,28 @@ const ReviewWorkspace: FC<ReviewWorkspaceProps> = ({
   optionalData,
   transportFactory,
 }): ReactElement => {
+  useInitializeAuthSession();
+  const { accessToken } = useAuthSession();
   const [draft, setDraft] = useState<ReviewDraft>(createInitialReviewDraft);
   const [errors, setErrors] = useState<ReviewFieldErrors>({});
   const [touched, setTouched] = useState<Record<ReviewTextField, boolean>>(initialTouchedState);
+  const resolvedTransportFactory = useMemo<ReviewTransportFactory>(() => {
+    if (transportFactory) {
+      return transportFactory;
+    }
+
+    return accessToken
+      ? () => createReviewApiTransport({ getAccessToken })
+      : createDemoReviewTransport;
+  }, [accessToken, transportFactory]);
+  const transportMode: ReviewTransportMode = transportFactory
+    ? "custom"
+    : accessToken
+      ? "api"
+      : "demo";
+  const currentTransportCopy = transportCopy[transportMode];
   const { errorMessage, reset, result, retry, startReview, status } =
-    useReviewWorkspace(transportFactory);
+    useReviewWorkspace(resolvedTransportFactory);
   const metrics = useMemo(() => estimateReviewMetrics(draft.source), [draft.source]);
   const isBusy = status === "loading" || status === "processing";
   const sourceError = fieldError("source", errors, touched);
@@ -243,9 +295,9 @@ const ReviewWorkspace: FC<ReviewWorkspaceProps> = ({
             line that needs your attention.
           </p>
         </div>
-        <div className="review-transport-chip" data-transport-mode="demo">
-          <span className="status-label status-label-accent">Demo transport</span>
-          <p>Deterministic fixture</p>
+        <div className="review-transport-chip" data-transport-mode={transportMode}>
+          <span className="status-label status-label-accent">{currentTransportCopy.chip}</span>
+          <p>{currentTransportCopy.description}</p>
         </div>
       </header>
 
@@ -426,7 +478,7 @@ const ReviewWorkspace: FC<ReviewWorkspaceProps> = ({
                   ? "Processing source"
                   : status === "error"
                     ? "Retry review"
-                    : "Start demo review"}
+                    : currentTransportCopy.submitLabel}
                 <LineIcon name={isBusy ? "arrow-right" : "arrow-up-right"} />
               </button>
               <button className="action-secondary" type="button" onClick={handleReset}>
@@ -435,14 +487,23 @@ const ReviewWorkspace: FC<ReviewWorkspaceProps> = ({
             </div>
 
             <div id="review-transport-note" className="review-transport-note" role="note">
-              <strong>Demo transport active.</strong>
-              <p>
-                This route uses a deterministic local fixture. It does not call live AI, save a
-                review, or report usage. The service bridge is shaped for{" "}
-                <code>POST /api/v1/reviews/:id/process</code> and{" "}
-                <code>GET /api/v1/reviews/:id/result</code> after auth and review creation are
-                wired.
-              </p>
+              <strong>{currentTransportCopy.noteTitle}</strong>
+              {transportMode === "api" ? (
+                <p>
+                  This authenticated route admits a server-owned review, then follows its bounded
+                  process, status stream, and validated result. Source stays at the API boundary.
+                </p>
+              ) : transportMode === "custom" ? (
+                <p>
+                  This route uses the transport supplied by the application shell. Its persistence
+                  and provider behavior remain owned by that transport.
+                </p>
+              ) : (
+                <p>
+                  Sign in to use the authenticated API bridge. Until then this route uses a
+                  deterministic local fixture and does not save review data or report usage.
+                </p>
+              )}
             </div>
           </form>
         </section>

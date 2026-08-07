@@ -30,6 +30,7 @@ const source = Object.freeze({
   authField: readTrackedSource("features/auth/components/AuthField.tsx"),
   passwordField: readTrackedSource("features/auth/components/PasswordField.tsx"),
   authClient: readTrackedSource("features/auth/api/authClient.ts"),
+  authSession: readTrackedSource("features/auth/authSession.tsx"),
   authHook: readTrackedSource("features/auth/hooks/useAuthForm.ts"),
   authTypes: readTrackedSource("features/auth/types/index.ts"),
   validation: readTrackedSource("features/auth/helpers/validation.ts"),
@@ -423,6 +424,11 @@ test("auth routes expose the intended mode and API endpoint seam", () => {
   assert.match(source.authClient, /\/api\/v1\/auth\/\$\{endpoint\}/u);
   assert.doesNotMatch(source.authClient, /localStorage|sessionStorage|document\.cookie/u);
   assert.match(source.authClient, /never writes access or refresh tokens to browser storage/u);
+  assert.match(source.authClient, /setAccessToken\(response\.accessToken\)/u);
+  assert.match(source.authClient, /refreshAccessToken/u);
+  assert.match(source.authClient, /\/api\/v1\/auth\/refresh/u);
+  assert.match(source.authSession, /useSyncExternalStore/u);
+  assert.match(source.authSession, /subscribeAuthSession/u);
 });
 
 test("auth client matches the integrated response envelopes and token boundary", () => {
@@ -462,15 +468,41 @@ test("auth client matches the integrated response envelopes and token boundary",
   assert.doesNotMatch(source.authTypes, /refreshToken/u);
   assert.doesNotMatch(source.authClient, /localStorage|sessionStorage|document\.cookie/u);
   assert.doesNotMatch(source.authHook, /localStorage|sessionStorage|document\.cookie/u);
+  assert.doesNotMatch(source.authSession, /localStorage|sessionStorage|document\.cookie/u);
   assert.match(source.authHook, /Registration does not sign you in automatically\./u);
   assert.match(source.authPage, /does not write access or\s+refresh tokens to browser storage/u);
 });
 
+test("auth client restores one memory-only session through the refresh cookie boundary", async () => {
+  const { clearAccessToken, getAccessToken, refreshAccessToken } = await authClientRuntime;
+  const originalFetch = globalThis.fetch;
+  let request;
+
+  try {
+    clearAccessToken();
+    globalThis.fetch = async (url, init) => {
+      request = { init, url };
+      return createJsonResponse(201, { data: validLoginData });
+    };
+
+    await refreshAccessToken();
+
+    assert.equal(getAccessToken(), validLoginData.accessToken);
+    assert.equal(request.url, "/api/v1/auth/refresh");
+    assert.equal(request.init.method, "POST");
+    assert.equal(request.init.credentials, "include");
+  } finally {
+    clearAccessToken();
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("auth client accepts valid metadata and rejects extra envelope keys at runtime", async () => {
-  const { authClient, AuthClientError } = await authClientRuntime;
+  const { authClient, AuthClientError, clearAccessToken, getAccessToken } = await authClientRuntime;
   const originalFetch = globalThis.fetch;
 
   try {
+    clearAccessToken();
     globalThis.fetch = async () =>
       createJsonResponse(201, {
         data: validLoginData,
@@ -478,6 +510,7 @@ test("auth client accepts valid metadata and rejects extra envelope keys at runt
       });
 
     await assert.doesNotReject(() => authClient.login(authRequest));
+    assert.equal(getAccessToken(), validLoginData.accessToken);
 
     globalThis.fetch = async () =>
       createJsonResponse(201, { data: validLoginData, trace: "unexpected" });
@@ -487,12 +520,13 @@ test("auth client accepts valid metadata and rejects extra envelope keys at runt
       (error) => error instanceof AuthClientError && error.status === 201,
     );
   } finally {
+    clearAccessToken();
     globalThis.fetch = originalFetch;
   }
 });
 
 test("auth client rejects invalid success metadata at runtime", async () => {
-  const { authClient, AuthClientError } = await authClientRuntime;
+  const { authClient, AuthClientError, clearAccessToken } = await authClientRuntime;
   const originalFetch = globalThis.fetch;
 
   try {
@@ -504,6 +538,7 @@ test("auth client rejects invalid success metadata at runtime", async () => {
       (error) => error instanceof AuthClientError && error.status === 201,
     );
   } finally {
+    clearAccessToken();
     globalThis.fetch = originalFetch;
   }
 });
@@ -602,12 +637,13 @@ test("review route exposes an operable editor and honest transport label", () =>
   assert.match(source.reviewWorkspace, /value=\{draft\.learnerLevel\}/u);
   assert.match(source.reviewWorkspace, /value=\{draft\.mode\}/u);
   assert.match(source.reviewWorkspace, /Start demo review/u);
+  assert.match(source.reviewWorkspace, /Start API review/u);
   assert.match(source.reviewWorkspace, /Cancel run/u);
-  assert.match(source.reviewWorkspace, /data-transport-mode="demo"/u);
-  assert.match(source.reviewWorkspace, /POST \/api\/v1\/reviews\/:id\/process/u);
-  assert.match(source.reviewWorkspace, /GET \/api\/v1\/reviews\/:id\/result/u);
-  assert.match(source.reviewWorkspace, /does not call live AI/u);
-  assert.match(source.reviewWorkspace, /report usage/u);
+  assert.match(source.reviewWorkspace, /data-transport-mode=\{transportMode\}/u);
+  assert.match(source.reviewWorkspace, /Authenticated API transport active\./u);
+  assert.match(source.reviewWorkspace, /Sign in to use the authenticated API bridge\./u);
+  assert.match(source.reviewWorkspace, /server-owned review/u);
+  assert.match(source.reviewWorkspace, /does not save review data/u);
 });
 
 test("review source input uses a real SSR-safe Monaco seam with accessible states", () => {
@@ -657,6 +693,10 @@ test("review editor maps the complete language set to Monaco identifiers", async
 });
 
 test("review transport preserves the accepted process and result endpoints", () => {
+  assert.match(source.reviewApi, /\/api\/v1\/reviews["`]/u);
+  assert.match(source.reviewApi, /Idempotency-Key/u);
+  assert.match(source.reviewApi, /JSON\.stringify\(\{[\s\S]*draft\.language/u);
+  assert.match(source.reviewApi, /isReviewAdmissionResponse/u);
   assert.match(
     source.reviewApi,
     /\/api\/v1\/reviews\/\$\{encodeURIComponent\(reviewId\)\}\/process/u,
@@ -674,6 +714,56 @@ test("review transport preserves the accepted process and result endpoints", () 
   assert.doesNotMatch(source.reviewApi, /DEEPSEEK|api[_-]?key|secret/iu);
 });
 
+test("review API admission uses a bounded idempotency key and forwards only accepted fields", async () => {
+  const { createReviewApiTransport } = await reviewApiRuntime;
+  const originalFetch = globalThis.fetch;
+  const fetchCalls = [];
+  const admission = {
+    createdAt: "2026-01-01T00:00:00.000Z",
+    id: "review-created-1",
+    language: "typescript",
+    mode: "STANDARD",
+    status: "PENDING",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+
+  try {
+    globalThis.fetch = async (url, init) => {
+      fetchCalls.push({ init, url });
+      return createJsonResponse(201, { data: admission });
+    };
+
+    const transport = createReviewApiTransport({
+      apiOrigin: "https://api.example.test",
+      getAccessToken: () => "access-token-fixture",
+    });
+    assert.ok(transport.create);
+    const created = await transport.create({
+      context: "not sent to the accepted API body",
+      language: "typescript",
+      learnerLevel: "advanced",
+      mode: "STANDARD",
+      source: "const answer = 42;",
+      title: "not sent to the accepted API body",
+    });
+
+    assert.deepEqual(created, admission);
+    assert.equal(fetchCalls.length, 1);
+    assert.equal(fetchCalls[0].url, "https://api.example.test/api/v1/reviews");
+    assert.equal(fetchCalls[0].init.method, "POST");
+    assert.equal(fetchCalls[0].init.credentials, "include");
+    assert.equal(fetchCalls[0].init.headers.Authorization, "Bearer access-token-fixture");
+    assert.match(fetchCalls[0].init.headers["Idempotency-Key"], /^web-review-[A-Za-z0-9-]+$/u);
+    assert.deepEqual(JSON.parse(fetchCalls[0].init.body), {
+      language: "typescript",
+      mode: "STANDARD",
+      source: "const answer = 42;",
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("review lifecycle transport uses authenticated fetch SSE without query credentials", async () => {
   assert.match(source.reviewApi, /getReader\(\)/u);
   assert.match(source.reviewApi, /text\/event-stream/u);
@@ -682,6 +772,8 @@ test("review lifecycle transport uses authenticated fetch SSE without query cred
   assert.doesNotMatch(source.reviewApi, /EventSource/u);
   assert.doesNotMatch(source.reviewApi, /events\?[^`]*token/iu);
   assert.match(source.reviewHook, /transport\.stream/u);
+  assert.match(source.reviewHook, /transport\.create/u);
+  assert.match(source.reviewHook, /const reviewId =/u);
   assert.match(source.reviewHook, /getReviewResultWithPolling/u);
   assert.match(source.reviewHook, /AbortController/u);
 

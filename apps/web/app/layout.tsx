@@ -71,7 +71,7 @@ const RootLayout = ({ children }: RootLayoutProps): ReactElement => (
             <p className="footer-note">
               <strong>RepoMentor</strong> gives code review a place to teach.
             </p>
-            <p className="footer-meta">Static foundation / no connected data</p>
+            <p className="footer-meta">Review API bridge / demo usage fixtures</p>
           </div>
         </footer>
       </div>

@@ -59,16 +59,23 @@ export const useReviewWorkspace = (
           return false;
         }
 
+        const createdReview = transport.create ? await transport.create(draft) : undefined;
+        const reviewId = createdReview?.id ?? DEMO_REVIEW_ID;
+
+        if (requestVersion.current !== currentVersion) {
+          return false;
+        }
+
         setStatus("processing");
         let streamPromise: Promise<ReviewStreamOutcome> | undefined;
         if (transport.stream) {
           try {
-            streamPromise = transport.stream(DEMO_REVIEW_ID, { signal: streamAbort.signal });
+            streamPromise = transport.stream(reviewId, { signal: streamAbort.signal });
           } catch {
             streamPromise = undefined;
           }
         }
-        const processResponse = await transport.process(DEMO_REVIEW_ID);
+        const processResponse = await transport.process(reviewId);
 
         if (requestVersion.current !== currentVersion) {
           return false;
