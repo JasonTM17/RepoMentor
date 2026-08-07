@@ -266,6 +266,17 @@ test("freezes the bounded status-only review event contract", () => {
       status: "CANCELLED",
       type: "cancelled",
     },
+    {
+      generation: 1,
+      id: "6",
+      replay: "reset",
+      resultAvailable: false,
+      retryable: false,
+      reviewId: "review-123",
+      schemaVersion: "v1",
+      status: "FAILED",
+      type: "snapshot",
+    },
   ] as const;
 
   for (const event of events) {

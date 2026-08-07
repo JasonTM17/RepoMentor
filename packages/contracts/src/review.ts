@@ -44,6 +44,7 @@ const reviewEventBaseSchema = z
 const reviewSnapshotEventSchema = reviewEventBaseSchema
   .extend({
     replay: z.enum(["current", "reset"]),
+    retryable: z.boolean().optional(),
     type: z.literal("snapshot"),
   })
   .strict();
