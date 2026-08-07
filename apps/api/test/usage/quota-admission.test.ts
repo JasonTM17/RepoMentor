@@ -12,13 +12,48 @@ import {
   hashIdempotencyKey,
   normalizeIdempotencyKey,
 } from "../../src/modules/usage/quota-admission.hash.js";
+import {
+  computeQuotaAdmissionFingerprint,
+  QUOTA_ADMISSION_FINGERPRINT_VERSION,
+  type QuotaAdmissionFingerprintInput,
+} from "../../src/modules/usage/quota-admission.fingerprint.js";
 import { QuotaAdmissionService } from "../../src/modules/usage/quota-admission.service.js";
 
 const NOW = new Date("2026-08-06T12:00:00.000Z");
 const IDEMPOTENCY_KEY = "idempotency-key-123456";
+const FINGERPRINT_SECRET = "quota-admission-test-fingerprint-secret-32-bytes";
+const FINGERPRINT_SOURCE = "const answer = 42;\n";
+const FINGERPRINT_KEY = "idempotency-key-fingerprint-123456";
+const FINGERPRINT_OWNER_A = "fingerprint-owner-a";
+const FINGERPRINT_OWNER_B = "fingerprint-owner-b";
 
 function createService(): QuotaAdmissionService {
   return new QuotaAdmissionService(new InMemoryQuotaAdmissionRepository());
+}
+
+function createFingerprint(overrides: Partial<QuotaAdmissionFingerprintInput> = {}): {
+  requestFingerprintHash: string;
+  fingerprintVersion: number;
+} {
+  return computeQuotaAdmissionFingerprint(FINGERPRINT_SECRET, {
+    fingerprintVersion: QUOTA_ADMISSION_FINGERPRINT_VERSION,
+    language: "TypeScript",
+    mode: "STANDARD",
+    source: FINGERPRINT_SOURCE,
+    ...overrides,
+  });
+}
+
+function assertJsonOmitsRawMaterial(value: unknown, rawMaterials: readonly string[]): void {
+  const serialized = JSON.stringify(value);
+  assert.ok(serialized !== undefined);
+
+  for (const rawMaterial of rawMaterials) {
+    assert.equal(serialized.includes(rawMaterial), false);
+    const encodedRawMaterial = JSON.stringify(rawMaterial);
+    assert.ok(encodedRawMaterial !== undefined);
+    assert.equal(serialized.includes(encodedRawMaterial), false);
+  }
 }
 
 describe("quota admission idempotency boundary", () => {
@@ -119,6 +154,117 @@ describe("quota admission idempotency boundary", () => {
       }),
       QuotaAdmissionConflictError,
     );
+  });
+
+  it("replays identical owner fingerprints and rejects conflicting metadata without mutation", async () => {
+    const service = createService();
+    const fingerprint = createFingerprint();
+    const differentHash = createFingerprint({ source: "const answer = 43;\n" });
+    const differentVersion = createFingerprint({
+      fingerprintVersion: QUOTA_ADMISSION_FINGERPRINT_VERSION + 1,
+    });
+    const rawMaterials = [FINGERPRINT_SOURCE, FINGERPRINT_KEY, FINGERPRINT_SECRET];
+    const first = await service.createIntent({
+      admissionId: "fp-admission-owner-a",
+      fingerprintVersion: fingerprint.fingerprintVersion,
+      idempotencyKey: FINGERPRINT_KEY,
+      mode: "STANDARD",
+      now: NOW,
+      requestFingerprintHash: fingerprint.requestFingerprintHash,
+      reviewId: "fp-review-owner-a",
+      userId: FINGERPRINT_OWNER_A,
+    });
+    const replay = await service.createIntent({
+      admissionId: "fp-admission-replay",
+      fingerprintVersion: fingerprint.fingerprintVersion,
+      idempotencyKey: FINGERPRINT_KEY,
+      mode: "STANDARD",
+      now: NOW,
+      requestFingerprintHash: fingerprint.requestFingerprintHash,
+      reviewId: "fp-review-replay",
+      userId: FINGERPRINT_OWNER_A,
+    });
+
+    assert.equal(first.created, true);
+    assert.equal(replay.created, false);
+    assert.deepEqual(replay.record, first.record);
+    assertJsonOmitsRawMaterial(first.record, rawMaterials);
+
+    const conflicts = [
+      {
+        admissionId: "fp-conflict-hash",
+        input: {
+          admissionId: "fp-conflict-hash",
+          fingerprintVersion: fingerprint.fingerprintVersion,
+          idempotencyKey: FINGERPRINT_KEY,
+          mode: "STANDARD" as const,
+          now: NOW,
+          requestFingerprintHash: differentHash.requestFingerprintHash,
+          reviewId: "fp-review-hash",
+          userId: FINGERPRINT_OWNER_A,
+        },
+      },
+      {
+        admissionId: "fp-conflict-missing",
+        input: {
+          admissionId: "fp-conflict-missing",
+          idempotencyKey: FINGERPRINT_KEY,
+          mode: "STANDARD" as const,
+          now: NOW,
+          reviewId: "fp-review-missing",
+          userId: FINGERPRINT_OWNER_A,
+        },
+      },
+      {
+        admissionId: "fp-conflict-version",
+        input: {
+          admissionId: "fp-conflict-version",
+          fingerprintVersion: differentVersion.fingerprintVersion,
+          idempotencyKey: FINGERPRINT_KEY,
+          mode: "STANDARD" as const,
+          now: NOW,
+          requestFingerprintHash: fingerprint.requestFingerprintHash,
+          reviewId: "fp-review-version",
+          userId: FINGERPRINT_OWNER_A,
+        },
+      },
+    ];
+
+    for (const conflict of conflicts) {
+      await assert.rejects(service.createIntent(conflict.input), (error: unknown) => {
+        assert.ok(error instanceof QuotaAdmissionConflictError);
+        assertJsonOmitsRawMaterial(
+          { code: error.code, message: error.message, name: error.name },
+          rawMaterials,
+        );
+        return true;
+      });
+      assert.deepEqual(
+        await service.findForOwner(FINGERPRINT_OWNER_A, first.record.id),
+        first.record,
+      );
+      assert.equal(await service.findForOwner(FINGERPRINT_OWNER_A, conflict.admissionId), null);
+    }
+
+    const otherOwner = await service.createIntent({
+      admissionId: "fp-admission-owner-b",
+      fingerprintVersion: fingerprint.fingerprintVersion,
+      idempotencyKey: FINGERPRINT_KEY,
+      mode: "STANDARD",
+      now: NOW,
+      requestFingerprintHash: fingerprint.requestFingerprintHash,
+      reviewId: "fp-review-owner-b",
+      userId: FINGERPRINT_OWNER_B,
+    });
+
+    assert.equal(otherOwner.created, true);
+    assert.notEqual(otherOwner.record.id, first.record.id);
+    assert.notEqual(otherOwner.record.reviewId, first.record.reviewId);
+    assert.deepEqual(
+      await service.findForOwner(FINGERPRINT_OWNER_A, first.record.id),
+      first.record,
+    );
+    assertJsonOmitsRawMaterial(otherOwner.record, rawMaterials);
   });
 });
 
