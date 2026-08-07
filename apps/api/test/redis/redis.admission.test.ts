@@ -49,7 +49,7 @@ class FakeAdmissionExecutor implements RedisCommandExecutor {
     const counterKey = options.keys[0];
     const markerKey = options.keys[1];
     const limit = Number(options.arguments[0]);
-    const ttlSeconds = Number(options.arguments[1]);
+    const ttlMs = Number(options.arguments[1]);
     const admissionId = options.arguments[2];
 
     if (!counterKey || !markerKey || !admissionId) {
@@ -66,29 +66,26 @@ class FakeAdmissionExecutor implements RedisCommandExecutor {
 
       const current = this.values.get(counterKey);
       const used = current ? Number(current.value) : 0;
-      const currentTtl = current ? this.ttlSeconds(current) : -2;
+      const currentPttl = current ? current.expiresAtMs - this.nowMs : -2;
       let nextUsed = used;
       let outcome = 0;
-      let retryAfter = current ? currentTtl : ttlSeconds;
+      let expiryAtMs = this.nowMs + ttlMs;
+      if (current && currentPttl > 0) {
+        expiryAtMs = current.expiresAtMs;
+      }
 
       if (used < limit) {
         nextUsed += 1;
         outcome = 1;
-        const expiresAtMs =
-          current && currentTtl > 0
-            ? current.expiresAtMs
-            : this.nowMs + ttlSeconds * 1_000;
-        this.values.set(counterKey, { expiresAtMs, value: String(nextUsed) });
-        retryAfter = this.ttlSeconds(this.values.get(counterKey)!);
-      } else if (current && currentTtl <= 0) {
-        const expiresAtMs = this.nowMs + ttlSeconds * 1_000;
-        this.values.set(counterKey, { expiresAtMs, value: current.value });
-        retryAfter = this.ttlSeconds(this.values.get(counterKey)!);
+        this.values.set(counterKey, { expiresAtMs: expiryAtMs, value: String(nextUsed) });
+      } else if (current && currentPttl <= 0) {
+        this.values.set(counterKey, { expiresAtMs: expiryAtMs, value: current.value });
       }
 
+      const retryAfter = this.retryAfterSeconds(expiryAtMs);
       const remaining = Math.max(limit - nextUsed, 0);
       this.values.set(markerKey, {
-        expiresAtMs: this.nowMs + retryAfter * 1_000,
+        expiresAtMs: expiryAtMs,
         value: `${admissionId}|${outcome}|${nextUsed}|${remaining}|${retryAfter}`,
       });
       return [outcome, nextUsed, remaining, retryAfter, 0];
@@ -112,13 +109,19 @@ class FakeAdmissionExecutor implements RedisCommandExecutor {
       if (current && nextUsed === 0) {
         this.values.delete(counterKey);
       } else if (current) {
-        this.values.set(counterKey, { ...current, value: String(nextUsed) });
+        this.values.set(counterKey, {
+          expiresAtMs: Math.min(current.expiresAtMs, marker.expiresAtMs),
+          value: String(nextUsed),
+        });
       }
 
-      const retryAfter = current ? this.ttlSeconds(current) : parsed.retryAfter;
+      const expiryAtMs = current
+        ? Math.min(current.expiresAtMs, marker.expiresAtMs)
+        : marker.expiresAtMs;
+      const retryAfter = this.retryAfterSeconds(expiryAtMs);
       const remaining = Math.max(limit - nextUsed, 0);
       this.values.set(markerKey, {
-        expiresAtMs: marker.expiresAtMs,
+        expiresAtMs: expiryAtMs,
         value: `${admissionId}|2|${nextUsed}|${remaining}|${retryAfter}`,
       });
       return [1, nextUsed, remaining, retryAfter];
@@ -157,8 +160,18 @@ class FakeAdmissionExecutor implements RedisCommandExecutor {
     };
   }
 
-  private ttlSeconds(value: StoredValue): number {
-    return Math.max(0, Math.floor((value.expiresAtMs - this.nowMs) / 1_000));
+  private retryAfterSeconds(expiresAtMs: number): number {
+    return Math.max(0, Math.ceil((expiresAtMs - this.nowMs) / 1_000));
+  }
+
+  expiryFor(key: string): number | undefined {
+    this.expireValues();
+    return this.values.get(key)?.expiresAtMs;
+  }
+
+  valueFor(key: string): string | undefined {
+    this.expireValues();
+    return this.values.get(key)?.value;
   }
 
   private expireValues(): void {
@@ -179,6 +192,10 @@ function input(admissionId: string): QuotaAdmissionReservationInput {
     now: NOW,
     utcDay: "2026-08-06",
   };
+}
+
+function admissionKeys(admissionId: string) {
+  return buildQuotaAdmissionKeys("authenticated", "user_123", "2026-08-06", "QUICK", admissionId);
 }
 
 describe("reservation-aware Redis admission keys", () => {
@@ -231,56 +248,74 @@ describe("atomic Redis quota admission reservation", () => {
     });
     assert.equal(executor.evalCalls.length, 3);
     assert.equal(executor.evalCalls[0]?.script, RESERVE_QUOTA_ADMISSION_SCRIPT);
-    assert.deepEqual(executor.evalCalls[0]?.options.arguments, ["1", "43200", "admission_1"]);
+    assert.deepEqual(executor.evalCalls[0]?.options.arguments, ["1", "43200000", "admission_1"]);
   });
 
-  it("refreshes a live counter whose Redis TTL has rounded down to zero", async () => {
+  it("keeps a nearly expiring counter and marker on one absolute expiry", async () => {
     const executor = new FakeAdmissionExecutor();
     const config = makeConfig({ authenticatedDailyLimits: { DEEP: 3, QUICK: 2, STANDARD: 10 } });
 
+    const initialKeys = admissionKeys("admission_1");
     await reserveQuotaAdmission(executor, config, input("admission_1"));
+    assert.equal(executor.expiryFor(initialKeys.counterKey), executor.expiryFor(initialKeys.markerKey));
     executor.advance(43_199_500);
 
-    const nearExpiry = await reserveQuotaAdmission(executor, config, input("admission_2"));
+    const reservation = input("admission_2");
+    const nearExpiry = await reserveQuotaAdmission(executor, config, reservation);
+    const keys = admissionKeys(reservation.admissionId);
 
-    assert.match(RESERVE_QUOTA_ADMISSION_SCRIPT, /currentTtl <= 0/u);
+    assert.match(RESERVE_QUOTA_ADMISSION_SCRIPT, /PTTL/u);
+    assert.match(RESERVE_QUOTA_ADMISSION_SCRIPT, /PXAT/u);
+    assert.doesNotMatch(RESERVE_QUOTA_ADMISSION_SCRIPT, /redis\.call\("TTL"/u);
+    assert.equal(executor.expiryFor(keys.counterKey), executor.expiryFor(keys.markerKey));
     assert.deepEqual(nearExpiry, {
       allowed: true,
       outcome: "RESERVED",
       remaining: 0,
       replayed: false,
-      retryAfterSeconds: 43_200,
+      retryAfterSeconds: 1,
       used: 2,
     });
+
+    const duplicate = await reserveQuotaAdmission(executor, config, reservation);
+    assert.deepEqual(duplicate, { ...nearExpiry, replayed: true });
   });
 
   it("compensates once, keeps a tombstone, and prevents a second reservation", async () => {
     const executor = new FakeAdmissionExecutor();
-    const config = makeConfig({ authenticatedDailyLimits: { DEEP: 3, QUICK: 1, STANDARD: 10 } });
+    const config = makeConfig({ authenticatedDailyLimits: { DEEP: 3, QUICK: 2, STANDARD: 10 } });
     const reservation = input("admission_1");
+    const keys = admissionKeys(reservation.admissionId);
 
     await reserveQuotaAdmission(executor, config, reservation);
+    await reserveQuotaAdmission(executor, config, input("admission_2"));
     const compensated = await compensateQuotaAdmission(executor, config, reservation);
+    assert.equal(executor.expiryFor(keys.counterKey), executor.expiryFor(keys.markerKey));
     const repeatedCompensation = await compensateQuotaAdmission(executor, config, reservation);
     const replayAfterCompensation = await reserveQuotaAdmission(executor, config, reservation);
-    const nextAdmission = await reserveQuotaAdmission(executor, config, input("admission_2"));
+    const nextAdmission = await reserveQuotaAdmission(executor, config, input("admission_3"));
 
     assert.equal(compensated.compensated, true);
-    assert.equal(compensated.used, 0);
+    assert.equal(compensated.used, 1);
     assert.equal(repeatedCompensation.compensated, false);
     assert.equal(replayAfterCompensation.outcome, "COMPENSATED");
     assert.equal(replayAfterCompensation.allowed, false);
     assert.equal(replayAfterCompensation.replayed, true);
     assert.equal(nextAdmission.allowed, true);
+    assert.match(executor.valueFor(keys.markerKey) ?? "", /^admission_1\|2\|1\|1\|/u);
   });
 
   it("expires the counter and marker together", async () => {
     const executor = new FakeAdmissionExecutor();
     const config = makeConfig();
     const reservation = input("admission_1");
+    const keys = admissionKeys(reservation.admissionId);
 
     await reserveQuotaAdmission(executor, config, reservation);
+    assert.equal(executor.expiryFor(keys.counterKey), executor.expiryFor(keys.markerKey));
     executor.advance(43_200_000);
+    assert.equal(executor.expiryFor(keys.counterKey), undefined);
+    assert.equal(executor.expiryFor(keys.markerKey), undefined);
     const afterExpiry = await reserveQuotaAdmission(executor, config, reservation);
 
     assert.equal(afterExpiry.outcome, "RESERVED");

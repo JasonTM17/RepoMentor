@@ -25,24 +25,22 @@ end
 local current = redis.call("GET", KEYS[1])
 local used = tonumber(current) or 0
 local limit = tonumber(ARGV[1])
-local ttl = tonumber(ARGV[2])
-local currentTtl = redis.call("TTL", KEYS[1])
+local ttlMs = tonumber(ARGV[2])
+local serverTime = redis.call("TIME")
+local nowMs = tonumber(serverTime[1]) * 1000 + math.floor(tonumber(serverTime[2]) / 1000)
+local currentPttl = redis.call("PTTL", KEYS[1])
+local expiryAtMs = nowMs + ttlMs
+if currentPttl > 0 then
+  expiryAtMs = nowMs + currentPttl
+end
 local outcome = 0
 
 if used < limit then
   used = redis.call("INCR", KEYS[1])
   outcome = 1
-  if used == 1 or currentTtl <= 0 then
-    redis.call("EXPIRE", KEYS[1], ttl)
-    currentTtl = ttl
-  end
-elseif currentTtl <= 0 and current ~= false then
-  redis.call("EXPIRE", KEYS[1], ttl)
-  currentTtl = ttl
-end
-
-if currentTtl <= 0 then
-  currentTtl = ttl
+  redis.call("PEXPIREAT", KEYS[1], expiryAtMs)
+elseif currentPttl <= 0 and current ~= false then
+  redis.call("PEXPIREAT", KEYS[1], expiryAtMs)
 end
 
 local remaining = limit - used
@@ -50,9 +48,10 @@ if remaining < 0 then
   remaining = 0
 end
 
-local markerValue = table.concat({ARGV[3], tostring(outcome), tostring(used), tostring(remaining), tostring(currentTtl)}, "|")
-redis.call("SET", KEYS[2], markerValue, "EX", currentTtl)
-return {outcome, used, remaining, currentTtl, 0}
+local retryAfter = math.ceil((expiryAtMs - nowMs) / 1000)
+local markerValue = table.concat({ARGV[3], tostring(outcome), tostring(used), tostring(remaining), tostring(retryAfter)}, "|")
+redis.call("SET", KEYS[2], markerValue, "PXAT", expiryAtMs)
+return {outcome, used, remaining, retryAfter, 0}
 `.trim();
 
 export const COMPENSATE_QUOTA_ADMISSION_SCRIPT = `
@@ -69,8 +68,8 @@ if owner ~= ARGV[3] or outcome == nil then
   return redis.error_reply("invalid admission marker")
 end
 
-local markerTtl = redis.call("TTL", KEYS[2])
-if markerTtl < 1 then
+local markerPttl = redis.call("PTTL", KEYS[2])
+if markerPttl <= 0 then
   return {0, tonumber(used), tonumber(remaining), tonumber(retryAfter)}
 end
 
@@ -78,6 +77,9 @@ if tonumber(outcome) ~= 1 then
   return {0, tonumber(used), tonumber(remaining), tonumber(retryAfter)}
 end
 
+local serverTime = redis.call("TIME")
+local nowMs = tonumber(serverTime[1]) * 1000 + math.floor(tonumber(serverTime[2]) / 1000)
+local expiryAtMs = nowMs + markerPttl
 local current = tonumber(redis.call("GET", KEYS[1])) or 0
 local nextUsed = current
 if current > 0 then
@@ -85,6 +87,8 @@ if current > 0 then
   if nextUsed <= 0 then
     redis.call("DEL", KEYS[1])
     nextUsed = 0
+  else
+    redis.call("PEXPIREAT", KEYS[1], expiryAtMs)
   end
 end
 
@@ -94,14 +98,10 @@ if nextRemaining < 0 then
   nextRemaining = 0
 end
 
-local counterTtl = redis.call("TTL", KEYS[1])
-if counterTtl < 1 then
-  counterTtl = tonumber(retryAfter)
-end
-
-local tombstone = table.concat({ARGV[3], "2", tostring(nextUsed), tostring(nextRemaining), tostring(counterTtl)}, "|")
-redis.call("SET", KEYS[2], tombstone, "EX", markerTtl)
-return {1, nextUsed, nextRemaining, counterTtl}
+local retryAfterSeconds = math.ceil((expiryAtMs - nowMs) / 1000)
+local tombstone = table.concat({ARGV[3], "2", tostring(nextUsed), tostring(nextRemaining), tostring(retryAfterSeconds)}, "|")
+redis.call("SET", KEYS[2], tombstone, "PXAT", expiryAtMs)
+return {1, nextUsed, nextRemaining, retryAfterSeconds}
 `.trim();
 
 export type QuotaAdmissionReservationOutcome = "RESERVED" | "DENIED" | "COMPENSATED";
@@ -306,7 +306,11 @@ export async function reserveQuotaAdmission(
     rawResult = await executor.eval(
       RESERVE_QUOTA_ADMISSION_SCRIPT,
       {
-        arguments: [String(parameters.limit), String(parameters.ttlSeconds), input.admissionId],
+        arguments: [
+          String(parameters.limit),
+          String(parameters.ttlSeconds * 1_000),
+          input.admissionId,
+        ],
         keys: [parameters.keys.counterKey, parameters.keys.markerKey],
       },
       "quota-admission-reservation",
@@ -339,7 +343,11 @@ export async function compensateQuotaAdmission(
     rawResult = await executor.eval(
       COMPENSATE_QUOTA_ADMISSION_SCRIPT,
       {
-        arguments: [String(parameters.limit), String(parameters.ttlSeconds), input.admissionId],
+        arguments: [
+          String(parameters.limit),
+          String(parameters.ttlSeconds * 1_000),
+          input.admissionId,
+        ],
         keys: [parameters.keys.counterKey, parameters.keys.markerKey],
       },
       "quota-admission-compensation",
