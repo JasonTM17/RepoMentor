@@ -102,7 +102,7 @@ preview is labeled static and the empty state says that no reviews exist yet.
 
 ### API
 
-The API uses `/api/v1` as its global prefix except for the two health routes.
+The API uses `/api/v1` as its global prefix except for the three health routes.
 Successful responses are wrapped as `{ "data": ... }`; failures use an
 `{ "error": ... }` problem envelope and a bounded `X-Request-Id` header.
 
@@ -110,6 +110,7 @@ Successful responses are wrapped as `{ "data": ... }`; failures use an
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /health/live`                 | Process liveness: `{ "data": { "status": "ok" } }`.                                                                              |
 | `GET /health/ready`                | Application-only readiness. It does not probe PostgreSQL, Redis, or AI.                                                          |
+| `GET /health/metrics`              | Aggregate process-local request counters; no route labels, source, provider, dependency, or credential data.                     |
 | `GET /api/docs`                    | Swagger UI for the current API document.                                                                                         |
 | `POST /api/v1/auth/register`       | Validates input and returns `202` with `{ "accepted": true }`; new and duplicate emails are intentionally indistinguishable.     |
 | `POST /api/v1/auth/login`          | Returns a short-lived Bearer access token and public user data in a `201` success envelope.                                      |
@@ -226,6 +227,9 @@ Compose waits for PostgreSQL and Redis container health before starting the
 API, then waits for the API's process-liveness health before starting the web.
 The API healthcheck only tests `/health/live`, and the web healthcheck only
 tests `/`; neither claims dependency-aware readiness.
+The metrics endpoint is process-local and operational only; it does not claim
+live PostgreSQL, Redis, or Luna telemetry and intentionally excludes request
+payloads, route labels, provider details, and credentials.
 
 ## Development commands
 

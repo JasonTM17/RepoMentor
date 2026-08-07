@@ -10,6 +10,7 @@ intentionally excluded from that prefix:
 
 - `GET /health/live` reports that the API process is alive.
 - `GET /health/ready` reports that the application is ready for work.
+- `GET /health/metrics` reports aggregate application request counters only.
 - `GET /api/docs` serves the Swagger UI.
 
 Successful responses use the shared envelope shape:
@@ -26,6 +27,9 @@ Readiness is application-only in Phase 02 and returns `scope: "application"`.
 It does not probe PostgreSQL, Redis, or OpenAI; those dependency checks are
 intentionally reserved for later phases. Health payloads are sourced from
 `@repomentor/contracts` and do not expose service metadata or credentials.
+Metrics are process-local and intentionally omit route labels, request data,
+provider details, dependency URLs, and credentials. They are an operational
+signal, not a claim that PostgreSQL, Redis, or Luna are reachable.
 
 ## Authenticated review processing transport
 
