@@ -708,3 +708,39 @@ separate follow-ups.
 The branch is complete and no longer active. Do not start another branch until
 the next scope is explicitly bounded; preserve historical worktrees and
 unmerged refs as frozen inventory.
+
+## Web authenticated review resolution — 2026-08-07
+
+The next bounded web slice was `feature/web-live-review`, based exactly on
+main `67e0ae6`. Its scope was limited to the authenticated browser handoff:
+memory-only access-token state, one-shot refresh-cookie restoration, a strict
+`POST /api/v1/reviews` admission transport with a bounded `Idempotency-Key`,
+accepted-field-only request serialization, server-owned review ID propagation
+through process/SSE/result, and truthful API/demo UI labels. Browser storage,
+provider selection, source persistence, and the deferred optional RAG path
+remain outside this slice.
+
+The Luna worker returned within the bounded window without editing the branch,
+so the coordinator completed the same frozen scope locally. The branch
+finished clean and was fast-forward integrated as two focused commits:
+
+- `6c06329`: memory-only auth session, refresh-cookie seam, and truthful
+  post-login workspace handoff;
+- `3126647`: authenticated review admission/lifecycle transport, review ID
+  wiring, transport-state UI, and deterministic web coverage.
+
+Exact-head review confirmed base `67e0ae6`, two intended commits, no residual
+diff, and no cherry-pick duplicate before integration. Merged-main evidence on
+`3126647` is API `250/250`, web `40/40`, contracts `7/7`, full workspace
+tests, typecheck, lint, production build, Prettier, Prisma schema validation
+with a process-local dummy URL, package payload check, diff-check, and a
+credential-shaped scan with no matches. The Luna read-only advisor/Kongming
+reviewer timed out and was shut down without a verdict; this is recorded as
+no independent ACCEPT, not as review evidence.
+
+The implementation still lacks live browser Playwright coverage, live
+PostgreSQL/Redis/Luna execution, multi-instance runtime evidence, Docker
+daemon/registry publication, and deployment evidence. These remain explicit
+follow-up limits and do not become production-readiness claims from local
+tests alone. The branch is complete and no longer active; historical refs and
+worktrees remain frozen and are not eligible for wholesale cleanup.
