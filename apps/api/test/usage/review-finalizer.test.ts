@@ -8,6 +8,7 @@ import {
 import {
   ReviewFinalizerConflictError,
   ReviewFinalizerIndeterminateError,
+  ReviewFinalizerInputError,
   ReviewFinalizerNotFoundError,
   ReviewFinalizerUnavailableError,
 } from "../../src/modules/usage/review-finalizer.errors.js";
@@ -18,11 +19,15 @@ const OWNER = "owner-a";
 const OTHER_OWNER = "owner-b";
 const ADMISSION_ID = "admission-a";
 const REVIEW_ID = "review-a";
+const FINGERPRINT_VERSION = 1;
+const FINGERPRINT_HASH = "a".repeat(64);
 
 const RESERVED: SeedReservedAdmission = {
   id: ADMISSION_ID,
   mode: "STANDARD",
   reviewId: REVIEW_ID,
+  fingerprintVersion: FINGERPRINT_VERSION,
+  requestFingerprintHash: FINGERPRINT_HASH,
   updatedAt: NOW,
   userId: OWNER,
 };
@@ -34,6 +39,8 @@ function input(overrides: Partial<FinalizeReviewInput> = {}): FinalizeReviewInpu
     mode: "STANDARD",
     now: NOW,
     reviewId: REVIEW_ID,
+    fingerprintVersion: FINGERPRINT_VERSION,
+    requestFingerprintHash: FINGERPRINT_HASH,
     source: "const answer = 42;",
     userId: OWNER,
     ...overrides,
@@ -58,6 +65,7 @@ describe("review finalizer contract seam", () => {
     });
     assert.equal("source" in result.summary, false);
     assert.equal(JSON.stringify(result).includes("const answer"), false);
+    assert.equal(JSON.stringify(result).includes(FINGERPRINT_HASH), false);
     assert.equal(finalizer.findAdmission(OWNER, ADMISSION_ID)?.status, "ADMITTED");
     assert.equal(finalizer.findSummary(OWNER, REVIEW_ID)?.id, REVIEW_ID);
   });
@@ -74,6 +82,73 @@ describe("review finalizer contract seam", () => {
     assert.equal(first.kind, "FINALIZED");
     assert.equal(replay.kind, "REPLAYED");
     assert.deepEqual(replay.summary, first.summary);
+    assert.equal(finalizer.findAdmission(OWNER, ADMISSION_ID)?.status, "ADMITTED");
+  });
+
+  it("rejects missing, partial, mismatched, and legacy admission fingerprints before writes", async () => {
+    const cases = [
+      { fingerprintVersion: null, requestFingerprintHash: null },
+      { fingerprintVersion: FINGERPRINT_VERSION, requestFingerprintHash: null },
+      { fingerprintVersion: null, requestFingerprintHash: FINGERPRINT_HASH },
+      { fingerprintVersion: FINGERPRINT_VERSION, requestFingerprintHash: "b".repeat(64) },
+    ];
+
+    for (const [index, fingerprint] of cases.entries()) {
+      const finalizer = new InMemoryReviewFinalizer();
+      const admissionId = `admission-fingerprint-${index}`;
+      const reviewId = `review-fingerprint-${index}`;
+      finalizer.seedReservedAdmission({
+        ...RESERVED,
+        fingerprintVersion: fingerprint.fingerprintVersion,
+        id: admissionId,
+        requestFingerprintHash: fingerprint.requestFingerprintHash,
+        reviewId,
+      });
+
+      await assert.rejects(
+        finalizer.finalize(input({ admissionId, reviewId })),
+        (error: unknown) => {
+          assert.ok(error instanceof ReviewFinalizerConflictError);
+          assert.equal(error.message.includes(FINGERPRINT_HASH), false);
+          return true;
+        },
+      );
+      assert.equal(finalizer.findSummary(OWNER, reviewId), null);
+      assert.equal(finalizer.findAdmission(OWNER, admissionId)?.status, "RESERVED");
+    }
+
+    const finalizer = new InMemoryReviewFinalizer();
+    finalizer.seedReservedAdmission(RESERVED);
+
+    for (const metadata of [
+      { fingerprintVersion: undefined, requestFingerprintHash: FINGERPRINT_HASH },
+      { fingerprintVersion: FINGERPRINT_VERSION, requestFingerprintHash: undefined },
+    ]) {
+      await assert.rejects(
+        finalizer.finalize({ ...input(), ...metadata } as unknown as FinalizeReviewInput),
+        (error: unknown) => {
+          assert.ok(error instanceof ReviewFinalizerInputError);
+          assert.equal(error.message.includes(FINGERPRINT_HASH), false);
+          return true;
+        },
+      );
+    }
+
+    assert.equal(finalizer.findSummary(OWNER, REVIEW_ID), null);
+    assert.equal(finalizer.findAdmission(OWNER, ADMISSION_ID)?.status, "RESERVED");
+  });
+
+  it("rejects a mismatched fingerprint on an admitted replay without mutation", async () => {
+    const finalizer = new InMemoryReviewFinalizer();
+    finalizer.seedReservedAdmission(RESERVED);
+    const first = await finalizer.finalize(input());
+
+    await assert.rejects(
+      finalizer.finalize(input({ requestFingerprintHash: "b".repeat(64) })),
+      (error: unknown) => error instanceof ReviewFinalizerConflictError,
+    );
+
+    assert.deepEqual(finalizer.findSummary(OWNER, REVIEW_ID), first.summary);
     assert.equal(finalizer.findAdmission(OWNER, ADMISSION_ID)?.status, "ADMITTED");
   });
 

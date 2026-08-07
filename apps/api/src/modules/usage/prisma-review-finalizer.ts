@@ -17,6 +17,10 @@ import type {
   ReviewFinalizerSummary,
 } from "./review-finalizer.types.js";
 import {
+  assertReviewFinalizerAdmissionFingerprint,
+  assertReviewFinalizerFingerprintMetadata,
+} from "./review-finalizer.types.js";
+import {
   REVIEW_MAX_LANGUAGE_LENGTH,
   REVIEW_MAX_SOURCE_LENGTH,
   REVIEW_MODES,
@@ -148,6 +152,7 @@ export class PrismaReviewFinalizer implements ReviewFinalizer {
     const source = assertSource(input.source);
     const language = canonicalLanguage(input.language);
     const mode = assertMode(input.mode);
+    const fingerprintMetadata = assertReviewFinalizerFingerprintMetadata(input);
     const now = assertDate(input.now);
 
     try {
@@ -163,6 +168,8 @@ export class PrismaReviewFinalizer implements ReviewFinalizer {
         if (admission.reviewId !== reviewId || admission.mode !== mode) {
           throw new ReviewFinalizerConflictError();
         }
+
+        assertReviewFinalizerAdmissionFingerprint(admission, fingerprintMetadata);
 
         if (admission.status === "ADMITTED") {
           const existing = await transaction.review.findFirst({

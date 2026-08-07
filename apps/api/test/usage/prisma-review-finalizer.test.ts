@@ -8,6 +8,7 @@ import { PrismaReviewFinalizer } from "../../src/modules/usage/prisma-review-fin
 import {
   ReviewFinalizerConflictError,
   ReviewFinalizerIndeterminateError,
+  ReviewFinalizerInputError,
   ReviewFinalizerNotFoundError,
   ReviewFinalizerUnavailableError,
 } from "../../src/modules/usage/review-finalizer.errors.js";
@@ -18,20 +19,26 @@ const OWNER = "owner-a";
 const OTHER_OWNER = "owner-b";
 const ADMISSION_ID = "admission-a";
 const REVIEW_ID = "review-a";
+const FINGERPRINT_VERSION = 1;
+const FINGERPRINT_HASH = "a".repeat(64);
 
-function admission(status: QuotaAdmission["status"] = "RESERVED"): QuotaAdmission {
+function admission(
+  status: QuotaAdmission["status"] = "RESERVED",
+  overrides: Partial<QuotaAdmission> = {},
+): QuotaAdmission {
   return {
     createdAt: NOW,
-    fingerprintVersion: null,
+    fingerprintVersion: FINGERPRINT_VERSION,
     id: ADMISSION_ID,
     idempotencyKeyHash: "a".repeat(64),
     mode: "STANDARD",
-    requestFingerprintHash: null,
+    requestFingerprintHash: FINGERPRINT_HASH,
     reviewId: REVIEW_ID,
     status,
     updatedAt: NOW,
     userId: OWNER,
     utcDay: new Date("2026-08-07T00:00:00.000Z"),
+    ...overrides,
   };
 }
 
@@ -58,6 +65,8 @@ function input(overrides: Partial<FinalizeReviewInput> = {}): FinalizeReviewInpu
     mode: "STANDARD",
     now: NOW,
     reviewId: REVIEW_ID,
+    fingerprintVersion: FINGERPRINT_VERSION,
+    requestFingerprintHash: FINGERPRINT_HASH,
     source: "const answer = 42;",
     userId: OWNER,
     ...overrides,
@@ -221,6 +230,7 @@ describe("Prisma review finalizer", () => {
     assert.equal("source" in result.summary, false);
     assert.equal("userId" in result.summary, false);
     assert.equal(JSON.stringify(result).includes("const answer"), false);
+    assert.equal(JSON.stringify(result).includes(FINGERPRINT_HASH), false);
     assert.deepEqual(fixture.reviewCreateArgs()?.data, {
       createdAt: NOW,
       id: REVIEW_ID,
@@ -245,6 +255,55 @@ describe("Prisma review finalizer", () => {
       "quotaAdmission.updateMany",
       "transaction:commit",
     ]);
+  });
+
+  it("rejects missing or partial server fingerprint metadata before opening a transaction", async () => {
+    for (const metadata of [
+      { fingerprintVersion: undefined, requestFingerprintHash: FINGERPRINT_HASH },
+      { fingerprintVersion: FINGERPRINT_VERSION, requestFingerprintHash: undefined },
+    ]) {
+      const fixture = createFixture();
+
+      await assert.rejects(
+        fixture.finalizer.finalize({ ...input(), ...metadata } as unknown as FinalizeReviewInput),
+        (error: unknown) => {
+          assert.ok(error instanceof ReviewFinalizerInputError);
+          assert.equal(error.message.includes(FINGERPRINT_HASH), false);
+          return true;
+        },
+      );
+
+      assert.equal(fixture.review, null);
+      assert.equal(fixture.admission.status, "RESERVED");
+      assert.deepEqual(fixture.events, []);
+    }
+  });
+
+  it("rejects missing, partial, or mismatched stored fingerprints before either write", async () => {
+    const cases: Array<Partial<QuotaAdmission>> = [
+      { fingerprintVersion: null, requestFingerprintHash: null },
+      { fingerprintVersion: FINGERPRINT_VERSION, requestFingerprintHash: null },
+      { fingerprintVersion: null, requestFingerprintHash: FINGERPRINT_HASH },
+      { fingerprintVersion: FINGERPRINT_VERSION, requestFingerprintHash: "b".repeat(64) },
+    ];
+
+    for (const fingerprint of cases) {
+      const fixture = createFixture({ initialAdmission: admission("RESERVED", fingerprint) });
+
+      await assert.rejects(fixture.finalizer.finalize(input()), (error: unknown) => {
+        assert.ok(error instanceof ReviewFinalizerConflictError);
+        assert.equal(error.message.includes(FINGERPRINT_HASH), false);
+        return true;
+      });
+
+      assert.equal(fixture.review, null);
+      assert.equal(fixture.admission.status, "RESERVED");
+      assert.deepEqual(fixture.events, [
+        "transaction:start",
+        "quotaAdmission.findFirst",
+        "transaction:rollback",
+      ]);
+    }
   });
 
   it("rolls back the created review and admission when the second write fails", async () => {
@@ -335,6 +394,49 @@ describe("Prisma review finalizer", () => {
       id: REVIEW_ID,
       userId: OWNER,
     });
+  });
+
+  it("rejects a mismatched fingerprint on an admitted replay without mutation", async () => {
+    const updatedAt = new Date("2026-08-07T00:30:00.000Z");
+    const fixture = createFixture({
+      initialAdmission: { ...admission("ADMITTED"), updatedAt },
+      initialReview: review({ updatedAt }),
+    });
+
+    await assert.rejects(
+      fixture.finalizer.finalize(input({ requestFingerprintHash: "b".repeat(64) })),
+      (error: unknown) => error instanceof ReviewFinalizerConflictError,
+    );
+
+    assert.equal(fixture.admission.status, "ADMITTED");
+    assert.equal(fixture.review?.updatedAt, updatedAt);
+    assert.deepEqual(fixture.events, [
+      "transaction:start",
+      "quotaAdmission.findFirst",
+      "transaction:rollback",
+    ]);
+  });
+
+  it("does not replay an admitted legacy row without fingerprint metadata", async () => {
+    const fixture = createFixture({
+      initialAdmission: admission("ADMITTED", {
+        fingerprintVersion: null,
+        requestFingerprintHash: null,
+      }),
+      initialReview: review(),
+    });
+
+    await assert.rejects(
+      fixture.finalizer.finalize(input()),
+      (error: unknown) => error instanceof ReviewFinalizerConflictError,
+    );
+
+    assert.equal(fixture.admission.status, "ADMITTED");
+    assert.deepEqual(fixture.events, [
+      "transaction:start",
+      "quotaAdmission.findFirst",
+      "transaction:rollback",
+    ]);
   });
 
   it("reports an admitted admission without a review as indeterminate", async () => {

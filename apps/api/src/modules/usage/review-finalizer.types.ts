@@ -1,8 +1,56 @@
 import type { ReviewMode, ReviewStatus } from "../review/review.types.js";
 import type { QuotaAdmissionStatus } from "./quota-admission.types.js";
+import {
+  ReviewFinalizerConflictError,
+  ReviewFinalizerInputError,
+} from "./review-finalizer.errors.js";
 
 /** Injection token reserved for the later Prisma-backed finalizer adapter. */
 export const REVIEW_FINALIZER = Symbol("REVIEW_FINALIZER");
+
+const REVIEW_FINALIZER_FINGERPRINT_MAX_VERSION = 2_147_483_647;
+const REVIEW_FINALIZER_FINGERPRINT_HASH_PATTERN = /^[a-f0-9]{64}$/u;
+
+export interface ReviewFinalizerFingerprintMetadata {
+  readonly fingerprintVersion: number;
+  readonly requestFingerprintHash: string;
+}
+
+/** Validates server-computed metadata without ever echoing its values. */
+export function assertReviewFinalizerFingerprintMetadata(input: {
+  readonly fingerprintVersion?: unknown;
+  readonly requestFingerprintHash?: unknown;
+}): ReviewFinalizerFingerprintMetadata {
+  if (
+    typeof input.fingerprintVersion !== "number" ||
+    !Number.isSafeInteger(input.fingerprintVersion) ||
+    input.fingerprintVersion < 1 ||
+    input.fingerprintVersion > REVIEW_FINALIZER_FINGERPRINT_MAX_VERSION ||
+    typeof input.requestFingerprintHash !== "string" ||
+    !REVIEW_FINALIZER_FINGERPRINT_HASH_PATTERN.test(input.requestFingerprintHash)
+  ) {
+    throw new ReviewFinalizerInputError("fingerprint");
+  }
+
+  return {
+    fingerprintVersion: input.fingerprintVersion,
+    requestFingerprintHash: input.requestFingerprintHash,
+  };
+}
+
+export function assertReviewFinalizerAdmissionFingerprint(
+  admission: Pick<ReviewFinalizerAdmissionRow, "fingerprintVersion" | "requestFingerprintHash">,
+  expected: ReviewFinalizerFingerprintMetadata,
+): void {
+  if (
+    admission.fingerprintVersion === null ||
+    admission.requestFingerprintHash === null ||
+    admission.fingerprintVersion !== expected.fingerprintVersion ||
+    admission.requestFingerprintHash !== expected.requestFingerprintHash
+  ) {
+    throw new ReviewFinalizerConflictError();
+  }
+}
 
 export interface FinalizeReviewInput {
   readonly userId: string;
@@ -12,6 +60,9 @@ export interface FinalizeReviewInput {
   readonly source: string;
   readonly language: string;
   readonly mode: ReviewMode;
+  /** Server-computed admission metadata; this pair must not come from HTTP. */
+  readonly fingerprintVersion: number;
+  readonly requestFingerprintHash: string;
   readonly now: Date;
 }
 
@@ -64,6 +115,8 @@ export interface ReviewFinalizerAdmissionRow {
   readonly userId: string;
   readonly reviewId: string;
   readonly mode: ReviewMode;
+  readonly fingerprintVersion: number | null;
+  readonly requestFingerprintHash: string | null;
   readonly status: QuotaAdmissionStatus;
   readonly updatedAt: Date;
 }

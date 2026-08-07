@@ -11,6 +11,10 @@ import type {
   ReviewFinalizerResult,
   ReviewFinalizerSummary,
 } from "./review-finalizer.types.js";
+import {
+  assertReviewFinalizerAdmissionFingerprint,
+  assertReviewFinalizerFingerprintMetadata,
+} from "./review-finalizer.types.js";
 
 interface StoredReview extends ReviewFinalizerSummary {
   readonly userId: string;
@@ -26,6 +30,8 @@ export interface SeedReservedAdmission {
   readonly userId: string;
   readonly reviewId: string;
   readonly mode: FinalizeReviewInput["mode"];
+  readonly fingerprintVersion: number | null;
+  readonly requestFingerprintHash: string | null;
   readonly updatedAt: Date;
 }
 
@@ -46,7 +52,9 @@ export class InMemoryReviewFinalizer implements ReviewFinalizer {
     this.admissions.set(input.id, {
       id: input.id,
       mode: input.mode,
+      fingerprintVersion: input.fingerprintVersion,
       reviewId: input.reviewId,
+      requestFingerprintHash: input.requestFingerprintHash,
       status: "RESERVED",
       updatedAt: new Date(input.updatedAt),
       userId: input.userId,
@@ -57,7 +65,9 @@ export class InMemoryReviewFinalizer implements ReviewFinalizer {
     this.admissions.set(input.id, {
       id: input.id,
       mode: input.mode,
+      fingerprintVersion: input.fingerprintVersion,
       reviewId: input.reviewId,
+      requestFingerprintHash: input.requestFingerprintHash,
       status: "ADMITTED",
       updatedAt: new Date(input.updatedAt),
       userId: input.userId,
@@ -68,7 +78,9 @@ export class InMemoryReviewFinalizer implements ReviewFinalizer {
     this.admissions.set(input.id, {
       id: input.id,
       mode: input.mode,
+      fingerprintVersion: input.fingerprintVersion,
       reviewId: input.reviewId,
+      requestFingerprintHash: input.requestFingerprintHash,
       status: "DENIED",
       updatedAt: new Date(input.updatedAt),
       userId: input.userId,
@@ -86,6 +98,7 @@ export class InMemoryReviewFinalizer implements ReviewFinalizer {
   }
 
   async finalize(input: FinalizeReviewInput): Promise<ReviewFinalizerResult> {
+    const fingerprintMetadata = assertReviewFinalizerFingerprintMetadata(input);
     const admission = this.admissions.get(input.admissionId);
 
     if (!admission || admission.userId !== input.userId) {
@@ -95,6 +108,8 @@ export class InMemoryReviewFinalizer implements ReviewFinalizer {
     if (admission.reviewId !== input.reviewId || admission.mode !== input.mode) {
       throw new ReviewFinalizerConflictError();
     }
+
+    assertReviewFinalizerAdmissionFingerprint(admission, fingerprintMetadata);
 
     if (admission.status === "ADMITTED") {
       const existing = this.reviews.get(admission.reviewId);
