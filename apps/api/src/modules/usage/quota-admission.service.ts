@@ -2,6 +2,10 @@ import { Inject, Injectable } from "@nestjs/common";
 
 import { getUtcDayWindow } from "./usage.date.js";
 import {
+  assertQuotaAdmissionFingerprintHash,
+  assertQuotaAdmissionFingerprintVersion,
+} from "./quota-admission.fingerprint.js";
+import {
   assertReviewMode,
   assertSafeOpaqueId,
   createOpaqueAdmissionId,
@@ -23,6 +27,8 @@ export interface CreateQuotaAdmissionIntentInput {
   readonly now: Date;
   readonly admissionId?: string;
   readonly reviewId?: string;
+  readonly requestFingerprintHash?: unknown;
+  readonly fingerprintVersion?: unknown;
 }
 
 export interface QuotaAdmissionIntentResult {
@@ -40,6 +46,19 @@ export class QuotaAdmissionService {
   async createIntent(input: CreateQuotaAdmissionIntentInput): Promise<QuotaAdmissionIntentResult> {
     const userId = assertSafeOpaqueId(input.userId, "userId");
     const mode = assertReviewMode(input.mode);
+    const hasFingerprintHash = input.requestFingerprintHash !== undefined;
+    const hasFingerprintVersion = input.fingerprintVersion !== undefined;
+
+    if (hasFingerprintHash !== hasFingerprintVersion) {
+      throw new QuotaAdmissionInputError("fingerprint");
+    }
+
+    const fingerprintMetadata = hasFingerprintHash
+      ? {
+          fingerprintVersion: assertQuotaAdmissionFingerprintVersion(input.fingerprintVersion),
+          requestFingerprintHash: assertQuotaAdmissionFingerprintHash(input.requestFingerprintHash),
+        }
+      : {};
     let utcDay: string;
 
     try {
@@ -60,6 +79,7 @@ export class QuotaAdmissionService {
       mode,
       now: input.now,
       reviewId,
+      ...fingerprintMetadata,
       userId,
       utcDay,
     });
