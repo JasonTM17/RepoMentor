@@ -6,15 +6,11 @@ package publication, or production readiness.
 
 ## Source/evidence baseline
 
-- Source/evidence baseline before this documentation refresh:
-  `48502a7a2a41e365b110286b2167be6cf519b757` (`48502a7`).
-- Shared Redis executor/configuration seam included by that baseline:
-  `d7122db353de11f21dcd74c3f2ddad1c0ae7e2f6` (`d7122db`).
-- The two commits in this refresh modify documentation only and follow the
-  code baseline above. A later docs commit `HEAD` is not an exact-head code or
-  test claim; rerun required gates on the exact commit intended for release.
-- These SHAs do not establish a tag, release, registry artifact, license,
-  deployment, or production certification.
+- Current implementation checkpoint: `b827991`.
+- Current documentation checkpoint: `f776d87`.
+- These SHAs are exact-head evidence anchors for the local checks recorded in
+  the current checkpoint addendum; they do not establish a tag, release,
+  registry artifact, license, deployment, or production certification.
 
 ## Current status
 
@@ -84,19 +80,21 @@ TTL is not process-lock or multi-worker evidence.
 - Deterministic tests use fake Luna, in-memory repositories, and deterministic
   Redis executors. No live PostgreSQL migration/transaction isolation, Redis
   `EVAL`, HTTP provider, or external Luna call was run for this refresh.
-- The web usage surfaces are deterministic/demo-labelled and are not a live
-  authenticated dashboard. Compose healthchecks cover process/HTTP shell
-  liveness, not dependency-aware readiness.
+- Authenticated web usage pages use a memory-only Bearer transport when a
+  session exists; guest pages retain deterministic/demo-labelled fixtures.
+  Compose healthchecks cover process/HTTP shell liveness, not dependency-aware
+  readiness.
 - No deployment, production traffic, registry publication, or production
   readiness follows from local tests, Compose configuration, or image workflow
   definitions.
 
 ## Validation evidence
 
-The following fresh checks ran against the source/evidence baseline above,
-before the docs-only commits, using Node `v24.12.0`, pnpm `11.0.9`, safe
-non-secret test fixtures, and direct local binaries where pnpm's nested
-install-status check was blocked:
+The table below is historical evidence from the earlier documentation
+refresh, before the current implementation checkpoint. It used Node
+`v24.12.0`, pnpm `11.0.9`, safe non-secret test fixtures, and direct local
+binaries where pnpm's nested install-status check was blocked. The current
+checkpoint addendum follows the table.
 
 | Check                                                       | Result                                                                                                                                                                                                          |
 | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -110,6 +108,22 @@ install-status check was blocked:
 | Frozen dependency install                                   | `pnpm run deps:install` installed the dependency tree but exited with `ERR_PNPM_IGNORED_BUILDS` while requesting build approval. No approval was enabled; this is an environment/tooling limitation.            |
 | Live Docker and dependency checks                           | Not run: `docker info` could not connect to the local Docker Desktop Linux engine. No image build, Compose startup, or HTTP smoke is claimed.                                                                   |
 | Full root suite, web production build, and release workflow | Not run in this docs refresh. Do not infer them from the passing focused checks above.                                                                                                                          |
+
+## Current checkpoint addendum — 2026-08-08
+
+The merged implementation checkpoint `b827991` passed API `250/250`, web
+`40/40`, and contracts `7/7`; root typecheck, lint, format check, production
+build, and package payload verification also passed. The authenticated usage
+transport emits a Bearer header only for a current memory-only access token;
+guest usage remains an explicit fixture boundary. Playwright discovery is
+`1/1`, but the browser run is not claimed because Chromium revision
+`chromium-1161` is unavailable locally. No Docker image, registry artifact,
+semantic tag, public package, GitHub release, or deployment was created.
+Live PostgreSQL, Redis, HTTP provider, external Luna, and Docker daemon
+evidence remain unverified.
+
+The validation table above is historical evidence from the earlier docs
+refresh; rerun all release gates on the exact tag commit before publication.
 
 ## Container workflows and release gates
 
