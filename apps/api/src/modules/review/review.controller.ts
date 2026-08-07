@@ -1,32 +1,63 @@
 import {
   Body,
+  BadRequestException,
+  ConflictException,
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
+  HttpException,
+  InternalServerErrorException,
   HttpStatus,
   Param,
   Post,
   Query,
   Req,
+  Res,
+  ServiceUnavailableException,
   UnauthorizedException,
   UseGuards,
 } from "@nestjs/common";
 import {
+  ApiBadRequestResponse,
   ApiBadGatewayResponse,
   ApiBody,
   ApiConflictResponse,
+  ApiCreatedResponse,
   ApiExtraModels,
+  ApiHeader,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiResponse,
+  ApiServiceUnavailableResponse,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
   getSchemaPath,
 } from "@nestjs/swagger";
+import type { Response } from "express";
 
 import { AuthAccessGuard, type AuthenticatedRequest } from "../auth/auth-access.guard.js";
+import {
+  QuotaAdmissionConflictError,
+  QuotaAdmissionInputError,
+  QuotaAdmissionNotFoundError,
+} from "../usage/quota-admission.errors.js";
+import { QuotaAdmissionHttpService } from "../usage/quota-admission-http.service.js";
+import {
+  QuotaAdmissionFinalizerConflictError,
+  QuotaAdmissionFinalizerNotFoundError,
+  QuotaAdmissionRateLimitError,
+  QuotaAdmissionUnavailableError,
+} from "../usage/quota-admission-http.errors.js";
+import {
+  ReviewFinalizerConflictError,
+  ReviewFinalizerIndeterminateError,
+  ReviewFinalizerNotFoundError,
+  ReviewFinalizerUnavailableError,
+} from "../usage/review-finalizer.errors.js";
 import { CreateReviewDto, ReviewIdParamDto, ReviewListQueryDto } from "./review.dto.js";
 import {
   assertEmptyProcessBody,
@@ -41,12 +72,73 @@ import {
 import { ReviewProcessingService } from "./processing/review-processing.service.js";
 import { ReviewService } from "./review.service.js";
 
+const MAX_RETRY_AFTER_SECONDS = 86_400;
+
+const reviewAdmissionSummarySchema = {
+  properties: {
+    data: {
+      properties: {
+        createdAt: { format: "date-time", type: "string" },
+        id: { type: "string" },
+        language: { type: "string" },
+        mode: { enum: ["QUICK", "STANDARD", "DEEP"], type: "string" },
+        status: { type: "string" },
+        updatedAt: { format: "date-time", type: "string" },
+      },
+      required: ["id", "language", "mode", "status", "createdAt", "updatedAt"],
+      type: "object",
+    },
+  },
+  required: ["data"],
+  type: "object",
+};
+
 function getUserId(request: AuthenticatedRequest): string {
   if (!request.auth) {
     throw new UnauthorizedException();
   }
 
   return request.auth.userId;
+}
+
+function boundedRetryAfterSeconds(value: number): number {
+  if (!Number.isSafeInteger(value)) {
+    return MAX_RETRY_AFTER_SECONDS;
+  }
+
+  return Math.min(Math.max(value, 1), MAX_RETRY_AFTER_SECONDS);
+}
+
+function mapQuotaAdmissionError(error: unknown, response: Response): never {
+  if (error instanceof QuotaAdmissionInputError) {
+    throw new BadRequestException();
+  }
+
+  if (
+    error instanceof QuotaAdmissionConflictError ||
+    error instanceof QuotaAdmissionFinalizerConflictError ||
+    error instanceof ReviewFinalizerConflictError
+  ) {
+    throw new ConflictException();
+  }
+
+  if (error instanceof QuotaAdmissionRateLimitError) {
+    response.setHeader("Retry-After", String(boundedRetryAfterSeconds(error.retryAfterSeconds)));
+    throw new HttpException({}, HttpStatus.TOO_MANY_REQUESTS);
+  }
+
+  if (
+    error instanceof QuotaAdmissionNotFoundError ||
+    error instanceof QuotaAdmissionUnavailableError ||
+    error instanceof QuotaAdmissionFinalizerNotFoundError ||
+    error instanceof ReviewFinalizerIndeterminateError ||
+    error instanceof ReviewFinalizerNotFoundError ||
+    error instanceof ReviewFinalizerUnavailableError
+  ) {
+    throw new ServiceUnavailableException();
+  }
+
+  throw new InternalServerErrorException();
 }
 
 @Controller("reviews")
@@ -62,12 +154,59 @@ export class ReviewController {
   constructor(
     private readonly reviews: ReviewService,
     private readonly processing: ReviewProcessingService,
+    private readonly quotaAdmission: QuotaAdmissionHttpService,
   ) {}
 
   @Post()
-  @HttpCode(HttpStatus.CREATED)
-  create(@Req() request: AuthenticatedRequest, @Body() body: CreateReviewDto) {
-    return this.reviews.create(getUserId(request), body);
+  @ApiHeader({
+    description: "Required bounded idempotency key for this authenticated review admission.",
+    name: "Idempotency-Key",
+    required: true,
+  })
+  @ApiBadRequestResponse({ description: "The body or Idempotency-Key is invalid." })
+  @ApiConflictResponse({ description: "The Idempotency-Key conflicts with an earlier request." })
+  @ApiCreatedResponse({
+    description: "A new authenticated review was admitted and created.",
+    schema: reviewAdmissionSummarySchema,
+  })
+  @ApiOkResponse({
+    description: "The authenticated review admission was replayed safely.",
+    schema: reviewAdmissionSummarySchema,
+  })
+  @ApiTooManyRequestsResponse({
+    description: "The authenticated review quota was reached; Retry-After is bounded.",
+  })
+  @ApiServiceUnavailableResponse({
+    description: "Quota admission or review finalization is unavailable or indeterminate.",
+  })
+  @ApiUnauthorizedResponse({ description: "Authentication is required." })
+  async create(
+    @Req() request: AuthenticatedRequest,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: CreateReviewDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    try {
+      const outcome = await this.quotaAdmission.create({
+        idempotencyKey,
+        language: body.language,
+        mode: body.mode,
+        source: body.source,
+        userId: getUserId(request),
+      });
+
+      response.status(outcome.kind === "REPLAYED" ? HttpStatus.OK : HttpStatus.CREATED);
+      return {
+        createdAt: outcome.summary.createdAt,
+        id: outcome.summary.id,
+        language: outcome.summary.language,
+        mode: outcome.summary.mode,
+        status: outcome.summary.status,
+        updatedAt: outcome.summary.updatedAt,
+      };
+    } catch (error: unknown) {
+      return mapQuotaAdmissionError(error, response);
+    }
   }
 
   @Get()

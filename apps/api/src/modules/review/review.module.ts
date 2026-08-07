@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AiModule } from "../ai/ai.module.js";
 import { AuthModule } from "../auth/auth.module.js";
+import { UsageModule } from "../usage/usage.module.js";
 import { ReviewController } from "./review.controller.js";
 import { PrismaReviewRepository } from "./prisma-review.repository.js";
 import { ReviewProcessingService } from "./processing/review-processing.service.js";
@@ -10,7 +11,7 @@ import { ReviewService } from "./review.service.js";
 
 @Module({
   controllers: [ReviewController],
-  imports: [AiModule, AuthModule],
+  imports: [AiModule, AuthModule, UsageModule],
   providers: [
     PrismaReviewRepository,
     ReviewProcessingService,
