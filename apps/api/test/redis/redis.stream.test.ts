@@ -19,9 +19,10 @@ class FakeStreamExecutor implements RedisCommandExecutor {
   async eval(
     script: string,
     options: RedisEvalOptions,
-    _operation: RedisOperation,
+    operation: RedisOperation,
   ): Promise<unknown> {
     assert.equal(script, RELEASE_REVIEW_STREAM_LEASE_SCRIPT);
+    assert.equal(operation, "stream-release");
     if (this.value === options.arguments[0]) {
       this.value = undefined;
       return 1;
@@ -31,11 +32,14 @@ class FakeStreamExecutor implements RedisCommandExecutor {
   }
 
   async set(
-    _key: string,
+    key: string,
     value: string,
-    _options: RedisSetOptions,
-    _operation: RedisOperation,
+    options: RedisSetOptions,
+    operation: RedisOperation,
   ): Promise<"OK" | null> {
+    assert.match(key, /^repomentor:stream:review:/u);
+    assert.equal(options.NX, true);
+    assert.equal(operation, "stream-acquisition");
     if (this.value !== undefined) {
       return null;
     }
