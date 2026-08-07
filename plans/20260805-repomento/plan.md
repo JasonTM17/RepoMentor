@@ -814,3 +814,35 @@ registry, and deployment evidence remain unverified.
 The branch is complete and no longer active; historical refs and worktrees
 remain frozen and are not eligible for wholesale cleanup. The next bounded
 scope must be selected only after this clean pushed checkpoint.
+
+## Web logout resolution — 2026-08-08
+
+The next bounded auth slice was `feature/web-auth-logout`, based exactly on
+main `0d2223f`. Its scope was limited to closing the missing web logout
+boundary: strict `POST /api/v1/auth/logout` response validation, credentials
+included for the API-owned refresh cookie, clearing the memory-only access
+token only after a validated success, preserving the token for retry after a
+failed or malformed response, and an accessible responsive header sign-in /
+sign-out action. No browser storage, token logging, logout-all UI, or backend
+contract changes were introduced.
+
+The branch finished clean and was fast-forward integrated as two focused
+commits:
+
+- `66f6def`: logout response type/parser and auth client transport;
+- `389f426`: header session action, loading/error/retry states, and web
+  runtime/static coverage.
+
+Exact-head review confirmed base `0d2223f`, six intended files, two focused
+commits, clean status, valid ancestry, and no diff-check errors. The
+independent Luna Kongminh/advisor reviewer timed out and was shut down after
+bounded waits without a verdict; this is recorded as no independent ACCEPT,
+not as review evidence. Merged-main evidence on `389f426` is API `250/250`,
+web `41/41`, contracts `7/7`, plus typecheck, lint, production build, format
+check, package payload verification, and a credential-shaped scan with no
+real secret matches. Live PostgreSQL, Redis, Luna, browser interaction,
+Docker, registry, and deployment evidence remain unverified.
+
+The branch is complete and no longer active; historical refs and worktrees
+remain frozen and are not eligible for wholesale cleanup. The next bounded
+scope must be selected only after this clean pushed checkpoint.
