@@ -1,10 +1,12 @@
 import {
+  ConflictException,
   HttpStatus,
   Inject,
   Injectable,
   NotFoundException,
   Optional,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import {
   REVIEW_EVENT_SCHEMA_VERSION,
@@ -13,6 +15,11 @@ import {
 } from "@repomentor/contracts";
 import type { Response } from "express";
 
+import { AUTH_REPOSITORY } from "../auth/auth.types.js";
+import type { AuthRepository } from "../auth/auth.types.js";
+import { RedisUnavailableError } from "../redis/redis.errors.js";
+import { acquireReviewStreamLease, releaseReviewStreamLease } from "../redis/redis.stream.js";
+import { REDIS_COMMAND_EXECUTOR, type RedisCommandExecutor } from "../redis/redis.types.js";
 import {
   REVIEW_MAX_EVENT_SEQUENCE,
   REVIEW_REPOSITORY,
@@ -38,6 +45,7 @@ export interface ReviewEventStreamConfig {
 }
 
 export interface ReviewEventStreamInput {
+  readonly sessionId: string;
   readonly userId: string;
   readonly reviewId: string;
   readonly lastEventId?: string | undefined;
@@ -52,6 +60,12 @@ type ParsedCursor =
 interface InitialDelivery {
   readonly deliveredSequence: number;
   readonly events: readonly ReviewEvent[];
+}
+
+interface ReviewStreamLease {
+  readonly kind: "local" | "redis";
+  readonly reviewId: string;
+  readonly token: string;
 }
 
 function boundedConfigValue(value: number | undefined, fallback: number, maximum: number): number {
@@ -140,10 +154,15 @@ function toHeartbeat(record: ReviewEventRecord): ReviewEvent {
 @Injectable()
 export class ReviewEventStreamService {
   private readonly config: Required<ReviewEventStreamConfig>;
+  private readonly localLeases = new Map<string, string>();
 
   constructor(
     @Inject(REVIEW_REPOSITORY) private readonly repository: ReviewRepository,
     @Optional() streamConfig?: ReviewEventStreamConfig,
+    @Optional() @Inject(AUTH_REPOSITORY) private readonly authRepository?: AuthRepository,
+    @Optional()
+    @Inject(REDIS_COMMAND_EXECUTOR)
+    private readonly redisExecutor?: RedisCommandExecutor,
   ) {
     this.config = {
       heartbeatIntervalMs: boundedConfigValue(
@@ -165,6 +184,10 @@ export class ReviewEventStreamService {
   }
 
   async stream(input: ReviewEventStreamInput): Promise<void> {
+    if (!(await this.isSessionActive(input.userId, input.sessionId))) {
+      throw new UnauthorizedException();
+    }
+
     const review = await this.repository.findByIdForUser(input.userId, input.reviewId);
 
     if (!review) {
@@ -183,6 +206,7 @@ export class ReviewEventStreamService {
       parseCursor(input.lastEventId),
       latest,
     );
+    const lease = await this.acquireLease(input.reviewId);
     const response = input.response;
 
     response.status(HttpStatus.OK);
@@ -222,7 +246,7 @@ export class ReviewEventStreamService {
           response.end();
         }
 
-        resolve();
+        void this.releaseLease(lease).finally(resolve);
       };
       const schedulePoll = (): void => {
         if (finished) {
@@ -240,6 +264,11 @@ export class ReviewEventStreamService {
         }
 
         try {
+          if (!(await this.isSessionActive(input.userId, input.sessionId))) {
+            finish(true);
+            return;
+          }
+
           const events = await this.repository.listEventsForUser(
             input.userId,
             input.reviewId,
@@ -320,6 +349,82 @@ export class ReviewEventStreamService {
         finish(false);
       }
     });
+  }
+
+  private async isSessionActive(userId: string, sessionId: string): Promise<boolean> {
+    if (!this.authRepository) {
+      return process.env.NODE_ENV !== "production";
+    }
+
+    try {
+      const [session, user] = await Promise.all([
+        this.authRepository.findSessionById(sessionId),
+        this.authRepository.findUserById(userId),
+      ]);
+
+      return Boolean(
+        session &&
+        user &&
+        session.status === "ACTIVE" &&
+        session.userId === user.id &&
+        user.status === "ACTIVE",
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private async acquireLease(reviewId: string): Promise<ReviewStreamLease> {
+    const ttlMs = this.config.maxLifetimeMs + 5_000;
+
+    if (this.redisExecutor) {
+      try {
+        const result = await acquireReviewStreamLease(this.redisExecutor, { reviewId, ttlMs });
+
+        if (!result.acquired || !result.token) {
+          throw new ConflictException();
+        }
+
+        return { kind: "redis", reviewId, token: result.token };
+      } catch (error) {
+        if (error instanceof ConflictException) {
+          throw error;
+        }
+
+        if (!(error instanceof RedisUnavailableError) || process.env.NODE_ENV === "production") {
+          throw new ServiceUnavailableException();
+        }
+      }
+    } else if (process.env.NODE_ENV === "production") {
+      throw new ServiceUnavailableException();
+    }
+
+    if (this.localLeases.has(reviewId)) {
+      throw new ConflictException();
+    }
+
+    const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    this.localLeases.set(reviewId, token);
+    return { kind: "local", reviewId, token };
+  }
+
+  private async releaseLease(lease: ReviewStreamLease): Promise<void> {
+    if (lease.kind === "local") {
+      if (this.localLeases.get(lease.reviewId) === lease.token) {
+        this.localLeases.delete(lease.reviewId);
+      }
+      return;
+    }
+
+    if (!this.redisExecutor) {
+      return;
+    }
+
+    try {
+      await releaseReviewStreamLease(this.redisExecutor, lease.reviewId, lease.token);
+    } catch {
+      // The bounded Redis lease remains self-expiring when release fails.
+    }
   }
 
   private async resolveInitialDelivery(

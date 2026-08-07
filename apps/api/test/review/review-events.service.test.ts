@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 
 import type { Response } from "express";
 
+import type { AuthRepository } from "../../src/modules/auth/auth.types.js";
 import { InMemoryReviewRepository } from "../../src/modules/review/in-memory-review.repository.js";
 import {
   ReviewEventStreamService,
@@ -14,6 +15,7 @@ import type { ReviewRepository } from "../../src/modules/review/review.types.js"
 const OWNER_ID = "stream-owner";
 const OTHER_OWNER_ID = "stream-other";
 const REVIEW_ID = "stream-review";
+const SESSION_ID = "stream-session";
 
 class FakeResponse extends EventEmitter {
   readonly headers = new Map<string, string>();
@@ -56,8 +58,9 @@ class FakeResponse extends EventEmitter {
 function streamService(
   repository: ReviewRepository,
   config?: ReviewEventStreamConfig,
+  authRepository?: AuthRepository,
 ): ReviewEventStreamService {
-  return new ReviewEventStreamService(repository, config);
+  return new ReviewEventStreamService(repository, config, authRepository);
 }
 
 async function createTerminalReview(repository: InMemoryReviewRepository): Promise<void> {
@@ -119,6 +122,7 @@ describe("review lifecycle SSE service", () => {
     await streamService(repository).stream({
       response: response as unknown as Response,
       reviewId: REVIEW_ID,
+      sessionId: SESSION_ID,
       userId: OWNER_ID,
     });
 
@@ -151,6 +155,7 @@ describe("review lifecycle SSE service", () => {
       lastEventId: "1",
       response: replayResponse as unknown as Response,
       reviewId: REVIEW_ID,
+      sessionId: SESSION_ID,
       userId: OWNER_ID,
     });
     assert.deepEqual(
@@ -163,6 +168,7 @@ describe("review lifecycle SSE service", () => {
       lastEventId: "999",
       response: resetResponse as unknown as Response,
       reviewId: REVIEW_ID,
+      sessionId: SESSION_ID,
       userId: OWNER_ID,
     });
     const reset = frames(resetResponse);
@@ -208,6 +214,7 @@ describe("review lifecycle SSE service", () => {
       lastEventId: "1",
       response: response as unknown as Response,
       reviewId: REVIEW_ID,
+      sessionId: SESSION_ID,
       userId: OWNER_ID,
     });
 
@@ -237,6 +244,7 @@ describe("review lifecycle SSE service", () => {
     }).stream({
       response: response as unknown as Response,
       reviewId: REVIEW_ID,
+      sessionId: SESSION_ID,
       userId: OWNER_ID,
     });
 
@@ -268,11 +276,83 @@ describe("review lifecycle SSE service", () => {
     }).stream({
       response: response as unknown as Response,
       reviewId: REVIEW_ID,
+      sessionId: SESSION_ID,
       userId: OWNER_ID,
     });
 
     assert.equal(response.endCount, 1);
     assert.equal((await repository.latestEventForUser(OWNER_ID, REVIEW_ID))?.status, "PENDING");
+  });
+
+  it("stops delivery after the authenticated session is revoked", async () => {
+    const repository = new InMemoryReviewRepository();
+    await repository.create({
+      id: REVIEW_ID,
+      language: "typescript",
+      mode: "STANDARD",
+      source: "private source",
+      userId: OWNER_ID,
+    });
+    let sessionActive = true;
+    const authRepository = {
+      findSessionById: async () =>
+        sessionActive ? ({ status: "ACTIVE", userId: OWNER_ID } as const) : null,
+      findUserById: async () => ({ id: OWNER_ID, status: "ACTIVE" as const }),
+    } as unknown as AuthRepository;
+    const response = new FakeResponse();
+    const stream = streamService(
+      repository,
+      { heartbeatIntervalMs: 100, maxLifetimeMs: 100, pollIntervalMs: 2 },
+      authRepository,
+    ).stream({
+      response: response as unknown as Response,
+      reviewId: REVIEW_ID,
+      sessionId: SESSION_ID,
+      userId: OWNER_ID,
+    });
+
+    await waitFor(() => response.chunks.length === 1);
+    sessionActive = false;
+    await stream;
+
+    assert.equal(response.endCount, 1);
+    assert.equal(frames(response)[0]?.data.status, "PENDING");
+  });
+
+  it("allows only one active local stream for one review", async () => {
+    const repository = new InMemoryReviewRepository();
+    await repository.create({
+      id: REVIEW_ID,
+      language: "typescript",
+      mode: "STANDARD",
+      source: "private source",
+      userId: OWNER_ID,
+    });
+    const service = streamService(repository, {
+      heartbeatIntervalMs: 100,
+      maxLifetimeMs: 100,
+      pollIntervalMs: 2,
+    });
+    const firstResponse = new FakeResponse();
+    const firstStream = service.stream({
+      response: firstResponse as unknown as Response,
+      reviewId: REVIEW_ID,
+      sessionId: SESSION_ID,
+      userId: OWNER_ID,
+    });
+
+    await waitFor(() => firstResponse.chunks.length === 1);
+    await assert.rejects(
+      service.stream({
+        response: new FakeResponse() as unknown as Response,
+        reviewId: REVIEW_ID,
+        sessionId: SESSION_ID,
+        userId: OWNER_ID,
+      }),
+      { name: "ConflictException" },
+    );
+    firstResponse.disconnect();
+    await firstStream;
   });
 
   it("does not reveal whether another owner has a review", async () => {
@@ -290,6 +370,7 @@ describe("review lifecycle SSE service", () => {
       streamService(repository).stream({
         response: response as unknown as Response,
         reviewId: REVIEW_ID,
+        sessionId: SESSION_ID,
         userId: OTHER_OWNER_ID,
       }),
       { name: "NotFoundException" },

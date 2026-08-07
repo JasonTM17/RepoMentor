@@ -10,6 +10,7 @@ export const REDIS_KEY_NAMESPACES = {
   authenticatedQuota: "repomentor:quota:authenticated",
   guestQuota: "repomentor:quota:guest",
   reviewLock: "repomentor:lock:review",
+  reviewStream: "repomentor:stream:review",
 } as const;
 
 export type RedisQuotaNamespace = "authenticated" | "guest";
@@ -87,6 +88,11 @@ export function buildUsageQuotaKey(
 export function buildReviewLockKey(reviewId: string): string {
   assertKeyComponent("reviewId", reviewId);
   return assertKeyLength([REDIS_KEY_NAMESPACES.reviewLock, reviewId].join(":"));
+}
+
+export function buildReviewStreamKey(reviewId: string): string {
+  assertKeyComponent("reviewId", reviewId);
+  return assertKeyLength([REDIS_KEY_NAMESPACES.reviewStream, reviewId].join(":"));
 }
 
 /**

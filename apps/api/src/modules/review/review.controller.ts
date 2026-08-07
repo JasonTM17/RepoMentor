@@ -96,12 +96,16 @@ const reviewAdmissionSummarySchema = {
   type: "object",
 };
 
-function getUserId(request: AuthenticatedRequest): string {
+function getAuth(request: AuthenticatedRequest): NonNullable<AuthenticatedRequest["auth"]> {
   if (!request.auth) {
     throw new UnauthorizedException();
   }
 
-  return request.auth.userId;
+  return request.auth;
+}
+
+function getUserId(request: AuthenticatedRequest): string {
+  return getAuth(request).userId;
 }
 
 function boundedRetryAfterSeconds(value: number): number {
@@ -242,6 +246,7 @@ export class ReviewController {
     },
   })
   @ApiOperation({ summary: "Stream one owned review lifecycle" })
+  @ApiConflictResponse({ description: "One lifecycle stream is already active for this review." })
   @ApiProduces("text/event-stream")
   @ApiNotFoundResponse({ description: "The owned review was not found." })
   @ApiUnauthorizedResponse({ description: "Authentication is required." })
@@ -251,11 +256,14 @@ export class ReviewController {
     @Headers("last-event-id") lastEventId: string | undefined,
     @Res() response: Response,
   ): Promise<void> {
+    const auth = getAuth(request);
+
     await this.eventStream.stream({
       lastEventId,
       response,
       reviewId: params.id,
-      userId: getUserId(request),
+      sessionId: auth.sessionId,
+      userId: auth.userId,
     });
   }
 

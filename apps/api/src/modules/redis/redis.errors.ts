@@ -6,7 +6,9 @@ export type RedisOperation =
   | "quota-admission-compensation"
   | "lock-acquisition"
   | "lock-renewal"
-  | "lock-release";
+  | "lock-release"
+  | "stream-acquisition"
+  | "stream-release";
 
 export class RedisUnavailableError extends Error {
   readonly code = "REDIS_UNAVAILABLE" as const;
