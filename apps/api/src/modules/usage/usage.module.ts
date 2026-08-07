@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AuthModule } from "../auth/auth.module.js";
 import { createUsageRedisExecutor } from "../redis/redis-admission.provider.js";
+import { REDIS_COMMAND_EXECUTOR } from "../redis/redis.types.js";
 import { PrismaQuotaAdmissionRepository } from "./prisma-quota-admission.repository.js";
 import { PrismaReviewFinalizer } from "./prisma-review-finalizer.js";
 import { QuotaAdmissionService } from "./quota-admission.service.js";
@@ -10,10 +11,7 @@ import {
   QUOTA_ADMISSION_FINGERPRINT_CONFIG,
   type QuotaAdmissionFingerprintConfig,
 } from "./quota-admission.config.js";
-import {
-  QuotaAdmissionHttpService,
-  QUOTA_ADMISSION_REDIS_EXECUTOR,
-} from "./quota-admission-http.service.js";
+import { QuotaAdmissionHttpService } from "./quota-admission-http.service.js";
 import { QuotaAdmissionUnavailableError } from "./quota-admission-http.errors.js";
 import {
   parseUsageQuotaConfig,
@@ -71,7 +69,7 @@ function parseTransportFingerprintConfig(): QuotaAdmissionFingerprintConfig {
       useFactory: parseUsageRedisConfig,
     },
     {
-      provide: QUOTA_ADMISSION_REDIS_EXECUTOR,
+      provide: REDIS_COMMAND_EXECUTOR,
       useFactory: createUsageRedisExecutor,
     },
     {
@@ -87,6 +85,12 @@ function parseTransportFingerprintConfig(): QuotaAdmissionFingerprintConfig {
       useExisting: PrismaReviewFinalizer,
     },
   ],
-  exports: [QuotaAdmissionHttpService, QuotaAdmissionService, UsageService],
+  exports: [
+    QuotaAdmissionHttpService,
+    QuotaAdmissionService,
+    REDIS_COMMAND_EXECUTOR,
+    USAGE_REDIS_CONFIG,
+    UsageService,
+  ],
 })
 export class UsageModule {}

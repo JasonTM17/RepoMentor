@@ -1,5 +1,7 @@
 import type { RedisOperation } from "./redis.errors.js";
 
+export const REDIS_COMMAND_EXECUTOR = Symbol("REDIS_COMMAND_EXECUTOR");
+
 export interface RedisEvalOptions {
   readonly keys: readonly string[];
   readonly arguments: readonly string[];

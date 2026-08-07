@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 
 import { RedisUnavailableError } from "../redis/redis.errors.js";
 import { reserveQuotaAdmission } from "../redis/redis.admission.js";
-import type { RedisCommandExecutor } from "../redis/redis.types.js";
+import { REDIS_COMMAND_EXECUTOR, type RedisCommandExecutor } from "../redis/redis.types.js";
 import {
   QUOTA_ADMISSION_FINGERPRINT_CONFIG,
   type QuotaAdmissionFingerprintConfig,
@@ -39,8 +39,8 @@ import {
 } from "./review-finalizer.types.js";
 import { USAGE_REDIS_CONFIG, type UsageRedisConfig } from "./usage.config.js";
 
-/** Reserved for module wiring after the transport slice is integrated. */
-export const QUOTA_ADMISSION_REDIS_EXECUTOR = Symbol("QUOTA_ADMISSION_REDIS_EXECUTOR");
+/** Compatibility alias for the shared Redis executor seam. */
+export const QUOTA_ADMISSION_REDIS_EXECUTOR = REDIS_COMMAND_EXECUTOR;
 
 const MIN_RETRY_AFTER_SECONDS = 1;
 const MAX_RETRY_AFTER_SECONDS = 86_400;
@@ -107,7 +107,7 @@ function boundedRetryAfterSeconds(value: number): number {
 export class QuotaAdmissionHttpService {
   constructor(
     private readonly quotaAdmission: QuotaAdmissionService,
-    @Inject(QUOTA_ADMISSION_REDIS_EXECUTOR)
+    @Inject(REDIS_COMMAND_EXECUTOR)
     private readonly redisExecutor: RedisCommandExecutor,
     @Inject(USAGE_REDIS_CONFIG)
     private readonly redisConfig: UsageRedisConfig,
