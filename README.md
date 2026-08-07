@@ -4,13 +4,11 @@ RepoMentor is a developer-first workspace for AI-assisted code review and
 programming practice. It is a production-oriented monorepo, but the current
 repository checkpoint is an application slice, not a production release.
 
-The source/evidence baseline for this documentation refresh is the exact code
-checkpoint `48502a7a2a41e365b110286b2167be6cf519b757` (`48502a7`), with the
-shared Redis executor seam integrated at `d7122db353de11f21dcd74c3f2ddad1c0ae7e2f6`
-(`d7122db`). The two commits created by this task are docs-only commits that
-follow that code baseline. Their later `HEAD` values must not be treated as
-exact-head code or test evidence. These SHAs are not a release, tag, registry,
-license, package-publication, deployment, or production-readiness claim.
+The current code/evidence baseline is the exact implementation checkpoint
+`b827991`, and this documentation checkpoint is `f776d87`. These SHAs are
+exact-head evidence anchors for the local checks recorded below; they are not
+a release, tag, registry, license, package-publication, deployment, or
+production-readiness claim.
 
 ## Current status
 
@@ -30,6 +28,9 @@ This checkpoint contains:
 - a local-only Docker Compose application layer for the API and web images,
   PostgreSQL, and Redis, with localhost-bound ports and health-gated startup;
 - owner-scoped usage summary, history, and quota read routes;
+- authenticated review and usage web transports that keep access tokens in
+  memory only, use explicit Bearer headers, and retain deterministic guest
+  fixtures when no session is present;
 - an authenticated quota-admission path for `POST /api/v1/reviews` with a
   bounded `Idempotency-Key`, atomic Redis admission markers, durable Prisma
   `QuotaAdmission` state, versioned keyed request fingerprints, and a
@@ -64,7 +65,9 @@ processing route currently acquires it. Guest QUICK quota is only a Redis
 primitive/configuration boundary; there is no guest HTTP route. There is no
 queue, SSE/reconnect result stream, or live PostgreSQL, Redis/EVAL, HTTP
 provider, or external Luna evidence. Processing remains a bounded synchronous
-transport seam, and the web usage surfaces remain deterministic/demo-labelled.
+transport seam. Authenticated web review and usage pages use the API transport
+when a memory-only session exists; guest usage remains explicitly
+deterministic/demo-labelled.
 
 ## Architecture
 
@@ -90,15 +93,20 @@ Useful project notes:
 
 ### Web
 
-| Route                                    | Current behavior                                                                           |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `/`                                      | Static product shell with review preview, learning-loop copy, and an explicit empty state. |
-| `/login`                                 | Client-side sign-in form wired to `POST /api/v1/auth/login`.                               |
-| `/register`                              | Client-side registration form wired to `POST /api/v1/auth/register`.                       |
-| Loading, error, and not-found boundaries | Honest shell-preserving states for the current App Router surface.                         |
+| Route                                    | Current behavior                                                                                                                                   |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                                      | Static product shell with review preview, learning-loop copy, and an explicit empty state.                                                         |
+| `/login`                                 | Client-side sign-in form wired to `POST /api/v1/auth/login`.                                                                                       |
+| `/register`                              | Client-side registration form wired to `POST /api/v1/auth/register`.                                                                               |
+| `/dashboard`                             | Usage summary, recent source-free history, and quota read through the authenticated API transport when signed in; deterministic fixture otherwise. |
+| `/history`                               | Source-free paginated usage history; guest fixtures expose local filters, while the API path keeps page/limit-only controls.                       |
+| `/usage`                                 | Token, operation, and quota overview through the same authenticated API/demo boundary.                                                             |
+| Loading, error, and not-found boundaries | Honest shell-preserving states for the current App Router surface.                                                                                 |
 
-The web app does not load repository data at this checkpoint. The home review
-preview is labeled static and the empty state says that no reviews exist yet.
+The home review preview remains static and does not load repository data. The
+dashboard, history, and usage routes are connected to their accepted API read
+contracts when a session exists; live backend dependencies remain unverified
+by the local deterministic checks.
 
 ### API
 
@@ -287,12 +295,12 @@ safe statuses rather than being silently retried.
 
 ## Validation evidence
 
-The fresh checks below ran against the source/evidence baseline
-`48502a7a2a41e365b110286b2167be6cf519b757`, with the shared Redis seam from
-`d7122db353de11f21dcd74c3f2ddad1c0ae7e2f6`, before these docs-only commits.
-They use Node `v24.12.0`, pnpm `11.0.9`, deterministic test doubles, and
-non-secret local-only environment values where needed. They do not prove live
-PostgreSQL, Redis, HTTP provider, Luna, deployment, or production readiness.
+The table below is the historical evidence table from the earlier
+documentation refresh. The current implementation evidence is recorded in the
+checkpoint addendum immediately after it. Both use Node `v24.12.0`, pnpm
+`11.0.9`, deterministic test doubles, and non-secret local-only values where
+needed; neither proves live PostgreSQL, Redis, HTTP provider, Luna,
+deployment, or production readiness.
 
 | Check                                    | Result and evidence                                                                                                                                                                                                                                                                                  |
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -306,6 +314,17 @@ PostgreSQL, Redis, HTTP provider, Luna, deployment, or production readiness.
 | Frozen workspace install                 | Attempted with `pnpm run deps:install`; pnpm installed the dependency tree but exited with `ERR_PNPM_IGNORED_BUILDS` while requesting build approval. No approval was enabled; direct local binaries were used for the checks above.                                                                 |
 | Docker daemon and live Compose smoke     | Not run: `docker compose config` passed, but `docker info` could not connect to the local Docker Desktop Linux engine. No image build, service startup, live PostgreSQL/Redis check, or HTTP smoke is claimed.                                                                                       |
 | Full root test/build and browser capture | Not run in this docs refresh. The checked-in GIF is documented below only as a narrow running-UI-shell capture, not as current backend or live-review evidence.                                                                                                                                      |
+
+## Current checkpoint evidence — 2026-08-08
+
+The implementation checkpoint `b827991` passed `pnpm test` with API `250/250`,
+contracts `7/7`, and web `40/40`. `pnpm typecheck`, `pnpm lint`,
+`pnpm format:check`, `pnpm build`, and `pnpm package:check` also passed.
+The authenticated usage transport now sends a memory-only Bearer token when
+present and keeps the guest fixture boundary explicit. Playwright discovery
+is `1/1`, but execution remains blocked because Chromium revision `chromium-
+1161` is not installed locally. No Docker image, registry artifact, tag,
+public package, GitHub release, or deployment was created or claimed.
 
 ## Security and environment boundaries
 
@@ -353,7 +372,9 @@ processing, PostgreSQL, Redis, AI output, or a production deployment._
   primitive is not wired into the processing route.
 - There is no queue or SSE/reconnect result stream; processing is a bounded
   synchronous transport seam.
-- The web shell is not connected to a review dashboard or repository data.
+- The home shell is static; authenticated review and usage routes use API
+  seams, but live backend dependencies and repository data are not verified
+  by these local checks.
 - The captured GIF is not a browser visual-regression baseline and does not
   claim a live browser session or backend integration.
 - The Compose definition covers local API, web, PostgreSQL, and Redis services.
