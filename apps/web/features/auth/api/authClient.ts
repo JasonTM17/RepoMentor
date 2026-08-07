@@ -1,6 +1,7 @@
 import type {
   LoginRequest,
   LoginResponse,
+  LogoutResponse,
   RegisterRequest,
   RegisterResponse,
 } from "@/features/auth/types";
@@ -161,6 +162,9 @@ const isAuthUser = (value: unknown): value is LoginResponse["user"] => {
 const isRegisterResponse = (value: unknown): value is RegisterResponse =>
   isRecord(value) && hasExactKeys(value, ["accepted"]) && value.accepted === true;
 
+const isLogoutResponse = (value: unknown): value is LogoutResponse =>
+  isRecord(value) && hasExactKeys(value, ["loggedOut"]) && value.loggedOut === true;
+
 const isLoginResponse = (value: unknown): value is LoginResponse =>
   isRecord(value) &&
   hasExactKeys(value, ["accessToken", "tokenType", "expiresInSeconds", "user"]) &&
@@ -217,6 +221,40 @@ const postAuth = async <TResponse>(
     throw new AuthClientError(response.status);
   }
 
+  return parsedResponse;
+};
+
+const postLogout = async (): Promise<LogoutResponse> => {
+  let response: Response;
+
+  try {
+    response = await fetch(`${apiOrigin}/api/v1/auth/logout`, {
+      credentials: "include",
+      method: "POST",
+    });
+  } catch {
+    throw new AuthClientError(0);
+  }
+
+  let body: unknown;
+
+  try {
+    body = await response.json();
+  } catch {
+    body = undefined;
+  }
+
+  if (!response.ok || response.status !== 201) {
+    throw new AuthClientError(response.status);
+  }
+
+  const parsedResponse = parseSuccessEnvelope(body, isLogoutResponse);
+
+  if (!parsedResponse) {
+    throw new AuthClientError(response.status);
+  }
+
+  clearAccessToken();
   return parsedResponse;
 };
 
@@ -280,6 +318,7 @@ export const authClient = Object.freeze({
     setAccessToken(response.accessToken);
     return response;
   },
+  logout: postLogout,
   register: (payload: RegisterRequest): Promise<RegisterResponse> =>
     postAuth("register", payload, 202, isRegisterResponse),
 });

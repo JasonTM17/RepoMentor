@@ -49,7 +49,11 @@ export interface LoginResponse {
   readonly user: AuthUser;
 }
 
-export type AuthResponse = LoginResponse | RegisterResponse;
+export interface LogoutResponse {
+  readonly loggedOut: true;
+}
+
+export type AuthResponse = LoginResponse | LogoutResponse | RegisterResponse;
 
 export const AUTH_GENERIC_ERROR =
   "We could not complete that request. Check your details and try again.";
