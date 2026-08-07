@@ -1,8 +1,11 @@
 import type {
   ReviewFinding,
+  ReviewLifecycleEvent,
   ReviewProcessResponse,
   ReviewResult,
   ReviewResultResponse,
+  ReviewStreamOptions,
+  ReviewStreamOutcome,
   ReviewTransport,
   ReviewUsage,
 } from "@/features/review/types";
@@ -10,6 +13,10 @@ import type {
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN?.replace(/\/+$/u, "") ?? "";
 const maxPageSize = 100;
 const maxRequestIdLength = 128;
+const maxReviewIdLength = 25;
+const maxReviewEventIdLength = 10;
+const maxReviewEventGeneration = 2_147_483_646;
+const maxReviewEventBufferLength = 16_384;
 
 export class ReviewApiError extends Error {
   public readonly code: string | undefined;
@@ -150,6 +157,85 @@ const isReviewProcessResponse = (value: unknown): value is ReviewProcessResponse
   );
 };
 
+const reviewLifecycleStatuses = [
+  "PENDING",
+  "PROCESSING",
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED",
+] as const;
+const reviewLifecycleBaseKeys = [
+  "generation",
+  "id",
+  "resultAvailable",
+  "reviewId",
+  "schemaVersion",
+  "status",
+  "type",
+] as const;
+const reviewEventIdPattern = /^[1-9][0-9]{0,9}$/u;
+
+const isReviewLifecycleBase = (value: Record<string, unknown>): boolean =>
+  isNonNegativeInteger(value.generation) &&
+  value.generation <= maxReviewEventGeneration &&
+  typeof value.id === "string" &&
+  value.id.length <= maxReviewEventIdLength &&
+  reviewEventIdPattern.test(value.id) &&
+  typeof value.reviewId === "string" &&
+  isBoundedString(value.reviewId, maxReviewIdLength) &&
+  value.schemaVersion === "v1" &&
+  reviewLifecycleStatuses.includes(value.status as (typeof reviewLifecycleStatuses)[number]) &&
+  typeof value.resultAvailable === "boolean";
+
+const isReviewLifecycleEvent = (value: unknown): value is ReviewLifecycleEvent => {
+  if (!isRecord(value) || !isReviewLifecycleBase(value)) {
+    return false;
+  }
+
+  if (value.type === "snapshot") {
+    return (
+      hasOnlyKeys(value, [...reviewLifecycleBaseKeys, "replay", "retryable"]) &&
+      hasOwn(value, "replay") &&
+      (value.replay === "current" || value.replay === "reset") &&
+      (!hasOwn(value, "retryable") || typeof value.retryable === "boolean")
+    );
+  }
+
+  if (value.type === "completed") {
+    return (
+      hasExactKeys(value, [...reviewLifecycleBaseKeys]) &&
+      value.resultAvailable === true &&
+      value.status === "COMPLETED"
+    );
+  }
+
+  if (value.type === "failed") {
+    return (
+      hasExactKeys(value, [...reviewLifecycleBaseKeys, "retryable"]) &&
+      value.resultAvailable === false &&
+      value.retryable !== undefined &&
+      typeof value.retryable === "boolean" &&
+      value.status === "FAILED"
+    );
+  }
+
+  if (value.type === "cancelled") {
+    return (
+      hasExactKeys(value, [...reviewLifecycleBaseKeys]) &&
+      value.resultAvailable === false &&
+      value.status === "CANCELLED"
+    );
+  }
+
+  return (
+    value.type === "heartbeat" &&
+    hasExactKeys(value, [...reviewLifecycleBaseKeys]) &&
+    value.status !== "COMPLETED" &&
+    value.status !== "FAILED" &&
+    value.status !== "CANCELLED"
+  );
+};
+
 const isReviewUsage = (value: unknown): value is ReviewUsage => {
   if (
     !isRecord(value) ||
@@ -222,7 +308,25 @@ const readErrorCode = (value: unknown): string | undefined => {
   return value.error.code;
 };
 
+export interface ReviewApiTransportOptions {
+  readonly apiOrigin?: string | undefined;
+  readonly getAccessToken?: (() => string | undefined) | undefined;
+}
+
+const normalizeApiOrigin = (origin: string): string => origin.replace(/\/+$/u, "");
+
+const withAuthHeaders = (
+  headers: Record<string, string> | undefined,
+  getAccessToken: (() => string | undefined) | undefined,
+): Record<string, string> => {
+  const token = getAccessToken?.();
+
+  return token ? { ...headers, Authorization: `Bearer ${token}` } : { ...headers };
+};
+
 const request = async <TResponse>(
+  origin: string,
+  getAccessToken: (() => string | undefined) | undefined,
   path: string,
   init: RequestInit,
   isResponse: (value: unknown) => value is TResponse,
@@ -230,7 +334,10 @@ const request = async <TResponse>(
   let response: Response;
 
   try {
-    response = await fetch(`${apiOrigin}${path}`, init);
+    response = await fetch(`${origin}${path}`, {
+      ...init,
+      headers: withAuthHeaders(init.headers as Record<string, string> | undefined, getAccessToken),
+    });
   } catch {
     throw new ReviewApiError(0);
   }
@@ -254,28 +361,215 @@ const request = async <TResponse>(
   return body.data;
 };
 
-const processReview = (reviewId: string): Promise<ReviewProcessResponse> =>
-  request(
-    `/api/v1/reviews/${encodeURIComponent(reviewId)}/process`,
+const isAbortError = (error: unknown): boolean => isRecord(error) && error.name === "AbortError";
+
+const parseSseFrame = (frame: string): ReviewLifecycleEvent | undefined => {
+  if (frame.trim() === "") {
+    return undefined;
+  }
+
+  let eventType: string | undefined;
+  let id: string | undefined;
+  const dataLines: string[] = [];
+
+  for (const line of frame.split(/\r?\n/u)) {
+    if (line.startsWith(":")) {
+      continue;
+    }
+
+    if (line.startsWith("event:")) {
+      eventType = line.slice(6).trim();
+      continue;
+    }
+
+    if (line.startsWith("id:")) {
+      id = line.slice(3).trim();
+      continue;
+    }
+
+    if (line.startsWith("data:")) {
+      const data = line.slice(5);
+      dataLines.push(data.startsWith(" ") ? data.slice(1) : data);
+      continue;
+    }
+
+    if (line.trim() !== "") {
+      throw new ReviewApiError(200, "INVALID_EVENT");
+    }
+  }
+
+  const data = dataLines.join("\n");
+
+  if (
+    id === undefined ||
+    eventType === undefined ||
+    data.length === 0 ||
+    data.length > maxReviewEventBufferLength
+  ) {
+    throw new ReviewApiError(200, "INVALID_EVENT");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(data);
+  } catch {
+    throw new ReviewApiError(200, "INVALID_EVENT");
+  }
+
+  if (!isReviewLifecycleEvent(parsed) || parsed.id !== id || parsed.type !== eventType) {
+    throw new ReviewApiError(200, "INVALID_EVENT");
+  }
+
+  return parsed;
+};
+
+const isTerminalEvent = (event: ReviewLifecycleEvent): boolean =>
+  event.status === "COMPLETED" || event.status === "FAILED" || event.status === "CANCELLED";
+
+export const consumeReviewEventStream = async (
+  origin: string,
+  getAccessToken: (() => string | undefined) | undefined,
+  reviewId: string,
+  options: ReviewStreamOptions = {},
+): Promise<ReviewStreamOutcome> => {
+  const headers = withAuthHeaders(
     {
-      body: "{}",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
+      Accept: "text/event-stream",
+      ...(options.lastEventId === undefined || options.lastEventId.trim() === ""
+        ? {}
+        : { "Last-Event-ID": options.lastEventId }),
     },
-    isReviewProcessResponse,
+    getAccessToken,
   );
+  let response: Response;
 
-const getReviewResult = (reviewId: string): Promise<ReviewResultResponse> =>
-  request(
-    `/api/v1/reviews/${encodeURIComponent(reviewId)}/result`,
-    { credentials: "include", method: "GET" },
-    isReviewResultResponse,
-  );
+  try {
+    response = await fetch(`${origin}/api/v1/reviews/${encodeURIComponent(reviewId)}/events`, {
+      credentials: "include",
+      headers,
+      method: "GET",
+      signal: options.signal ?? null,
+    });
+  } catch (error) {
+    if (options.signal?.aborted || isAbortError(error)) {
+      return { kind: "disconnected" };
+    }
 
-export const reviewApi: ReviewTransport = Object.freeze({
-  getResult: getReviewResult,
-  process: processReview,
-});
+    throw new ReviewApiError(0);
+  }
 
-export const createReviewApiTransport = (): ReviewTransport => reviewApi;
+  if (!response.ok) {
+    throw new ReviewApiError(response.status);
+  }
+
+  if (!response.headers.get("content-type")?.toLowerCase().startsWith("text/event-stream")) {
+    throw new ReviewApiError(response.status, "INVALID_EVENT_STREAM");
+  }
+
+  if (!response.body) {
+    throw new ReviewApiError(response.status, "MISSING_EVENT_STREAM");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    for (;;) {
+      const chunk = await reader.read();
+      buffer += decoder.decode(chunk.value, { stream: !chunk.done });
+
+      if (buffer.length > maxReviewEventBufferLength) {
+        throw new ReviewApiError(response.status, "EVENT_TOO_LARGE");
+      }
+
+      const frames = buffer.split(/\r?\n\r?\n/u);
+      buffer = frames.pop() ?? "";
+
+      for (const frame of frames) {
+        const event = parseSseFrame(frame);
+
+        if (!event) {
+          continue;
+        }
+
+        options.onEvent?.(event);
+
+        if (isTerminalEvent(event)) {
+          await reader.cancel().catch(() => undefined);
+          return { event, kind: "terminal" };
+        }
+      }
+
+      if (chunk.done) {
+        buffer += decoder.decode();
+        const event = parseSseFrame(buffer);
+
+        if (event) {
+          options.onEvent?.(event);
+          if (isTerminalEvent(event)) {
+            return { event, kind: "terminal" };
+          }
+        }
+
+        return { kind: "disconnected" };
+      }
+    }
+  } catch (error) {
+    if (options.signal?.aborted || isAbortError(error)) {
+      return { kind: "disconnected" };
+    }
+
+    if (error instanceof ReviewApiError) {
+      throw error;
+    }
+
+    throw new ReviewApiError(0);
+  }
+};
+
+const createReviewTransport = (
+  origin: string,
+  getAccessToken: (() => string | undefined) | undefined,
+): ReviewTransport => {
+  const transport: ReviewTransport = {
+    getResult: (reviewId) =>
+      request(
+        origin,
+        getAccessToken,
+        `/api/v1/reviews/${encodeURIComponent(reviewId)}/result`,
+        { credentials: "include", method: "GET" },
+        isReviewResultResponse,
+      ),
+    process: (reviewId) =>
+      request(
+        origin,
+        getAccessToken,
+        `/api/v1/reviews/${encodeURIComponent(reviewId)}/process`,
+        {
+          body: "{}",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        },
+        isReviewProcessResponse,
+      ),
+  };
+
+  return Object.freeze({
+    ...transport,
+    ...(origin !== "" && getAccessToken !== undefined
+      ? {
+          stream: (reviewId: string, options?: ReviewStreamOptions) =>
+            consumeReviewEventStream(origin, getAccessToken, reviewId, options),
+        }
+      : {}),
+  });
+};
+
+export const reviewApi: ReviewTransport = createReviewTransport(apiOrigin, undefined);
+
+export const createReviewApiTransport = (
+  options: ReviewApiTransportOptions = {},
+): ReviewTransport =>
+  createReviewTransport(normalizeApiOrigin(options.apiOrigin ?? apiOrigin), options.getAccessToken);

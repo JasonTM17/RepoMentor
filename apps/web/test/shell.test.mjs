@@ -157,6 +157,42 @@ const createJsonResponse = (status, body) => ({
   json: async () => body,
 });
 
+const createStreamResponse = (
+  chunks,
+  status = 200,
+  contentType = "text/event-stream; charset=utf-8",
+) => {
+  let index = 0;
+  let cancelled = false;
+
+  return {
+    body: {
+      getReader: () => ({
+        cancel: async () => {
+          cancelled = true;
+        },
+        read: async () => {
+          if (index < chunks.length) {
+            const value = new globalThis.TextEncoder().encode(chunks[index]);
+            index += 1;
+            return { done: false, value };
+          }
+
+          return { done: true, value: undefined };
+        },
+      }),
+    },
+    headers: {
+      get: (name) => (name.toLowerCase() === "content-type" ? contentType : null),
+    },
+    ok: status >= 200 && status < 300,
+    status,
+    get cancelled() {
+      return cancelled;
+    },
+  };
+};
+
 const validLoginData = Object.freeze({
   accessToken: "t",
   tokenType: "Bearer",
@@ -636,6 +672,98 @@ test("review transport preserves the accepted process and result endpoints", () 
   assert.match(source.reviewApi, /isReviewResultResponse/u);
   assert.match(source.reviewApi, /ReviewApiError/u);
   assert.doesNotMatch(source.reviewApi, /DEEPSEEK|api[_-]?key|secret/iu);
+});
+
+test("review lifecycle transport uses authenticated fetch SSE without query credentials", async () => {
+  assert.match(source.reviewApi, /getReader\(\)/u);
+  assert.match(source.reviewApi, /text\/event-stream/u);
+  assert.match(source.reviewApi, /Last-Event-ID/u);
+  assert.match(source.reviewApi, /Authorization/u);
+  assert.doesNotMatch(source.reviewApi, /EventSource/u);
+  assert.doesNotMatch(source.reviewApi, /events\?[^`]*token/iu);
+  assert.match(source.reviewHook, /transport\.stream/u);
+  assert.match(source.reviewHook, /getReviewResultWithPolling/u);
+  assert.match(source.reviewHook, /AbortController/u);
+
+  const { ReviewApiError, createReviewApiTransport } = await reviewApiRuntime;
+  const originalFetch = globalThis.fetch;
+  const fetchCalls = [];
+  const snapshot = {
+    generation: 0,
+    id: "1",
+    replay: "current",
+    resultAvailable: false,
+    reviewId: "review-1",
+    schemaVersion: "v1",
+    status: "PENDING",
+    type: "snapshot",
+  };
+  const heartbeat = {
+    generation: 0,
+    id: "1",
+    resultAvailable: false,
+    reviewId: "review-1",
+    schemaVersion: "v1",
+    status: "PENDING",
+    type: "heartbeat",
+  };
+  const completed = {
+    generation: 1,
+    id: "2",
+    resultAvailable: true,
+    reviewId: "review-1",
+    schemaVersion: "v1",
+    status: "COMPLETED",
+    type: "completed",
+  };
+  const frame = (event) =>
+    `id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+
+  try {
+    globalThis.fetch = async (url, init) => {
+      fetchCalls.push({ init, url });
+      return createStreamResponse([
+        `${frame(snapshot)}${frame(heartbeat)}`.slice(0, 180),
+        `${frame(snapshot)}${frame(heartbeat)}`.slice(180) + frame(completed),
+      ]);
+    };
+
+    const events = [];
+    const transport = createReviewApiTransport({
+      apiOrigin: "https://api.example.test",
+      getAccessToken: () => "access-token-fixture",
+    });
+    const outcome = await transport.stream("review/1", {
+      lastEventId: "7",
+      onEvent: (event) => events.push(event),
+    });
+
+    assert.equal(outcome.kind, "terminal");
+    assert.deepEqual(
+      events.map((event) => event.type),
+      ["snapshot", "heartbeat", "completed"],
+    );
+    assert.equal(fetchCalls.length, 1, "stream reconnect must not submit process");
+    assert.equal(fetchCalls[0].url, "https://api.example.test/api/v1/reviews/review%2F1/events");
+    assert.equal(fetchCalls[0].url.includes("?"), false);
+    assert.equal(fetchCalls[0].init.method, "GET");
+    assert.equal(fetchCalls[0].init.credentials, "include");
+    assert.equal(fetchCalls[0].init.headers.Accept, "text/event-stream");
+    assert.equal(fetchCalls[0].init.headers.Authorization, "Bearer access-token-fixture");
+    assert.equal(fetchCalls[0].init.headers["Last-Event-ID"], "7");
+    assert.equal(fetchCalls[0].init.body, undefined);
+
+    globalThis.fetch = async () =>
+      createStreamResponse([
+        `id: 3\nevent: completed\ndata: ${JSON.stringify({ ...completed, id: "3", source: "secret" })}\n\n`,
+      ]);
+    await assert.rejects(
+      () => transport.stream("review-1"),
+      (error) => error instanceof ReviewApiError && error.code === "INVALID_EVENT",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("review result polling is bounded, cancellable, and conflict-specific at runtime", async () => {

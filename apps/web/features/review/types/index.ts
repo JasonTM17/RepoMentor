@@ -20,6 +20,71 @@ export type ReviewCategory = "BUG" | "SECURITY" | "PERFORMANCE" | "MAINTAINABILI
 
 export type ReviewStatus = "idle" | "loading" | "processing" | "success" | "empty" | "error";
 
+export type ReviewLifecycleStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED";
+
+export type ReviewLifecycleEvent =
+  | {
+      readonly generation: number;
+      readonly id: string;
+      readonly replay: "current" | "reset";
+      readonly resultAvailable: boolean;
+      readonly reviewId: string;
+      readonly retryable?: boolean;
+      readonly schemaVersion: "v1";
+      readonly status: ReviewLifecycleStatus;
+      readonly type: "snapshot";
+    }
+  | {
+      readonly generation: number;
+      readonly id: string;
+      readonly resultAvailable: true;
+      readonly reviewId: string;
+      readonly schemaVersion: "v1";
+      readonly status: "COMPLETED";
+      readonly type: "completed";
+    }
+  | {
+      readonly generation: number;
+      readonly id: string;
+      readonly resultAvailable: false;
+      readonly retryable: boolean;
+      readonly reviewId: string;
+      readonly schemaVersion: "v1";
+      readonly status: "FAILED";
+      readonly type: "failed";
+    }
+  | {
+      readonly generation: number;
+      readonly id: string;
+      readonly resultAvailable: false;
+      readonly reviewId: string;
+      readonly schemaVersion: "v1";
+      readonly status: "CANCELLED";
+      readonly type: "cancelled";
+    }
+  | {
+      readonly generation: number;
+      readonly id: string;
+      readonly resultAvailable: boolean;
+      readonly reviewId: string;
+      readonly schemaVersion: "v1";
+      readonly status: ReviewLifecycleStatus;
+      readonly type: "heartbeat";
+    };
+
+export interface ReviewStreamOptions {
+  readonly lastEventId?: string | undefined;
+  readonly onEvent?: ((event: ReviewLifecycleEvent) => void) | undefined;
+  readonly signal?: AbortSignal | undefined;
+}
+
+export type ReviewStreamOutcome =
+  | { readonly kind: "disconnected" }
+  | {
+      readonly event: ReviewLifecycleEvent;
+      readonly kind: "terminal";
+    };
+
 export type ReviewTextField = "source" | "title" | "context";
 
 export interface ReviewDraft {
@@ -116,6 +181,10 @@ export type ReviewProcessResponse =
 export interface ReviewTransport {
   readonly process: (reviewId: string) => Promise<ReviewProcessResponse>;
   readonly getResult: (reviewId: string) => Promise<ReviewResultResponse>;
+  readonly stream?: (
+    reviewId: string,
+    options?: ReviewStreamOptions,
+  ) => Promise<ReviewStreamOutcome>;
 }
 
 export type ReviewTransportFactory = (draft: ReviewDraft) => ReviewTransport;
