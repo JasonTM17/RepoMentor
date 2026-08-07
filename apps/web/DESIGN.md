@@ -64,11 +64,12 @@ Phase 08 keeps the existing Industrial / utilitarian direction. The seeded read 
 ### Product surface
 
 - `/reviews/new` is a real client-side workspace with source, language, learner level, review mode, title, and context inputs.
+- Source input uses a client-only Monaco editor with a stable loading state, generic unavailable state, accessible label/help/error wiring, and read-only treatment while the bounded run is active.
 - The language select covers the initial ten-language set: JavaScript, TypeScript, Java, Python, Go, SQL, C#, C++, Rust, and Other. Demo fixture filenames map each option to a deterministic extension.
-- Character, line, and rough token values are computed from the local source and labeled as estimates. They are not quota or provider usage.
+- Character and line counts are computed from the local source. No token estimate is shown in the review workspace.
 - Validation runs on blur and submit. Errors are connected below their fields with `aria-describedby` and `role="alert"`.
-- The result desk renders summary, an explicit `Score not supplied` boundary, issue signals, severity/category filters, source line highlights, learning notes, copy action, and safe execution metadata.
-- The result reader preserves the accepted response fields: `summary`, `findings`, `provider`, `model`, `reasoningEffort`, `attempts`, `durationMs`, and nullable `usage`.
+- The result desk renders summary, an explicit `Score not supplied` boundary, issue signals, severity/category filters, keyboard-reachable line selection, source line highlights, learning notes, optional improved code/test/question/diff views, and user-triggered copy/download actions.
+- The accepted transport response shape remains validated at the API seam, but provider, model, reasoning, duration, and usage fields are not rendered by the result reader. Optional result views use a separate UI seam and are not added to the live contract or demo fixture.
 
 ### State contract
 
@@ -90,6 +91,23 @@ When process returns `resultAvailable: false` with `ALREADY_PROCESSING`, the hoo
 Learning-note headings use the rendered finding index for unique DOM IDs, and React keys include that index so duplicate `filePath` and line references remain addressable. The result validator also requires an ISO date-time completion value, non-negative integer usage, additive totals, a bounded cached-input value, and strict known-key sets.
 
 The demo fixture uses the server's `gpt-5.6-luna` and `max` metadata shape without making a provider call. It uses fixed output and a fixed completion timestamp, reports `usage: null`, and is explicitly labeled on the page. Adding `no findings` to the local source exercises the empty fixture path.
+
+## Review experience extension
+
+### Design Read and decision procedure
+
+- Reading this as: the existing product review workbench for learners and reviewers, with an industrial code-inspection language and a result desk that must stay honest at the demo boundary.
+- Seeded variation: the request key `review-experience` has 17 characters. `17 mod 10 = 7` selects Industrial / utilitarian in the ten-row direction menu. The selection is a direct fit for the established RepoMentor shell, so no adjacent-row deviation is needed.
+- Aesthetic thesis: industrial/utilitarian for RepoMentor learners, cool concrete neutrals with restrained safety orange, condensed technical labels with readable body text, a split editor/result workbench, and an interactive source gutter that turns issue selection into a visible line trace.
+- The form comes from code editor gutters and reviewer annotations beside a changed line. Monaco carries the source-editing behavior, while the existing hairline rules, Barlow Condensed display face, Source Sans 3 body face, and LineIcon family remain unchanged.
+
+### Product and data boundary
+
+- Monaco and the DiffEditor are dynamically loaded on the client only. Loading and error states are visible, generic, and do not expose loader details or source content.
+- Issue location buttons are native keyboard controls with `aria-pressed` state and `aria-controls` linkage. Selecting an issue colors only the referenced source window, and the visible window moves to a selected line when it falls beyond the first 24 lines.
+- Improved code, generated test, learning question, and original-versus-improved diff sections render supplied optional data. Each renders `Not supplied` when its value is absent. The current deterministic fixture supplies none of these optional values.
+- Copy actions require supplied optional code/test values. Markdown and JSON downloads contain the result contract plus explicitly supplied optional data, omit execution metadata, and run only from the user-triggered browser action.
+- Score remains `Not supplied`; the review result surface does not invent tokens, provider calls, quotas, or metrics.
 
 ### Verification evidence
 
