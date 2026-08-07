@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const REPOSITORY_ROOT = path.resolve(SCRIPT_DIRECTORY, "..");
@@ -10,6 +10,40 @@ const CONTRACTS_PACKAGE_NAME = "@repomentor/contracts";
 const CONTRACTS_DIRECTORY = path.join(REPOSITORY_ROOT, "packages", "contracts");
 const CONTRACTS_MANIFEST_PATH = path.join(CONTRACTS_DIRECTORY, "package.json");
 const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, "g");
+const SECRET_FIELD_NAMES = String.raw`password|passphrase|secret|token|api[-_]?key|credential`;
+const SECRET_FIELD_PREFIX_PATTERN = String.raw`["']?\b(?:${SECRET_FIELD_NAMES})\b["']?\s*[:=]\s*`;
+const AUTHORIZATION_PREFIX_PATTERN = String.raw`["']?\bauthorization\b["']?\s*[:=]\s*`;
+const AUTHORIZATION_DOUBLE_QUOTED_BEARER_PATTERN = new RegExp(
+  `(${AUTHORIZATION_PREFIX_PATTERN})"(Bearer\\s+)([^"\\r\\n]*)"`,
+  "gi",
+);
+const AUTHORIZATION_SINGLE_QUOTED_BEARER_PATTERN = new RegExp(
+  `(${AUTHORIZATION_PREFIX_PATTERN})'(Bearer\\s+)([^'\\r\\n]*)'`,
+  "gi",
+);
+const AUTHORIZATION_UNQUOTED_BEARER_PATTERN = new RegExp(
+  `(${AUTHORIZATION_PREFIX_PATTERN})(Bearer\\s+)([^\\s"'\\r\\n,;}\\]]+)`,
+  "gi",
+);
+const QUOTED_SECRET_FIELD_PATTERN = new RegExp(
+  `(${SECRET_FIELD_PREFIX_PATTERN})(["'])((?:\\\\.|(?!\\2)[^\\r\\n])*)\\2`,
+  "gi",
+);
+const AUTHORIZATION_QUOTED_SECRET_FIELD_PATTERN = new RegExp(
+  `(${AUTHORIZATION_PREFIX_PATTERN})(["'])(?!Bearer\\s)((?:\\\\.|(?!\\2)[^\\r\\n])*)\\2`,
+  "gi",
+);
+const UNQUOTED_SECRET_FIELD_PATTERN = new RegExp(
+  `(${SECRET_FIELD_PREFIX_PATTERN})([^\\s"'\\r\\n,;}\\]]+)`,
+  "gi",
+);
+const AUTHORIZATION_UNQUOTED_SECRET_FIELD_PATTERN = new RegExp(
+  `(${AUTHORIZATION_PREFIX_PATTERN})(?!Bearer\\s)([^\\s"'\\r\\n,;}\\]]+)`,
+  "gi",
+);
+const BEARER_CREDENTIAL_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/-]{8,}\b/gi;
+const KEY_SHAPED_CREDENTIAL_PATTERN =
+  /\b(?:ghp_|github_pat_|sk-|sk_|xox[baprs]_)[A-Za-z0-9_-]{8,}\b/gi;
 
 const PRODUCTION_MODULES = ["auth", "envelopes", "health", "index", "problem"];
 const EXPECTED_PAYLOAD = [
@@ -55,14 +89,33 @@ function discoverPackageManifests() {
   return manifestPaths;
 }
 
-function redactDiagnostics(value) {
+export function redactDiagnostics(value) {
   return String(value)
     .replace(ANSI_ESCAPE_PATTERN, "")
     .replace(
-      /\b(password|passphrase|secret|token|api[-_]?key|authorization|credential)\b\s*[:=]\s*[^\s,;]+/gi,
-      "$1=[REDACTED]",
+      AUTHORIZATION_DOUBLE_QUOTED_BEARER_PATTERN,
+      (_match, prefix, bearerPrefix) => `${prefix}"${bearerPrefix}[REDACTED]"`,
     )
-    .replace(/\b(?:ghp|github_pat|sk|xox[baprs])_[A-Za-z0-9_-]{10,}\b/g, "[REDACTED]")
+    .replace(
+      AUTHORIZATION_SINGLE_QUOTED_BEARER_PATTERN,
+      (_match, prefix, bearerPrefix) => `${prefix}'${bearerPrefix}[REDACTED]'`,
+    )
+    .replace(
+      AUTHORIZATION_UNQUOTED_BEARER_PATTERN,
+      (_match, prefix, bearerPrefix) => `${prefix}${bearerPrefix}[REDACTED]`,
+    )
+    .replace(UNQUOTED_SECRET_FIELD_PATTERN, "$1[REDACTED]")
+    .replace(AUTHORIZATION_UNQUOTED_SECRET_FIELD_PATTERN, "$1[REDACTED]")
+    .replace(
+      QUOTED_SECRET_FIELD_PATTERN,
+      (_match, prefix, quote) => `${prefix}${quote}[REDACTED]${quote}`,
+    )
+    .replace(
+      AUTHORIZATION_QUOTED_SECRET_FIELD_PATTERN,
+      (_match, prefix, quote) => `${prefix}${quote}[REDACTED]${quote}`,
+    )
+    .replace(BEARER_CREDENTIAL_PATTERN, "Bearer [REDACTED]")
+    .replace(KEY_SHAPED_CREDENTIAL_PATTERN, "[REDACTED]")
     .split(/\r?\n/)
     .filter(Boolean)
     .slice(-12)
@@ -268,25 +321,35 @@ function verifyPayload() {
   return payload;
 }
 
-try {
-  const manifestPaths = verifyPrivateManifests();
-  verifyContractsManifest();
-  runPnpm(["--filter", CONTRACTS_PACKAGE_NAME, "build"], "contracts build");
-  const payload = verifyPayload();
+function runPackageCheck() {
+  try {
+    const manifestPaths = verifyPrivateManifests();
+    verifyContractsManifest();
+    runPnpm(["--filter", CONTRACTS_PACKAGE_NAME, "build"], "contracts build");
+    const payload = verifyPayload();
 
-  process.stdout.write(
-    JSON.stringify(
-      {
-        privateManifests: manifestPaths.map(manifestPathLabel),
-        package: CONTRACTS_PACKAGE_NAME,
-        payload,
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-} catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`package:check failed:\n${redactDiagnostics(message)}\n`);
-  process.exitCode = 1;
+    process.stdout.write(
+      JSON.stringify(
+        {
+          privateManifests: manifestPaths.map(manifestPathLabel),
+          package: CONTRACTS_PACKAGE_NAME,
+          payload,
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`package:check failed:\n${redactDiagnostics(message)}\n`);
+    process.exitCode = 1;
+  }
+}
+
+const isDirectExecution =
+  process.argv[1] !== undefined &&
+  pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
+
+if (isDirectExecution) {
+  runPackageCheck();
 }

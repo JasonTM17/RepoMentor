@@ -34,7 +34,7 @@
     "typecheck": "pnpm --recursive --if-present run typecheck",
     "test": "pnpm --recursive --if-present run test",
     "build": "pnpm --recursive --if-present run build",
-    "package:check": "node scripts/verify-package-payloads.mjs",
+    "package:check": "node --test scripts/verify-package-payloads.test.mjs && node scripts/verify-package-payloads.mjs",
     "db:format": "prisma format --schema prisma/schema.prisma",
     "db:validate": "prisma validate --schema prisma/schema.prisma",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
