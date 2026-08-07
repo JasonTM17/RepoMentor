@@ -1,142 +1,224 @@
 # RepoMentor release notes and artifact boundaries
 
-This note defines the release boundary for the current private monorepo. It is
-documentation, not a deployment, registry-publication, or package-publication
-claim.
+This note describes the current private monorepo and its release boundaries.
+It is documentation, not evidence of a deployment, registry publication,
+package publication, or production readiness.
 
-## Current checkpoint
+## Source/evidence baseline
 
-- Exact local checkpoint: `eab8131fdf8f6937b0e21c85aedc43c3e9e38013`, the output
-  of `git rev-parse HEAD` in the documentation worktree.
-- Accepted 09D2A admission integration: `0b573a2`; the repository plan records
-  `192/192` API tests across 38 suites at that bounded integration checkpoint.
-- Root version: `0.1.0`.
-- Root package: `repomento`, `private: true`.
+- Source/evidence baseline before this documentation refresh:
+  `48502a7a2a41e365b110286b2167be6cf519b757` (`48502a7`).
+- Shared Redis executor/configuration seam included by that baseline:
+  `d7122db353de11f21dcd74c3f2ddad1c0ae7e2f6` (`d7122db`).
+- The two commits in this refresh modify documentation only and follow the
+  code baseline above. A later docs commit `HEAD` is not an exact-head code or
+  test claim; rerun required gates on the exact commit intended for release.
+- These SHAs do not establish a tag, release, registry artifact, license,
+  deployment, or production certification.
+
+## Current status
+
+- Root package: `repomento@0.1.0`, `private: true`.
 - Workspace packages: `@repomentor/api`, `@repomentor/web`,
   `@repomentor/contracts`, `@repomentor/eslint-config`, and
   `@repomentor/typescript-config`; all are `private: true`.
-- Release/tag status: no tag or release is created or claimed by this
-  checkpoint.
-- Publication status: no npm/public package artifact, GHCR image, or Docker
-  Hub image is published by this repository.
-- Deployment status: no deployment is performed or certified by this worker.
+- No repository `LICENSE` file or package `license` field is present, and no
+  license decision is invented here.
+- No npm/public package artifact, tag, GitHub release, GHCR image, or Docker
+  Hub image is claimed as published by this repository.
+- No deployment is performed or certified by this worker.
+- The external GitHub About metadata was not changed or verified by this task.
 
-The checkpoint contains authenticated quota admission on `POST /api/v1/reviews`:
-the route requires a bounded `Idempotency-Key`, hashes idempotency material,
-reserves an authenticated Redis quota admission, stores durable Prisma
-`QuotaAdmission` state, carries versioned keyed request-fingerprint metadata,
-and finalizes the preallocated review through the Prisma boundary. It also
-contains the owner-scoped usage read model, Redis quota/lock primitives, the
-server-owned Luna boundary, deterministic tests, local Compose services, and
-the current fingerprint-secret configuration in `.env.example`, Compose, and
-container validation.
+## Current implementation boundary
 
-These are bounded contract and configuration claims. No live PostgreSQL,
-Redis/EVAL, HTTP provider, or external Luna call has been verified. The guest
-HTTP route is not implemented, the Redis process-lock primitive is not wired
-into processing, and no queue, production deployment, registry publication, or
-public package publication is implied.
+### Authenticated quota admission
 
-## Release and tag gates
+`POST /api/v1/reviews` is protected by the API access guard and requires a
+bounded `Idempotency-Key`. The server canonicalizes the language with NFC,
+trim, and lowercase normalization, preserves source as untrusted data,
+resolves an omitted mode to `STANDARD`, and rejects a null or invalid mode
+before mutation.
 
-No release or tag is created by this task. A future release must satisfy all of
-the following gates on the exact commit intended for publication:
+The server normalizes and hashes idempotency material, then computes a
+version-1 HMAC-SHA-256 request fingerprint over the canonical source,
+language, and mode. It creates an owner-scoped durable `QuotaAdmission`
+intent, reserves the authenticated UTC-day quota with one atomic Redis
+`EVAL` operation, and finalizes the preallocated owned review through the
+Prisma boundary. Durable records retain the hash and explicit fingerprint
+version, not raw idempotency material or the fingerprint secret.
 
-1. The project owner explicitly decides and records the repository license.
-   There is no license decision or license file in this checkpoint.
-2. The reviewed worktree is clean, the full source SHA is recorded, and the
-   repository checks pass. The current API evidence is `192/192` across 38
-   suites; the focused current admission evidence includes HTTP orchestration
-   `10/10`, fingerprint configuration `6/6`, and fingerprint derivation `6/6`.
-   These focused counts are included in, not added to, the API total.
-3. The owner creates a real annotated semantic tag on that exact reviewed
-   commit. The container workflow accepts `vMAJOR.MINOR.PATCH` and prerelease
-   forms such as `v1.2.3-rc.1`; this task creates no tag.
-4. GitHub release configuration is present: the workflow uses the GitHub token
-   for GHCR package writes and requires the `DOCKERHUB_NAMESPACE` repository
-   variable plus the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets. The
-   namespace must be lowercase and the secrets must be configured before a
-   tagged run can publish.
-5. Required CI succeeds for the exact tagged commit, including repository
-   checks, container workflow validation, Dockerfile/Compose checks, image
-   builds, and HTTP smoke checks. A historical successful container-validation
-   run is infrastructure evidence, not proof for a new tag.
-6. The release job completes its supply-chain gates: multi-architecture staging
-   references are pushed to both registries, staging digests match, HIGH and
-   CRITICAL vulnerability scans pass, semantic and full-SHA tags are promoted,
-   all promoted references remain digest-aligned, SPDX SBOMs exist, and
-   provenance/SBOM attestations plus digest evidence are available.
-7. Only after all evidence is recorded may publication be claimed. A published
-   image is still not proof of application deployment or production readiness.
+An identical owner request replays without a second review or Redis
+reservation. A new admission returns `201`, a replay returns `200`, a
+conflicting reuse returns `409`, confirmed quota denial returns `429` with a
+bounded `Retry-After`, and ambiguous Redis or persistence outcomes fail closed
+into safe unavailable or reconciliation states. They are not blindly retried
+or compensated.
 
-## Container workflow boundary
+`QUOTA_ADMISSION_FINGERPRINT_SECRET` is server-only configuration. It must be
+32 to 4096 UTF-8 bytes outside test-only injection, is required by Compose,
+and remains empty in `.env.example`. HTTP callers cannot provide the secret,
+fingerprint, or fingerprint version metadata.
 
-`.github/workflows/container-release.yml` is prepared for a real tagged run;
-it is not evidence that a run has happened. It triggers only from a `v*.*.*`
-tag, builds `api` and `web` images for `linux/amd64` and `linux/arm64`, and
-derives the GHCR names from `ghcr.io/jasontm17/repomento` and the Docker Hub
-names from `DOCKERHUB_NAMESPACE`. It first pushes scan-only staging references
-to both registries, then performs the digest, scan, promotion, SBOM, and
-attestation gates described above.
+### Redis seam and lock primitive
 
-The repository plan records GitHub Actions run
-[`31030844884`](https://github.com/JasonTM17/RepoMentor/actions/runs/31030844884)
-as passing workflow/Dockerfile lint, Compose validation, API/web image builds,
-and `/health/live` plus `/` smoke checks for the earlier container slice. That
-run is historical infrastructure evidence only. It is not a release tag, a
-registry publication, a digest/provenance/SBOM record for this checkpoint, or a
-deployment proof. No real tagged release run or registry evidence exists here.
+The integrated code exposes one neutral `REDIS_COMMAND_EXECUTOR` and
+`USAGE_REDIS_CONFIG` dependency-injection seam. The production adapter is
+lazy, validates Redis URLs, disables the node-redis offline queue, disables
+automatic reconnect, uses bounded connect/command deadlines, and preserves
+operation-specific redacted unavailable errors. The authenticated admission
+path uses the shared seam for its atomic quota-admission reservation and
+marker/compensation scripts.
+
+The reusable review lock primitive uses `SET NX PX` with an opaque bounded
+token and compare-and-delete Lua release. It is a primitive only: the current
+review processing route does not acquire or release this lock, and the lock
+TTL is not process-lock or multi-worker evidence.
+
+### Explicit deferred boundaries
+
+- Guest QUICK quota exists as a Redis primitive/configuration boundary with a
+  default of `3`, but no guest HTTP route or guest admission integration is
+  implemented.
+- Processing is a bounded synchronous transport seam. There is no queue, SSE
+  or reconnect result stream, and no claim of streaming implementation.
+- Deterministic tests use fake Luna, in-memory repositories, and deterministic
+  Redis executors. No live PostgreSQL migration/transaction isolation, Redis
+  `EVAL`, HTTP provider, or external Luna call was run for this refresh.
+- The web usage surfaces are deterministic/demo-labelled and are not a live
+  authenticated dashboard. Compose healthchecks cover process/HTTP shell
+  liveness, not dependency-aware readiness.
+- No deployment, production traffic, registry publication, or production
+  readiness follows from local tests, Compose configuration, or image workflow
+  definitions.
+
+## Validation evidence
+
+The following fresh checks ran against the source/evidence baseline above,
+before the docs-only commits, using Node `v24.12.0`, pnpm `11.0.9`, safe
+non-secret test fixtures, and direct local binaries where pnpm's nested
+install-status check was blocked:
+
+| Check                                                       | Result                                                                                                                                                                                                          |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API compile and deterministic tests                         | Pass: `193/193` tests across `39` suites, `0` failed and `0` cancelled.                                                                                                                                         |
+| Shared contracts tests                                      | Pass: `5/5`.                                                                                                                                                                                                    |
+| Web shell tests                                             | Pass: `32/32`.                                                                                                                                                                                                  |
+| TypeScript and API build checks                             | Pass: direct typechecks for contracts/API/web and direct API build.                                                                                                                                             |
+| Prisma preparation                                          | Pass: direct generate with a local-only `DATABASE_URL`; no database connection.                                                                                                                                 |
+| Compose configuration                                       | Pass: `docker compose config --quiet` with safe dummy values; configuration only.                                                                                                                               |
+| Contracts package dry-run                                   | Pass without publishing: `npm pack --dry-run --json` returned `@repomentor/contracts@0.1.0` with `33` local entries, including `dist/.test-dist` produced by test compilation. This is not an approved payload. |
+| Frozen dependency install                                   | `pnpm run deps:install` installed the dependency tree but exited with `ERR_PNPM_IGNORED_BUILDS` while requesting build approval. No approval was enabled; this is an environment/tooling limitation.            |
+| Live Docker and dependency checks                           | Not run: `docker info` could not connect to the local Docker Desktop Linux engine. No image build, Compose startup, or HTTP smoke is claimed.                                                                   |
+| Full root suite, web production build, and release workflow | Not run in this docs refresh. Do not infer them from the passing focused checks above.                                                                                                                          |
+
+## Container workflows and release gates
+
+### Pull request and main validation
+
+`.github/workflows/container-validation.yml` is the no-publish validation
+workflow. Its static job runs workflow syntax validation, Hadolint, Dockerfile
+contract checks, and `docker compose config --quiet` with safe dummy values.
+Its build job builds the API and web images for `linux/amd64` with
+`push: false`, then smoke-tests API `/health/live` and the web `/` shell. This
+workflow definition is a gate, not evidence that a current GitHub run passed.
+
+### Tagged dual-registry release
+
+`.github/workflows/container-release.yml` is prepared for a real tag and has
+not published an image in this checkpoint. It requires a strict semantic tag
+such as `v1.2.3` or `v1.2.3-rc.1`, a full 40-character `GITHUB_SHA`, a
+lowercase `DOCKERHUB_NAMESPACE` repository variable, and configured
+`DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets. It logs into GHCR with
+`GITHUB_TOKEN` and Docker Hub with the explicit Docker Hub secrets.
+
+The intended image formulas in the workflow are:
+
+- GHCR: `ghcr.io/jasontm17/repomento-api` and
+  `ghcr.io/jasontm17/repomento-web`;
+- Docker Hub: `docker.io/${DOCKERHUB_NAMESPACE}/repomento-api` and
+  `docker.io/${DOCKERHUB_NAMESPACE}/repomento-web`.
+
+These are workflow-configured intended names, not proof that the namespaces,
+repositories, ownership, or images exist. The hard-coded GHCR root and the
+Docker Hub namespace have not been externally confirmed here. Confirm the
+final image names and namespace before any real tagged run; no registry
+publication or registry state is claimed.
+
+For each API/web image, the release workflow must pass all of these gates:
+
+1. Build one multi-architecture staging artifact for `linux/amd64` and
+   `linux/arm64`, pushing staging references to both registries.
+2. Resolve and compare GHCR and Docker Hub staging digests.
+3. Scan both staging references for HIGH and CRITICAL OS/library
+   vulnerabilities with the workflow's fail-closed Trivy settings.
+4. Promote the scanned digest to the semantic version and
+   `sha-${GITHUB_SHA}` tags in both registries without overwriting existing
+   release tags.
+5. Verify that all four promoted references remain digest-aligned with the
+   scanned staging digest.
+6. Generate and verify an SPDX SBOM, attach provenance and SBOM attestations
+   to the final digest in both registries, and upload digest evidence.
+
+Publication may be claimed only after the exact tagged commit has these CI,
+scan, digest, SBOM, and provenance records. Image publication is not
+application deployment or production-readiness evidence. This worker created
+no tag, did not run the release workflow, and did not publish or deploy.
 
 ## Private package boundary
 
-The root package and every workspace package are private. Existing root
-metadata provides repository discovery (`description`, repository URL, homepage,
-keywords, and `private: true`); it does not make the runtime or workspace
-packages publishable. No package metadata change is justified in this refresh,
-and no `npm publish`, `pnpm publish`, or public registry claim is allowed from
-this checkpoint.
+The root package and every current workspace package remain private. No
+`private` flag was changed, no `npm publish` or `pnpm publish` was run, and no
+public registry artifact is claimed. `@repomentor/contracts` is the only
+current package treated as a future publication candidate; it remains
+private today. The API, web, ESLint configuration, and TypeScript configuration
+packages remain internal workspace packages.
 
-Before any future package publication, the owner must explicitly choose the
-public artifact and record its `files`, entry points, exports, dependency
-policy, provenance, exact payload check, and license. A private monorepo package
-must not be described as an npm release merely because it can be built or
-packed locally.
+The non-publishing `@repomentor/contracts` pack dry-run in this task returned
+JSON for version `0.1.0` with `33` entries. Because test compilation had
+already produced `dist/.test-dist`, the result is evidence to review, not an
+approved release payload. A future package check must run from a clean build
+output and verify the exact allowlisted payload, entry points, exports,
+dependency policy, and consumer install/compile behavior.
 
-## Validation evidence and limitations
+Before any package publication, the owner must explicitly decide and record:
 
-The current exact-head API rerun passed `192` tests across `38` suites with
-`192` passed and `0` failed. It uses deterministic Redis executors, in-memory
-repositories, and a fake Luna provider. `pnpm db:generate`, the contracts build,
-Prisma validation with a local-only URL, and `docker compose config --quiet`
-with safe dummy values also pass; the latter validates configuration only.
+- the repository/package license and matching metadata;
+- the candidate package, version, files, entry points, exports, and dependency
+  policy;
+- a clean `npm pack --dry-run --json` or equivalent exact payload check with no
+  test-only artifacts;
+- provenance, integrity, source-commit, and supply-chain evidence; and
+- a consumer check that installs the packed artifact and exercises its public
+  imports/types.
 
-The local Docker Desktop daemon was not running, so local Compose startup and
-live PostgreSQL/Redis dependency health were not verified. No live Redis EVAL,
-PostgreSQL transaction/isolation, HTTP provider, or external Luna evidence is
-claimed. Guest admission, process-lock wiring, deployment, registry
-publication, and public package publication remain deferred.
-
-The UI asset at `docs/media/repomentor-ui.gif` is a real capture of the running
-Next UI shell at `/`, `/login`, and `/register`. It is evidence of the media
-capture only, not a release proof, visual-regression baseline, live-session
-proof, backend demonstration, or deployment record.
+No package publication is authorized by this documentation refresh.
 
 ## License gate
 
 There is currently no repository `LICENSE` file and no `license` field in the
-root or workspace package metadata. This documentation does not invent a
-license. A public release or package publication is blocked until the project
-owner makes and records an explicit license decision, adds the authorized
-repository/package metadata, and reruns the release payload checks.
+root or workspace package metadata. The project owner must make an explicit
+license decision before adding legal or publication metadata. A public package
+or release remains blocked until the authorized license, exact payload, and
+associated release checks are present. This task does not add a license or
+flip package privacy flags.
 
 ## GitHub About metadata
 
-The table below keeps the intended GitHub About values aligned with the current
-root package metadata. About text is discovery metadata, not a release,
-publication, license, or deployment proof.
+The following are intended values derived from the committed root metadata.
+They are discovery values only, not release, package, license, or deployment
+evidence. This task did not change the external GitHub About fields and did not
+verify their current external state.
 
-| GitHub About field | Aligned value                                                                                                       |
+| GitHub About field | Intended value                                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------- |
 | Description        | `Developer-first AI code review and programming tutor workspace.`                                                   |
 | Homepage / website | `https://github.com/JasonTM17/RepoMentor#readme`                                                                    |
 | Topics             | `ai`, `code-review`, `programming-tutor`, `developer-tools`, `typescript`, `nextjs`, `nestjs`, `prisma`, `monorepo` |
+
+## Media boundary
+
+The checked-in `docs/media/repomentor-ui.gif` is a real capture of the
+running Next web UI shell at static routes. The claim is limited to that UI
+shell capture. It does not show a live API session, authenticated review data,
+backend processing, PostgreSQL, Redis, Luna output, registry publication, or
+deployment, and no new media capture was run in this documentation refresh.
