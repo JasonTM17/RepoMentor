@@ -310,12 +310,19 @@ describe("quota admission owner-safe transitions", () => {
       },
     );
 
-    const admitted = await service.transitionForOwner(
-      "owner-a",
-      intent.record.id,
-      "ADMITTED",
-      new Date("2026-08-06T12:03:00.000Z"),
+    await assert.rejects(
+      service.transitionForOwner(
+        "owner-a",
+        intent.record.id,
+        "ADMITTED",
+        new Date("2026-08-06T12:03:00.000Z"),
+      ),
+      (error: unknown) => {
+        assert.ok(error instanceof QuotaAdmissionTransitionError);
+        assert.equal(error.message.includes(intent.record.id), false);
+        return true;
+      },
     );
-    assert.equal(admitted.status, "ADMITTED");
+    assert.deepEqual(await service.findForOwner("owner-a", intent.record.id), reserved);
   });
 });

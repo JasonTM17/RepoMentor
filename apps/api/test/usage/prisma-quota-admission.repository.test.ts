@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import { PrismaService } from "../../src/modules/auth/prisma.service.js";
 import { PrismaQuotaAdmissionRepository } from "../../src/modules/usage/prisma-quota-admission.repository.js";
+import { QuotaAdmissionTransitionError } from "../../src/modules/usage/quota-admission.errors.js";
 
 const NOW = new Date("2026-08-06T12:00:00.000Z");
 const ROW = {
@@ -70,7 +71,7 @@ describe("Prisma quota admission repository", () => {
     assert.equal(createArgs?.reviewId, "review-123");
   });
 
-  it("uses owner checks and legal status predicates in the short transaction", async () => {
+  it("rejects finalizer-only admission and uses owner checks in the short transaction", async () => {
     const updateCalls: Array<Record<string, unknown>> = [];
     let currentStatus = "PENDING";
     const transactionClient = {
@@ -80,8 +81,12 @@ describe("Prisma quota admission repository", () => {
         findUnique: async () => null,
         updateMany: async (args: Record<string, unknown>) => {
           updateCalls.push(args);
-          currentStatus = "ADMITTED";
-          return { count: 1 };
+          const where = args.where as { readonly status?: { readonly in?: readonly string[] } };
+          if (where.status?.in?.includes(currentStatus)) {
+            currentStatus = "ADMITTED";
+            return { count: 1 };
+          }
+          return { count: 0 };
         },
       },
     };
@@ -91,20 +96,24 @@ describe("Prisma quota admission repository", () => {
     } as unknown as PrismaService;
     const repository = new PrismaQuotaAdmissionRepository(prisma);
 
-    const admitted = await repository.transitionForOwner(
-      "owner-a",
-      "admission-123",
-      "ADMITTED",
-      new Date("2026-08-06T12:01:00.000Z"),
+    await assert.rejects(
+      repository.transitionForOwner(
+        "owner-a",
+        "admission-123",
+        "ADMITTED",
+        new Date("2026-08-06T12:01:00.000Z"),
+      ),
+      QuotaAdmissionTransitionError,
     );
 
-    assert.equal(admitted.status, "ADMITTED");
     assert.equal(updateCalls.length, 1);
     assert.deepEqual(updateCalls[0]?.where, {
       id: "admission-123",
-      status: { in: ["RESERVED", "RECONCILE_REQUIRED"] },
+      status: { in: [] },
       userId: "owner-a",
     });
+    assert.equal(currentStatus, "PENDING");
+    assert.equal((await repository.findForOwner("owner-a", "admission-123"))?.status, "PENDING");
 
     assert.equal(await repository.findForOwner("owner-b", "admission-123"), null);
   });
