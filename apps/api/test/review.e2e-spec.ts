@@ -313,6 +313,26 @@ describe("review API", () => {
     assert.equal(JSON.stringify(response.body).includes(source), false);
   });
 
+  it("rejects null mode before Redis or review mutation", async () => {
+    const user = await createUser();
+    const source = "const nullModeSource = true;";
+    const idempotencyKey = nextIdempotencyKey();
+    const response = await request(app.getHttpServer())
+      .post("/api/v1/reviews")
+      .set("authorization", `Bearer ${user.accessToken}`)
+      .set("Idempotency-Key", idempotencyKey)
+      .send({ language: "TypeScript", mode: null, source });
+
+    assert.equal(response.status, 400);
+    assert.equal(response.body.error.code, "VALIDATION_FAILED");
+    assert.equal(JSON.stringify(response.body).includes(source), false);
+    assert.equal(JSON.stringify(response.body).includes(idempotencyKey), false);
+    assert.equal(redisExecutor.calls, 0);
+
+    const stored = await reviewRepository.listForUser({ limit: 20, page: 1, userId: user.id });
+    assert.equal(stored.total, 0);
+  });
+
   it("replays identical authenticated admission without a second review or Redis reservation", async () => {
     const user = await createUser();
     const source = "const replayedAdmission = true;";

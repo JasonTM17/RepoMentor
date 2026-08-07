@@ -9,6 +9,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from "class-validator";
 
 import {
@@ -47,7 +48,7 @@ export class CreateReviewDto {
   @Matches(/^[a-z0-9#+._-]+$/u)
   language!: string;
 
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
   @IsIn(REVIEW_MODES)
   mode?: ReviewMode;
 }

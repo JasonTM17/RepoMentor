@@ -370,4 +370,24 @@ describe("authenticated quota admission HTTP orchestration", () => {
     );
     assert.equal(fixture.redis.calls, 0);
   });
+
+  it("maps null mode to a sanitized input error before mutation", async () => {
+    const fixture = createFixture();
+    const rawSource = "const nullModeSource = true;";
+    const rawKey = "raw-idempotency-key-that-must-not-escape";
+
+    await assert.rejects(
+      fixture.service.admit(input({ idempotencyKey: rawKey, mode: null, source: rawSource })),
+      (error: unknown) => {
+        assert.ok(error instanceof QuotaAdmissionInputError);
+        assert.equal(error.field, "mode");
+        assert.equal(error.message.includes(rawSource), false);
+        assert.equal(error.message.includes(rawKey), false);
+        return true;
+      },
+    );
+    assert.equal(fixture.repository.creates.length, 0);
+    assert.equal(fixture.redis.calls, 0);
+    assert.equal(fixture.finalizer.inputs.length, 0);
+  });
 });

@@ -11,10 +11,12 @@ import { QuotaAdmissionConflictError, QuotaAdmissionInputError } from "./quota-a
 import {
   computeQuotaAdmissionFingerprint,
   QUOTA_ADMISSION_FINGERPRINT_VERSION,
+  QuotaAdmissionFingerprintInputError,
   resolveQuotaAdmissionReviewMode,
 } from "./quota-admission.fingerprint.js";
 import { createOpaqueAdmissionId, normalizeIdempotencyKey } from "./quota-admission.hash.js";
 import { QuotaAdmissionService } from "./quota-admission.service.js";
+import type { ReviewMode } from "../review/review.types.js";
 import type { QuotaAdmissionRecord } from "./quota-admission.types.js";
 import {
   QuotaAdmissionFinalizerConflictError,
@@ -81,6 +83,18 @@ function canonicalizeSource(value: unknown): string {
   return value;
 }
 
+function canonicalizeMode(value: unknown): ReviewMode {
+  try {
+    return resolveQuotaAdmissionReviewMode(value);
+  } catch (error: unknown) {
+    if (error instanceof QuotaAdmissionFingerprintInputError) {
+      throw new QuotaAdmissionInputError("mode");
+    }
+
+    throw error;
+  }
+}
+
 function boundedRetryAfterSeconds(value: number): number {
   if (!Number.isSafeInteger(value)) {
     return MAX_RETRY_AFTER_SECONDS;
@@ -111,7 +125,7 @@ export class QuotaAdmissionHttpService {
     const now = input.now ?? new Date();
     const source = canonicalizeSource(input.source);
     const language = canonicalizeLanguage(input.language);
-    const mode = resolveQuotaAdmissionReviewMode(input.mode);
+    const mode = canonicalizeMode(input.mode);
     const idempotencyKey = normalizeIdempotencyKey(input.idempotencyKey);
     const fingerprint = computeQuotaAdmissionFingerprint(this.fingerprintConfig.fingerprintSecret, {
       fingerprintVersion: QUOTA_ADMISSION_FINGERPRINT_VERSION,
