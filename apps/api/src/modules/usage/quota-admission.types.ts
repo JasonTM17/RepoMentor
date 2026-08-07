@@ -46,6 +46,8 @@ export interface QuotaAdmissionRecord {
   readonly id: string;
   readonly userId: string;
   readonly idempotencyKeyHash: string;
+  readonly requestFingerprintHash?: string;
+  readonly fingerprintVersion?: number;
   /** Preallocated opaque Review id; the next integration slice must finalize owner-scoped. */
   readonly reviewId: string;
   readonly mode: ReviewMode;
@@ -59,6 +61,8 @@ export interface CreateQuotaAdmissionRecordInput {
   readonly id: string;
   readonly userId: string;
   readonly idempotencyKeyHash: string;
+  readonly requestFingerprintHash?: string;
+  readonly fingerprintVersion?: number;
   readonly reviewId: string;
   readonly mode: ReviewMode;
   readonly utcDay: string;
