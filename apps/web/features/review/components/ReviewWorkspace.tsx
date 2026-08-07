@@ -557,6 +557,7 @@ const ReviewWorkspace: FC<ReviewWorkspaceProps> = ({
           result={result}
           source={draft.source}
           status={status}
+          transportMode={transportMode}
         />
       </section>
     </main>

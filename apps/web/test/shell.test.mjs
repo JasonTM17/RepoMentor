@@ -1039,6 +1039,9 @@ test("review result renders safe boundaries, issue selection, and learning notes
   assert.match(source.reviewResultPanel, /readonly findingIndex: number/u);
   assert.match(source.reviewResultPanel, /aria-pressed=\{isSelected\}/u);
   assert.match(source.reviewResultPanel, /review-code-context-line-selected/u);
+  assert.match(source.reviewResultPanel, /data-transport-mode=\{transportMode\}/u);
+  assert.match(source.reviewResultPanel, /Authenticated API result/u);
+  assert.match(source.reviewWorkspace, /transportMode=\{transportMode\}/u);
   assert.doesNotMatch(
     source.reviewResultPanel,
     /result\.execution\.(provider|model|reasoningEffort|durationMs)/u,

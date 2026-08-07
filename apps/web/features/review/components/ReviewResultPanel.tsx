@@ -24,6 +24,7 @@ interface ReviewResultPanelProps {
   readonly result: ReviewResultResponse | null;
   readonly source: string;
   readonly status: ReviewStatus;
+  readonly transportMode: "api" | "custom" | "demo";
 }
 
 type FindingFilter = ReviewSeverity | "ALL";
@@ -242,6 +243,7 @@ const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
   result,
   source,
   status,
+  transportMode,
 }): ReactElement => {
   const [severityFilter, setSeverityFilter] = useState<FindingFilter>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
@@ -278,11 +280,24 @@ const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
 
   const resultTitle =
     status === "empty" ? "No issue signals returned." : "The structured result is ready.";
+  const resultBoundaryCopy =
+    transportMode === "api"
+      ? "This view maps the validated result returned by the authenticated review API."
+      : transportMode === "custom"
+        ? "This view maps the result returned by the configured review transport."
+        : "This view maps the result shape returned by the deterministic local fixture.";
+  const resultBoundaryLabel =
+    transportMode === "api"
+      ? "Authenticated API result"
+      : transportMode === "custom"
+        ? "Configured transport result"
+        : "Demo fixture";
 
   return (
     <section
       className="review-results-panel surface-panel"
       aria-labelledby="review-results-heading"
+      data-transport-mode={transportMode}
     >
       <header className="review-results-header">
         <div>
@@ -290,12 +305,9 @@ const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
           <h2 id="review-results-heading" className="review-results-title">
             {resultTitle}
           </h2>
-          <p className="review-results-copy">
-            This view maps the result shape returned by the review transport. The visible content is
-            a deterministic fixture in this phase.
-          </p>
+          <p className="review-results-copy">{resultBoundaryCopy}</p>
         </div>
-        <span className="status-label status-label-accent">Demo fixture</span>
+        <span className="status-label status-label-accent">{resultBoundaryLabel}</span>
       </header>
 
       <div className="review-results-body">
