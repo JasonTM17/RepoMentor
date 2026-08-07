@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -8,6 +8,7 @@ const SCRIPT_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const REPOSITORY_ROOT = path.resolve(SCRIPT_DIRECTORY, "..");
 const CONTRACTS_PACKAGE_NAME = "@repomentor/contracts";
 const CONTRACTS_DIRECTORY = path.join(REPOSITORY_ROOT, "packages", "contracts");
+const CONTRACTS_DIST_DIRECTORY = path.join(CONTRACTS_DIRECTORY, "dist");
 const CONTRACTS_MANIFEST_PATH = path.join(CONTRACTS_DIRECTORY, "package.json");
 const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, "g");
 const SECRET_FIELD_NAMES = String.raw`password|passphrase|secret|token|api[-_]?key|credential`;
@@ -255,6 +256,12 @@ function verifyContractsManifest() {
   }
 }
 
+function resetContractsBuildOutput() {
+  // The package includes `dist`; remove stale generated files before rebuilding
+  // so old test output cannot change the dry-run payload.
+  rmSync(CONTRACTS_DIST_DIRECTORY, { force: true, recursive: true });
+}
+
 function verifyPayload() {
   const packResult = parsePackJson(
     runPnpm(
@@ -325,6 +332,7 @@ function runPackageCheck() {
   try {
     const manifestPaths = verifyPrivateManifests();
     verifyContractsManifest();
+    resetContractsBuildOutput();
     runPnpm(["--filter", CONTRACTS_PACKAGE_NAME, "build"], "contracts build");
     const payload = verifyPayload();
 
