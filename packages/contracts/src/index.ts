@@ -37,3 +37,15 @@ export type {
   AuthUserStatus,
   PublicUser,
 } from "./auth.js";
+
+export {
+  REVIEW_EVENT_MAX_GENERATION,
+  REVIEW_EVENT_MAX_ID_LENGTH,
+  REVIEW_EVENT_SCHEMA_VERSION,
+  REVIEW_EVENT_STATUSES,
+  REVIEW_EVENT_TYPES,
+  reviewEventSchema,
+  reviewEventStatusSchema,
+  reviewEventTypeSchema,
+} from "./review.js";
+export type { ReviewEvent, ReviewEventStatus, ReviewEventType } from "./review.js";

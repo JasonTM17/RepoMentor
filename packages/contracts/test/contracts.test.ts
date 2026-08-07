@@ -15,6 +15,7 @@ import {
   livenessHealthPayloadSchema,
   publicUserSchema,
   readinessHealthPayloadSchema,
+  reviewEventSchema,
 } from "../src/index.js";
 
 test("accepts a valid API problem and rejects unsafe fields", () => {
@@ -33,7 +34,10 @@ test("accepts a valid API problem and rejects unsafe fields", () => {
   assert.equal(apiProblemSchema.safeParse(problem).success, true);
 
   for (const forbiddenField of ["stack", "secret", "token", "source"]) {
-    const unsafeProblem = { ...problem, [forbiddenField]: "must not cross the boundary" };
+    const unsafeProblem = {
+      ...problem,
+      [forbiddenField]: "must not cross the boundary",
+    };
     assert.equal(apiProblemSchema.safeParse(unsafeProblem).success, false);
   }
 
@@ -211,4 +215,77 @@ test("rejects unsafe and unknown auth fields", () => {
     accessTokenAuthResultSchema.safeParse({ ...authResult, expiresInSeconds: 3_601 }).success,
     false,
   );
+});
+
+test("freezes the bounded status-only review event contract", () => {
+  const events = [
+    {
+      generation: 0,
+      id: "1",
+      replay: "current",
+      resultAvailable: false,
+      reviewId: "review-123",
+      schemaVersion: "v1",
+      status: "PENDING",
+      type: "snapshot",
+    },
+    {
+      generation: 1,
+      id: "2",
+      resultAvailable: false,
+      reviewId: "review-123",
+      schemaVersion: "v1",
+      status: "PROCESSING",
+      type: "heartbeat",
+    },
+    {
+      generation: 1,
+      id: "3",
+      resultAvailable: true,
+      reviewId: "review-123",
+      schemaVersion: "v1",
+      status: "COMPLETED",
+      type: "completed",
+    },
+    {
+      generation: 1,
+      id: "4",
+      resultAvailable: false,
+      retryable: true,
+      reviewId: "review-123",
+      schemaVersion: "v1",
+      status: "FAILED",
+      type: "failed",
+    },
+    {
+      generation: 1,
+      id: "5",
+      resultAvailable: false,
+      reviewId: "review-123",
+      schemaVersion: "v1",
+      status: "CANCELLED",
+      type: "cancelled",
+    },
+  ] as const;
+
+  for (const event of events) {
+    assert.equal(reviewEventSchema.safeParse(event).success, true);
+  }
+
+  assert.equal(
+    reviewEventSchema.safeParse({
+      ...events[0],
+      source: "private source",
+    }).success,
+    false,
+  );
+  assert.equal(
+    reviewEventSchema.safeParse({
+      ...events[2],
+      result: { findings: [] },
+    }).success,
+    false,
+  );
+  assert.equal(reviewEventSchema.safeParse({ ...events[0], id: "0" }).success, false);
+  assert.equal(reviewEventSchema.safeParse({ ...events[0], id: "1".repeat(11) }).success, false);
 });
