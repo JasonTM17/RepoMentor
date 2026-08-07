@@ -330,6 +330,13 @@ diff-check, credential-shaped/stale-claim scans, and a contracts pack dry-run;
 no public package, license, tag, registry publication, deployment, or live
 dependency claim was made.
 
+The shared Redis executor seam is accepted on local `main` at `d7122db`,
+cherry-picked from Luna worker commit `5d25462`. It exports one neutral
+executor/config seam while preserving the quota-admission token alias, passed
+the API `193/193` deterministic test gate, and was accepted by the Luna
+arbiter as bounded DI plumbing. Live Redis remains a P2 runtime limitation;
+the process-lock implementation and guest route are still pending.
+
 ## Commit and validation contract
 
 Each worker reports one task per commit using:
@@ -414,6 +421,7 @@ without live integration evidence.
 | `main` | 13 | Raman Luna + manager arbiter | `014c5e7`, `9456850`, `cf2e62b`, `16a81d1`, `69f83ab`, `d910080`, `10f1b71`, `6448e67`, `952bbc5`, `dc238d3`, `14f0c3e`, `3d98a4d` | accepted; CI run `31030844884` passed Docker/Compose/build/smoke gates; registry publication pending |
 | `main` | 13 | Volta Luna + manager arbiter | `eab4557`, `6e90530`, `8c0f0c0`, `86a1c69`, `2cb9c9d` | accepted Compose/env/docs slice; local startup and live smoke pending |
 | `main` | 13-env | Luna env-contract worker + coordinator | `eab8131` (worker `a6234bb`) | accepted required quota fingerprint secret wiring in `.env.example`, Compose, and container validation; safe config check passed; no live daemon claim |
+| `main` | 13-redis-seam | Luna Redis seam worker + Luna manager arbiter | `d7122db` (worker `5d25462`) | accepted bounded neutral executor/config DI seam; API `193/193`; live Redis remains P2 and process-lock is not included |
 | `main` | docs/package | Luna docs/package worker + coordinator | `389ae48`, `dd03a5e` (worker `46c324d`, `052c52e`) | accepted README/release refresh; private package boundary, license gate, GHCR/Docker Hub gates, exact evidence, and real GIF limits recorded; no publication claim |
 | read-only counsel | docs/package-advisor | Terra advisor | `019fdc0a-81e8-7610-b96d-488a28e17408` | completed; reviewed stale claims, exact-head evidence, media/GitHub About boundaries; no edits or acceptance claim |
 | read-only counsel | docs/package-kongming | Terra package/release counsel | `019fdc0a-82ca-7382-9a64-33a0e1082a35` | completed; confirmed private manifests, missing license/payload checker, registry gates, and package naming risks; no edits or acceptance claim |
@@ -479,6 +487,9 @@ without live integration evidence.
 | phase-13-docker-compose-runtime | Compose/env/docs implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-compose-runtime` | accepted; worker `019fd2d1-eb9d-7fd0-ab68-4f5f2b44073f`; merged through `2cb9c9d` | Volta report; Docker daemon/live startup unavailable |
 | phase-13-container-advisor | supply-chain advisor | `gpt-5.6-terra` / `max` | read-only counsel | completed; worker `019fd2b2-1664-7780-9d71-72f8b7f4582c`; no edits | hold findings resolved statically; live publish still gated |
 | phase-13-env-contract | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-quota-admission-env` | accepted; worker `019fdbfc-455d-7f21-ab09-b69858391aa7`, commit `a6234bb`, merged as `eab8131` | required fingerprint-secret env/Compose/validation wiring; safe config check passed; no live daemon claim |
+| phase-13-redis-seam | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-review-process-lock-v2` | accepted; worker `019fdc26-028b-7941-91a6-20e8951f51c7`, commit `5d25462`, merged as `d7122db` | neutral shared executor/config seam; API `193/193`; no live Redis claim |
+| phase-13-process-lock | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-review-process-lock-v2` | pending; workers `019fdc21`, `019fdc2f`, `019fdc32` shut down without diffs | implementation held to Luna-only rule; no process-lock acceptance or claim |
+| phase-13-process-lock-advisor | security/architecture advisor | `gpt-5.6-terra` / `max` | read-only counsel | completed; worker `019fdc1c-e2a0-7ea0-afa8-614e30735330`; no edits | lock-before-claim, fail-closed Redis, finally release, 503/409, and guest boundaries advised; advisory only |
 | phase-13-docs-package | documentation/package implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docs-package` | accepted; worker `019fdc0c-2d58-73f1-bd28-e03746ccf90d`; merged as `389ae48`, `dd03a5e` | README/release refresh; private package boundary and exact release gates; no metadata/publication claim |
 | phase-13-docs-package-advisor | documentation/security advisor | `gpt-5.6-terra` / `max` | read-only counsel | completed; worker `019fdc0a-81e8-7610-b96d-488a28e17408`; no edits | stale-claim, exact-head, media, and GitHub About review; advisory only |
 | phase-13-docs-package-kongming | package/release advisor | `gpt-5.6-terra` / `max` | read-only counsel | completed; worker `019fdc0a-82ca-7382-9a64-33a0e1082a35`; no edits | private manifests, license/payload, registry naming, and release-gate review; advisory only |
@@ -499,3 +510,7 @@ without live integration evidence.
   process-lock, external Luna, registry, and deployment evidence remain
   deferred. Custom caller-supplied `admissionId`/`reviewId` conflict policy
   and replay `retryAfter` remain follow-ups.
+- The shared Redis executor/config seam is accepted at `d7122db` as bounded DI
+  plumbing. Process-lock wiring and the guest no-history route remain pending;
+  three Luna process-lock worker attempts stopped without diffs, so no
+  implementation or acceptance claim is made.
