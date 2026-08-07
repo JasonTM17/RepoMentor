@@ -257,7 +257,10 @@ describe("atomic Redis quota admission reservation", () => {
 
     const initialKeys = admissionKeys("admission_1");
     await reserveQuotaAdmission(executor, config, input("admission_1"));
-    assert.equal(executor.expiryFor(initialKeys.counterKey), executor.expiryFor(initialKeys.markerKey));
+    assert.equal(
+      executor.expiryFor(initialKeys.counterKey),
+      executor.expiryFor(initialKeys.markerKey),
+    );
     executor.advance(43_199_500);
 
     const reservation = input("admission_2");
