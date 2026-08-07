@@ -184,6 +184,27 @@ interface ReviewUser {
   readonly id: string;
 }
 
+function parseSse(text: string): Array<{
+  readonly data: Record<string, unknown>;
+  readonly event: string;
+  readonly id: string;
+}> {
+  return text
+    .trim()
+    .split("\n\n")
+    .map((frame) => {
+      const lines = frame.split("\n");
+      const id = lines.find((line) => line.startsWith("id: "))?.slice(4);
+      const event = lines.find((line) => line.startsWith("event: "))?.slice(7);
+      const data = lines.find((line) => line.startsWith("data: "))?.slice(6);
+
+      assert.ok(id);
+      assert.ok(event);
+      assert.ok(data);
+      return { data: JSON.parse(data) as Record<string, unknown>, event, id };
+    });
+}
+
 describe("review API", () => {
   let app: INestApplication;
   let authRepository: InMemoryAuthRepository;
@@ -609,6 +630,96 @@ describe("review API", () => {
     assert.equal(provider.requests.length, 1);
   });
 
+  it("streams the owner lifecycle as raw bounded SSE with exclusive replay and safe reset", async () => {
+    const owner = await createUser();
+    const other = await createUser();
+    const source = "const streamSecret = 'must never cross SSE';";
+    const created = await createReview(owner, source);
+
+    const processed = await request(app.getHttpServer())
+      .post(`/api/v1/reviews/${created.id}/process`)
+      .set("authorization", `Bearer ${owner.accessToken}`)
+      .send({});
+    assert.equal(processed.status, 200);
+
+    const initial = await request(app.getHttpServer())
+      .get(`/api/v1/reviews/${created.id}/events`)
+      .set("authorization", `Bearer ${owner.accessToken}`);
+    assert.equal(initial.status, 200);
+    const contentType = initial.headers["content-type"];
+    assert.ok(contentType);
+    assert.match(contentType, /^text\/event-stream/u);
+    assert.equal(initial.headers["cache-control"], "no-cache, no-transform");
+    assert.equal(initial.headers["x-accel-buffering"], "no");
+
+    const initialFrames = parseSse(initial.text);
+    assert.deepEqual(
+      initialFrames.map((frame) => frame.id),
+      ["1", "2", "3"],
+    );
+    assert.deepEqual(
+      initialFrames.map((frame) => frame.event),
+      ["snapshot", "snapshot", "completed"],
+    );
+    for (const frame of initialFrames) {
+      assert.equal("source" in frame.data, false);
+      assert.equal("provider" in frame.data, false);
+      assert.equal("usage" in frame.data, false);
+      assert.equal("error" in frame.data, false);
+      assert.equal(/"result"\s*:/u.test(JSON.stringify(frame.data)), false);
+      assert.deepEqual(
+        Object.keys(frame.data).sort(),
+        frame.event === "snapshot"
+          ? [
+              "generation",
+              "id",
+              "replay",
+              "resultAvailable",
+              "reviewId",
+              "schemaVersion",
+              "status",
+              "type",
+            ]
+          : ["generation", "id", "resultAvailable", "reviewId", "schemaVersion", "status", "type"],
+      );
+    }
+    assert.equal(JSON.stringify(initial.body ?? initial.text).includes(source), false);
+
+    const replay = await request(app.getHttpServer())
+      .get(`/api/v1/reviews/${created.id}/events`)
+      .set("authorization", `Bearer ${owner.accessToken}`)
+      .set("Last-Event-ID", "1");
+    assert.equal(replay.status, 200);
+    assert.deepEqual(
+      parseSse(replay.text).map((frame) => frame.id),
+      ["2", "3"],
+    );
+
+    const reset = await request(app.getHttpServer())
+      .get(`/api/v1/reviews/${created.id}/events`)
+      .set("authorization", `Bearer ${owner.accessToken}`)
+      .set("Last-Event-ID", "999");
+    const resetFrames = parseSse(reset.text);
+    assert.equal(reset.status, 200);
+    assert.deepEqual(
+      resetFrames.map((frame) => frame.id),
+      ["3"],
+    );
+    assert.equal(resetFrames[0]?.event, "snapshot");
+    assert.equal(resetFrames[0]?.data.replay, "reset");
+    assert.equal(resetFrames[0]?.data.status, "COMPLETED");
+
+    const unauthenticated = await request(app.getHttpServer()).get(
+      `/api/v1/reviews/${created.id}/events`,
+    );
+    const otherStream = await request(app.getHttpServer())
+      .get(`/api/v1/reviews/${created.id}/events`)
+      .set("authorization", `Bearer ${other.accessToken}`);
+    assert.equal(unauthenticated.status, 401);
+    assert.equal(otherStream.status, 404);
+    assert.equal(JSON.stringify(otherStream.body).includes(created.id), false);
+  });
+
   it("returns an owner-scoped validated persisted result with safe execution metadata", async () => {
     const user = await createUser();
     const source = "const resultOnly = true;";
@@ -677,6 +788,7 @@ describe("review API", () => {
     assert.equal(documentation.status, 200);
     const processOperation = documentation.body.paths["/api/v1/reviews/{id}/process"].post;
     const resultOperation = documentation.body.paths["/api/v1/reviews/{id}/result"].get;
+    const eventsOperation = documentation.body.paths["/api/v1/reviews/{id}/events"].get;
 
     assert.equal(processOperation.requestBody.required, false);
     assert.match(
@@ -688,6 +800,7 @@ describe("review API", () => {
       /ReviewProcessingAlreadyProcessingResponseDto/u,
     );
     assert.match(JSON.stringify(resultOperation.responses["200"]), /ReviewResultResponseDto/u);
+    assert.ok(eventsOperation.responses["200"].content["text/event-stream"]);
   });
 
   it("keeps processing and result retrieval isolated by owner and authentication", async () => {

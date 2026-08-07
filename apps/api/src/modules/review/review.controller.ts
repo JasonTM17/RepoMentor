@@ -30,6 +30,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiProduces,
   ApiResponse,
   ApiServiceUnavailableResponse,
   ApiTags,
@@ -70,6 +71,8 @@ import {
   toReviewResultResponse,
 } from "./processing/review-processing.transport.js";
 import { ReviewProcessingService } from "./processing/review-processing.service.js";
+import { ReviewRunCoordinator } from "./processing/review-run.coordinator.js";
+import { ReviewEventStreamService } from "./review-events.service.js";
 import { ReviewService } from "./review.service.js";
 
 const MAX_RETRY_AFTER_SECONDS = 86_400;
@@ -154,6 +157,8 @@ export class ReviewController {
   constructor(
     private readonly reviews: ReviewService,
     private readonly processing: ReviewProcessingService,
+    private readonly eventStream: ReviewEventStreamService,
+    private readonly runCoordinator: ReviewRunCoordinator,
     private readonly quotaAdmission: QuotaAdmissionHttpService,
   ) {}
 
@@ -218,6 +223,42 @@ export class ReviewController {
     });
   }
 
+  @Get(":id/events")
+  @ApiHeader({
+    description: "Optional durable event cursor. Events at or before this ID are not replayed.",
+    name: "Last-Event-ID",
+    required: false,
+  })
+  @ApiOkResponse({
+    description:
+      "Raw status-only server-sent events. Stale cursors receive one reset snapshot; terminal streams close.",
+    content: {
+      "text/event-stream": {
+        schema: {
+          example: 'id: 1\\nevent: snapshot\\ndata: {\\"type\\":\\"snapshot\\"}\\n\\n',
+          type: "string",
+        },
+      },
+    },
+  })
+  @ApiOperation({ summary: "Stream one owned review lifecycle" })
+  @ApiProduces("text/event-stream")
+  @ApiNotFoundResponse({ description: "The owned review was not found." })
+  @ApiUnauthorizedResponse({ description: "Authentication is required." })
+  async events(
+    @Req() request: AuthenticatedRequest,
+    @Param() params: ReviewIdParamDto,
+    @Headers("last-event-id") lastEventId: string | undefined,
+    @Res() response: Response,
+  ): Promise<void> {
+    await this.eventStream.stream({
+      lastEventId,
+      response,
+      reviewId: params.id,
+      userId: getUserId(request),
+    });
+  }
+
   @Get(":id")
   detail(@Req() request: AuthenticatedRequest, @Param("id") id: string) {
     return this.reviews.detail(getUserId(request), id);
@@ -230,13 +271,17 @@ export class ReviewController {
   }
 
   @Post(":id/retry")
-  retry(@Req() request: AuthenticatedRequest, @Param("id") id: string) {
-    return this.reviews.retry(getUserId(request), id);
+  async retry(@Req() request: AuthenticatedRequest, @Param("id") id: string) {
+    const userId = getUserId(request);
+    await this.runCoordinator.waitForIdle(userId, id);
+    return this.reviews.retry(userId, id);
   }
 
   @Post(":id/cancel")
   cancel(@Req() request: AuthenticatedRequest, @Param("id") id: string) {
-    return this.reviews.cancel(getUserId(request), id);
+    const userId = getUserId(request);
+    this.runCoordinator.cancel(userId, id);
+    return this.reviews.cancel(userId, id);
   }
 
   @Post(":id/process")
@@ -287,7 +332,7 @@ export class ReviewController {
     assertEmptyProcessBody(body);
 
     try {
-      const outcome = await this.processing.process({
+      const outcome = await this.runCoordinator.process({
         reviewId: params.id,
         userId: getUserId(request),
       });
