@@ -6,12 +6,11 @@ import LineIcon from "@/components/line-icon";
 import UsagePageHeader from "@/features/usage/components/UsagePageHeader";
 import UsageQuotaGrid from "@/features/usage/components/UsageQuotaGrid";
 import UsageStatePanel from "@/features/usage/components/UsageStatePanel";
-import { createDemoUsageTransport } from "@/features/usage/api/demoUsageTransport";
 import useUsageOverview from "@/features/usage/hooks/useUsageOverview";
+import useUsageTransport from "@/features/usage/hooks/useUsageTransport";
 import { formatCount, formatDateTime, formatStatus } from "@/features/usage/helpers/usageHelpers";
 import type { UsageOverviewData, UsageReviewStatus, UsageTransport } from "@/features/usage/types";
 
-const demoTransport = createDemoUsageTransport();
 const operationStatuses: readonly UsageReviewStatus[] = [
   "COMPLETED",
   "PROCESSING",
@@ -200,7 +199,8 @@ const OverviewContent: FC<OverviewContentProps> = ({ data }): ReactElement => {
   );
 };
 
-const UsageOverview: FC<UsageOverviewProps> = ({ transport = demoTransport }): ReactElement => {
+const UsageOverview: FC<UsageOverviewProps> = ({ transport: transportOverride }): ReactElement => {
+  const transport = useUsageTransport(transportOverride);
   const { data, errorMessage, retry, status } = useUsageOverview(transport);
 
   const body =

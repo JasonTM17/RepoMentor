@@ -31,6 +31,10 @@ export class UsageApiError extends Error {
   }
 }
 
+export interface UsageApiTransportOptions {
+  readonly getAccessToken?: () => string | undefined;
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -259,11 +263,17 @@ const readErrorCode = (value: unknown): string | undefined => {
 const request = async <TResponse>(
   path: string,
   isResponse: (value: unknown) => value is TResponse,
+  getAccessToken?: () => string | undefined,
 ): Promise<TResponse> => {
   let response: Response;
+  const accessToken = getAccessToken?.();
 
   try {
-    response = await fetch(`${apiOrigin}${path}`, { credentials: "include", method: "GET" });
+    response = await fetch(`${apiOrigin}${path}`, {
+      ...(accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : {}),
+      credentials: "include",
+      method: "GET",
+    });
   } catch {
     throw new UsageApiError(0);
   }
@@ -287,10 +297,13 @@ const request = async <TResponse>(
   return body.data;
 };
 
-const getSummary = (): Promise<UsageSummaryData> =>
-  request("/api/v1/usage/summary", isUsageSummaryData);
+const getSummary = (getAccessToken?: () => string | undefined): Promise<UsageSummaryData> =>
+  request("/api/v1/usage/summary", isUsageSummaryData, getAccessToken);
 
-const getHistory = ({ page, limit }: UsageHistoryRequest): Promise<UsageHistoryData> => {
+const getHistory = (
+  { page, limit }: UsageHistoryRequest,
+  getAccessToken?: () => string | undefined,
+): Promise<UsageHistoryData> => {
   if (
     !Number.isSafeInteger(page) ||
     page < 1 ||
@@ -305,16 +318,21 @@ const getHistory = ({ page, limit }: UsageHistoryRequest): Promise<UsageHistoryD
   return request(
     `/api/v1/usage/history?page=${encodeURIComponent(String(page))}&limit=${encodeURIComponent(String(limit))}`,
     isUsageHistoryData,
+    getAccessToken,
   );
 };
 
-const getQuota = (): Promise<UsageQuotaData> => request("/api/v1/usage/quota", isUsageQuotaData);
+const getQuota = (getAccessToken?: () => string | undefined): Promise<UsageQuotaData> =>
+  request("/api/v1/usage/quota", isUsageQuotaData, getAccessToken);
 
-export const usageApi: UsageTransport = Object.freeze({
-  getHistory,
-  getQuota,
-  getSummary,
-  source: "api" as const,
-});
+export const createUsageApiTransport = ({
+  getAccessToken,
+}: UsageApiTransportOptions = {}): UsageTransport =>
+  Object.freeze({
+    getHistory: (request: UsageHistoryRequest) => getHistory(request, getAccessToken),
+    getQuota: () => getQuota(getAccessToken),
+    getSummary: () => getSummary(getAccessToken),
+    source: "api" as const,
+  });
 
-export const createUsageApiTransport = (): UsageTransport => usageApi;
+export const usageApi: UsageTransport = createUsageApiTransport();

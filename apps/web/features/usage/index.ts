@@ -11,5 +11,6 @@ export { default as UsageQuotaGrid } from "./components/UsageQuotaGrid";
 export { default as useUsageDashboard } from "./hooks/useUsageDashboard";
 export { default as useUsageHistory } from "./hooks/useUsageHistory";
 export { default as useUsageOverview } from "./hooks/useUsageOverview";
+export { default as useUsageTransport } from "./hooks/useUsageTransport";
 export * from "./helpers/usageHelpers";
 export type * from "./types";

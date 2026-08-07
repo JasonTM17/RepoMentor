@@ -6,8 +6,8 @@ import type { ChangeEvent, FC, ReactElement } from "react";
 import LineIcon from "@/components/line-icon";
 import UsagePageHeader from "@/features/usage/components/UsagePageHeader";
 import UsageStatePanel from "@/features/usage/components/UsageStatePanel";
-import { createDemoUsageTransport } from "@/features/usage/api/demoUsageTransport";
 import useUsageHistory from "@/features/usage/hooks/useUsageHistory";
+import useUsageTransport from "@/features/usage/hooks/useUsageTransport";
 import {
   clampPage,
   createHistoryMeta,
@@ -28,7 +28,6 @@ import type {
   UsageTransport,
 } from "@/features/usage/types";
 
-const demoTransport = createDemoUsageTransport();
 const pageLimit = 4;
 const statusOptions: readonly UsageReviewStatus[] = [
   "COMPLETED",
@@ -277,7 +276,8 @@ const Pagination: FC<PaginationProps> = ({
   </nav>
 );
 
-const UsageHistory: FC<UsageHistoryProps> = ({ transport = demoTransport }): ReactElement => {
+const UsageHistory: FC<UsageHistoryProps> = ({ transport: transportOverride }): ReactElement => {
+  const transport = useUsageTransport(transportOverride);
   const [filters, setFilters] = useState<UsageHistoryFilters>(initialFilters);
   const [page, setPage] = useState(1);
   const { data, errorMessage, retry, status } = useUsageHistory(page, pageLimit, transport);
