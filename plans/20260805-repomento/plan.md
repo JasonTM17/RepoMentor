@@ -619,3 +619,33 @@ merge or deletion; each must receive an exact residual-diff decision before
 any future action. Next active scope is security hardening/observability and
 release evidence, each in one bounded branch that must finish clean and merge
 before the next branch is started.
+
+## Security hardening resolution — 2026-08-07
+
+The next bounded branch was `fix/security-http-hardening`, based exactly on
+`main` `83b2bc0`. Its scope was limited to the production HTTP boundary:
+disable Swagger UI/document exposure in production while preserving the
+development/test surface, add baseline response security headers, cover both
+behaviors deterministically, and document the boundary. The Luna worker did
+not return within the bounded review window, so the coordinator completed the
+same scope locally without widening it.
+
+The branch finished clean and was integrated immediately as two focused
+commits:
+
+- `dfac4aa` / main `f53947e`: production Swagger gate and response security
+  headers with bootstrap coverage;
+- `ccd69cf` / main `ed19a09`: production HTTP boundary documentation.
+
+Exact-head review confirmed base `83b2bc0`, four intended files, two commits,
+no residual diff, and no cherry-pick duplicates before merge. API focused and
+post-merge workspace evidence is `246/246` tests with zero failures; typecheck,
+lint, build, format check, Prisma validation, package check, diff check, and
+credential-shaped scan all pass on `main` `ed19a09`. The independent Luna
+Kongming/advisor reviewer timed out and was shut down; this is recorded as no
+independent ACCEPT, not as review evidence. Live browser, PostgreSQL, Redis,
+Docker, registry, and deployment evidence remain unverified.
+
+The active branch is now closed. The next scope must be selected only after
+this clean merged checkpoint; historical refs and worktrees remain frozen and
+must not be swept into the next change.
