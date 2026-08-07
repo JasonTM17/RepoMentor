@@ -321,6 +321,72 @@ describe("review API", () => {
     return response.body.data as { id: string; status: string };
   }
 
+  it("completes the authenticated review journey through list history and logout", async () => {
+    userSequence += 1;
+    const email = `journey-user-${userSequence}@example.com`;
+    const password = "correct horse battery staple";
+    const source = "const journeySource = 'must stay server-side';";
+
+    const registered = await request(app.getHttpServer()).post("/api/v1/auth/register").send({
+      displayName: "Journey User",
+      email,
+      password,
+    });
+    const login = await request(app.getHttpServer())
+      .post("/api/v1/auth/login")
+      .send({ email, password });
+    const refreshCookie = login.headers["set-cookie"]?.[0]?.split(";", 1)[0];
+
+    assert.equal(registered.status, 202);
+    assert.equal(login.status, 201);
+    if (!refreshCookie) {
+      throw new Error("Expected the journey login to issue a refresh cookie.");
+    }
+
+    const user: ReviewUser = {
+      accessToken: login.body.data.accessToken as string,
+      id: login.body.data.user.id as string,
+    };
+    const created = await createReview(user, source);
+    const processed = await request(app.getHttpServer())
+      .post(`/api/v1/reviews/${created.id}/process`)
+      .set("authorization", `Bearer ${user.accessToken}`)
+      .send({});
+    const result = await request(app.getHttpServer())
+      .get(`/api/v1/reviews/${created.id}/result`)
+      .set("authorization", `Bearer ${user.accessToken}`);
+    const history = await request(app.getHttpServer())
+      .get("/api/v1/reviews?page=1&limit=20")
+      .set("authorization", `Bearer ${user.accessToken}`);
+
+    assert.equal(processed.status, 200);
+    assert.equal(processed.body.data.status, "COMPLETED");
+    assert.equal(result.status, 200);
+    assert.equal(result.body.data.id, created.id);
+    assert.equal(result.body.data.status, "COMPLETED");
+    assert.deepEqual(result.body.data.result, validExecution.result);
+    assert.equal(history.status, 200);
+    assert.deepEqual(
+      history.body.data.items.map((item: { readonly id: string; readonly status: string }) => ({
+        id: item.id,
+        status: item.status,
+      })),
+      [{ id: created.id, status: "COMPLETED" }],
+    );
+    assert.equal(JSON.stringify(history.body).includes(source), false);
+
+    const logout = await request(app.getHttpServer())
+      .post("/api/v1/auth/logout")
+      .set("cookie", refreshCookie);
+    const revokedMe = await request(app.getHttpServer())
+      .get("/api/v1/auth/me")
+      .set("authorization", `Bearer ${user.accessToken}`);
+
+    assert.equal(logout.status, 201);
+    assert.equal(logout.body.data.loggedOut, true);
+    assert.equal(revokedMe.status, 401);
+  });
+
   it("requires Idempotency-Key for authenticated review admission", async () => {
     const user = await createUser();
     const source = "const missingAdmissionKey = true;";
