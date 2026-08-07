@@ -8,6 +8,10 @@ import {
   QuotaAdmissionNotFoundError,
   QuotaAdmissionTransitionError,
 } from "./quota-admission.errors.js";
+import {
+  assertQuotaAdmissionFingerprintHash,
+  assertQuotaAdmissionFingerprintVersion,
+} from "./quota-admission.fingerprint.js";
 import { assertIdempotencyKeyHash, assertSafeOpaqueId } from "./quota-admission.hash.js";
 import {
   getAllowedQuotaAdmissionSources,
@@ -39,6 +43,12 @@ function mapRow(row: QuotaAdmissionRow): QuotaAdmissionRecord {
     createdAt: row.createdAt,
     id: row.id,
     idempotencyKeyHash: row.idempotencyKeyHash,
+    ...(row.requestFingerprintHash === null || row.requestFingerprintHash === undefined
+      ? {}
+      : { requestFingerprintHash: row.requestFingerprintHash }),
+    ...(row.fingerprintVersion === null || row.fingerprintVersion === undefined
+      ? {}
+      : { fingerprintVersion: row.fingerprintVersion }),
     mode: row.mode,
     reviewId: row.reviewId,
     status: row.status,
@@ -55,9 +65,29 @@ export class PrismaQuotaAdmissionRepository implements QuotaAdmissionRepository 
   async createOrGet(
     input: CreateQuotaAdmissionRecordInput,
   ): Promise<QuotaAdmissionCreateOrGetResult> {
+    const hasFingerprintHash = input.requestFingerprintHash !== undefined;
+    const hasFingerprintVersion = input.fingerprintVersion !== undefined;
+
+    if (hasFingerprintHash !== hasFingerprintVersion) {
+      throw new QuotaAdmissionInputError("fingerprint");
+    }
+
+    const requestFingerprintHash = hasFingerprintHash
+      ? assertQuotaAdmissionFingerprintHash(input.requestFingerprintHash)
+      : undefined;
+    const fingerprintVersion = hasFingerprintVersion
+      ? assertQuotaAdmissionFingerprintVersion(input.fingerprintVersion)
+      : undefined;
     const existing = await this.findByOwnerAndHash(input.userId, input.idempotencyKeyHash);
 
     if (existing) {
+      if (
+        existing.requestFingerprintHash !== requestFingerprintHash ||
+        existing.fingerprintVersion !== fingerprintVersion
+      ) {
+        throw new QuotaAdmissionConflictError();
+      }
+
       return { created: false, record: existing };
     }
 
@@ -67,6 +97,8 @@ export class PrismaQuotaAdmissionRepository implements QuotaAdmissionRepository 
           data: {
             id: assertSafeOpaqueId(input.id, "admissionId"),
             idempotencyKeyHash: assertIdempotencyKeyHash(input.idempotencyKeyHash),
+            ...(requestFingerprintHash === undefined ? {} : { requestFingerprintHash }),
+            ...(fingerprintVersion === undefined ? {} : { fingerprintVersion }),
             mode: input.mode,
             reviewId: assertSafeOpaqueId(input.reviewId, "reviewId"),
             updatedAt: input.now,
@@ -85,6 +117,13 @@ export class PrismaQuotaAdmissionRepository implements QuotaAdmissionRepository 
       const raced = await this.findByOwnerAndHash(input.userId, input.idempotencyKeyHash);
 
       if (raced) {
+        if (
+          raced.requestFingerprintHash !== requestFingerprintHash ||
+          raced.fingerprintVersion !== fingerprintVersion
+        ) {
+          throw new QuotaAdmissionConflictError();
+        }
+
         return { created: false, record: raced };
       }
 
