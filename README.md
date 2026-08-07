@@ -264,6 +264,9 @@ Authentication is server-owned:
 - login, registration, and refresh have bounded in-memory rate limits;
 - production rejects insecure cookie configuration and requires distinct
   high-entropy JWT secrets.
+- production disables the Swagger UI/document route; development and test
+  keep the documented API surface, and every response receives baseline
+  clickjacking, MIME-sniffing, referrer, and permissions-policy headers.
 
 Review authorization is user-owned at the repository boundary. List, detail,
 delete, retry, cancel, process, and result operations all scope by the
