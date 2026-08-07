@@ -573,3 +573,49 @@ only, duplicate process idempotency, retry/cancel race fencing, owner
 isolation, bounded heartbeat/lifetime, and honest live-integration limits.
 Kongming's current decision is HOLD until those exact-head implementation and
 race tests exist; an independent Luna arbiter must review the final branch.
+
+## Continuation resolution — 2026-08-07
+
+The stream slice completed its bounded scope and was integrated into `main`.
+The coordinator preserved the focused commit chain from the exact worker head
+`3e1139d` and cherry-picked it through final main `615533d`:
+
+- lifecycle contract and retryable snapshot fixes: `e5aefcb`, `70cbf64`;
+- transaction-coupled Prisma/in-memory lifecycle events: `b303efc`;
+- authenticated raw SSE, replay/reset, heartbeat/lifetime, run coalescing,
+  cancel/retry wiring, and web fetch transport: `2035e11`, `1f56d60`,
+  `579c936`;
+- package payload allowlist for `review`: `13f769f`;
+- per-review Redis stream lease, active-session revalidation during polling,
+  opaque local fallback tokens, and command-input tests: `c420866`,
+  `dfccc86`, `615533d`.
+
+The stream acceptance checklist is now covered by code and deterministic
+tests: durable monotonic IDs are transaction-coupled to status transitions;
+`Last-Event-ID` replay is exclusive with bounded reset; SSE frames are raw,
+status-only, and source/result/provider/credential-free; the browser uses
+authenticated fetch streaming without query credentials and retains bounded
+polling fallback; disconnect does not cancel processing; explicit cancel,
+retry-generation fencing, owner isolation, duplicate-run coalescing, session
+revocation revalidation, and a distributed per-review stream lease are
+covered. Post-merge evidence is API `245/245`, web `38/38`, contracts `6/6`,
+full workspace tests, typecheck, lint, production build, Prettier, Prisma
+validate/generate, package payload `25` exact files, diff-check, and a clean
+credential-shaped scan.
+
+The independent arbiter tool was attempted three times on the final exact
+head but each run remained active without a conclusion and was shut down; it
+must not be represented as an ACCEPT. The coordinator performed the exact
+head/base/scope/status/validation review against Kongming's memo and found no
+remaining P0/P1 in this bounded slice. Live PostgreSQL, Redis, Luna, Docker,
+multi-instance runtime, browser interaction E2E, and registry publication
+remain unverified. These limits block production-readiness claims but do not
+block this local merge.
+
+Branch discipline resolution: `feature/review-stream-lifecycle` is complete,
+clean, and merged. It is no longer an active work item. Historical dirty
+branches/worktrees remain frozen inventory and are not eligible for wholesale
+merge or deletion; each must receive an exact residual-diff decision before
+any future action. Next active scope is security hardening/observability and
+release evidence, each in one bounded branch that must finish clean and merge
+before the next branch is started.
