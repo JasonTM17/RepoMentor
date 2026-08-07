@@ -140,6 +140,19 @@ test("keeps metrics aggregate-only and bounded to application scope", () => {
     }).success,
     false,
   );
+  assert.equal(
+    metricsHealthPayloadSchema.safeParse({
+      scope: "application",
+      requests: {
+        total: Number.MAX_SAFE_INTEGER + 1,
+        inFlight: 0,
+        completed: 0,
+        clientErrors: 0,
+        serverErrors: 0,
+      },
+    }).success,
+    false,
+  );
 });
 
 test("accepts valid auth inputs, public users, and access-token results", () => {

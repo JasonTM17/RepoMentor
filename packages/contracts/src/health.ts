@@ -15,13 +15,15 @@ export const readinessHealthPayloadSchema = z
   })
   .strict();
 
+const boundedCounterSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+
 const requestMetricsSchema = z
   .object({
-    total: z.number().int().nonnegative(),
-    inFlight: z.number().int().nonnegative(),
-    completed: z.number().int().nonnegative(),
-    clientErrors: z.number().int().nonnegative(),
-    serverErrors: z.number().int().nonnegative(),
+    total: boundedCounterSchema,
+    inFlight: boundedCounterSchema,
+    completed: boundedCounterSchema,
+    clientErrors: boundedCounterSchema,
+    serverErrors: boundedCounterSchema,
   })
   .strict();
 
