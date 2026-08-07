@@ -6,6 +6,7 @@
 .turbo/
 coverage/
 dist/
+.test-dist/
 engineer/
 node_modules/
 plans/
