@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type {
   Prisma,
+  ReviewEvent as PrismaReviewEvent,
   Review as PrismaReview,
   ReviewResult as PrismaReviewResult,
   ReviewUsage as PrismaReviewUsage,
@@ -14,7 +15,6 @@ import {
   validatePersistedAiReviewExecution,
   type ReviewResultRecord,
 } from "./review-result.persistence.js";
-import { REVIEW_MAX_PROCESSING_GENERATION } from "./review.types.js";
 import type {
   CreateReviewInput,
   ReviewListInput,
@@ -22,6 +22,12 @@ import type {
   ReviewRecord,
   ReviewRepository,
   ReviewStatusTransition,
+} from "./review.types.js";
+import {
+  REVIEW_MAX_EVENT_SEQUENCE,
+  REVIEW_MAX_PROCESSING_GENERATION,
+  type ReviewEventRecord,
+  type ReviewStatus,
 } from "./review.types.js";
 
 function mapReview(row: PrismaReview): ReviewRecord {
@@ -36,6 +42,32 @@ function mapReview(row: PrismaReview): ReviewRecord {
     status: row.status,
     updatedAt: row.updatedAt,
     userId: row.userId,
+  };
+}
+
+function eventTypeForStatus(status: ReviewStatus): ReviewEventRecord["type"] {
+  switch (status) {
+    case "COMPLETED":
+      return "COMPLETED";
+    case "FAILED":
+      return "FAILED";
+    case "CANCELLED":
+      return "CANCELLED";
+    default:
+      return "SNAPSHOT";
+  }
+}
+
+function mapReviewEvent(row: PrismaReviewEvent): ReviewEventRecord {
+  return {
+    createdAt: row.createdAt,
+    generation: row.processingGeneration,
+    resultAvailable: row.resultAvailable,
+    retryable: row.retryable,
+    reviewId: row.reviewId,
+    sequence: row.sequence,
+    status: row.status,
+    type: row.type,
   };
 }
 
@@ -72,17 +104,32 @@ export class PrismaReviewRepository implements ReviewRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(input: CreateReviewInput): Promise<ReviewRecord> {
-    const review = await this.prisma.review.create({
-      data: {
-        ...(input.id ? { id: input.id } : {}),
-        language: input.language,
-        mode: input.mode,
-        source: input.source,
-        userId: input.userId,
-      },
-    });
+    return this.prisma.transaction(async (transaction) => {
+      const review = await transaction.review.create({
+        data: {
+          ...(input.id ? { id: input.id } : {}),
+          eventSequence: 1,
+          language: input.language,
+          mode: input.mode,
+          source: input.source,
+          userId: input.userId,
+        },
+      });
 
-    return mapReview(review);
+      await transaction.reviewEvent.create({
+        data: {
+          createdAt: review.createdAt,
+          processingGeneration: review.processingGeneration,
+          resultAvailable: false,
+          reviewId: review.id,
+          sequence: review.eventSequence,
+          status: review.status,
+          type: "SNAPSHOT",
+        },
+      });
+
+      return mapReview(review);
+    });
   }
 
   async findByIdForUser(userId: string, id: string): Promise<ReviewRecord | null> {
@@ -141,14 +188,18 @@ export class PrismaReviewRepository implements ReviewRepository {
         ? [{ processingGeneration: { lt: REVIEW_MAX_PROCESSING_GENERATION } }]
         : []),
     ];
+    const eventSequencePredicate: Prisma.ReviewWhereInput = {
+      eventSequence: { lt: REVIEW_MAX_EVENT_SEQUENCE },
+    };
     const where: Prisma.ReviewWhereInput = {
       deletedAt: null,
       id,
       status: { in: [...transition.fromStatuses] },
       userId,
-      ...(generationPredicates.length === 0 ? {} : { AND: generationPredicates }),
+      AND: [...generationPredicates, eventSequencePredicate],
     };
     const data: Prisma.ReviewUpdateManyMutationInput = {
+      eventSequence: { increment: 1 },
       status: transition.toStatus,
       updatedAt: transition.now,
       ...(transition.toStatus === "PROCESSING" ? { processingGeneration: { increment: 1 } } : {}),
@@ -165,7 +216,24 @@ export class PrismaReviewRepository implements ReviewRepository {
         where: { deletedAt: null, id, userId },
       });
 
-      return review ? mapReview(review) : null;
+      if (!review) {
+        return null;
+      }
+
+      await transaction.reviewEvent.create({
+        data: {
+          createdAt: review.updatedAt,
+          processingGeneration: review.processingGeneration,
+          resultAvailable: false,
+          retryable: review.status === "FAILED" ? (transition.retryable ?? false) : null,
+          reviewId: review.id,
+          sequence: review.eventSequence,
+          status: review.status,
+          type: eventTypeForStatus(review.status),
+        },
+      });
+
+      return mapReview(review);
     });
   }
 
@@ -180,10 +248,15 @@ export class PrismaReviewRepository implements ReviewRepository {
 
     return this.prisma.transaction(async (transaction) => {
       const transitioned = await transaction.review.updateMany({
-        data: { status: "COMPLETED", updatedAt: now },
+        data: {
+          eventSequence: { increment: 1 },
+          status: "COMPLETED",
+          updatedAt: now,
+        },
         where: {
           deletedAt: null,
           id,
+          eventSequence: { lt: REVIEW_MAX_EVENT_SEQUENCE },
           processingGeneration: expectedProcessingGeneration,
           status: "PROCESSING",
           userId,
@@ -230,7 +303,23 @@ export class PrismaReviewRepository implements ReviewRepository {
         },
       });
 
-      return review ? mapReview(review) : null;
+      if (!review) {
+        return null;
+      }
+
+      await transaction.reviewEvent.create({
+        data: {
+          createdAt: review.updatedAt,
+          processingGeneration: review.processingGeneration,
+          resultAvailable: true,
+          reviewId: review.id,
+          sequence: review.eventSequence,
+          status: review.status,
+          type: "COMPLETED",
+        },
+      });
+
+      return mapReview(review);
     });
   }
 
@@ -242,10 +331,15 @@ export class PrismaReviewRepository implements ReviewRepository {
   ): Promise<ReviewRecord | null> {
     return this.prisma.transaction(async (transaction) => {
       const fenced = await transaction.review.updateMany({
-        data: { status: "CANCELLED", updatedAt: now },
+        data: {
+          eventSequence: { increment: 1 },
+          status: "CANCELLED",
+          updatedAt: now,
+        },
         where: {
           deletedAt: null,
           id,
+          eventSequence: { lt: REVIEW_MAX_EVENT_SEQUENCE },
           processingGeneration: expectedProcessingGeneration,
           status: "PROCESSING",
           userId,
@@ -266,8 +360,51 @@ export class PrismaReviewRepository implements ReviewRepository {
         },
       });
 
-      return review ? mapReview(review) : null;
+      if (!review) {
+        return null;
+      }
+
+      await transaction.reviewEvent.create({
+        data: {
+          createdAt: review.updatedAt,
+          processingGeneration: review.processingGeneration,
+          resultAvailable: false,
+          reviewId: review.id,
+          sequence: review.eventSequence,
+          status: review.status,
+          type: "CANCELLED",
+        },
+      });
+
+      return mapReview(review);
     });
+  }
+
+  async listEventsForUser(
+    userId: string,
+    id: string,
+    afterSequence: number,
+    limit: number,
+  ): Promise<readonly ReviewEventRecord[]> {
+    const events = await this.prisma.reviewEvent.findMany({
+      orderBy: { sequence: "asc" },
+      take: Math.max(0, limit),
+      where: {
+        review: { deletedAt: null, id, userId },
+        sequence: { gt: afterSequence },
+      },
+    });
+
+    return events.map(mapReviewEvent);
+  }
+
+  async latestEventForUser(userId: string, id: string): Promise<ReviewEventRecord | null> {
+    const event = await this.prisma.reviewEvent.findFirst({
+      orderBy: { sequence: "desc" },
+      where: { review: { deletedAt: null, id, userId } },
+    });
+
+    return event ? mapReviewEvent(event) : null;
   }
 
   async findResultForUser(userId: string, id: string): Promise<ReviewResultRecord | null> {

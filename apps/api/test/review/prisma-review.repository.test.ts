@@ -29,6 +29,7 @@ const EXECUTION: AiReviewExecution<ReviewResult> = {
 function reviewRow(
   status: "PENDING" | "PROCESSING" | "COMPLETED" | "CANCELLED",
   processingGeneration = EXPECTED_GENERATION,
+  eventSequence = 1,
 ): PrismaReview {
   return {
     createdAt: NOW,
@@ -36,6 +37,7 @@ function reviewRow(
     id: REVIEW_ID,
     language: "typescript",
     mode: "STANDARD",
+    eventSequence,
     processingGeneration,
     source: "const answer = 42;",
     status,
@@ -46,15 +48,20 @@ function reviewRow(
 
 function createRepository(options: { readonly failResultInsert?: Error } = {}) {
   let status: "PROCESSING" | "COMPLETED" | "CANCELLED" = "PROCESSING";
+  let eventSequence = 1;
   let resultInserted = false;
   const events: string[] = [];
+  const persistedEvents: unknown[] = [];
   let lastUpdateWhere: unknown;
 
   const transactionClient = {
     review: {
-      findFirst: async () => reviewRow(status, EXPECTED_GENERATION),
+      findFirst: async () => reviewRow(status, EXPECTED_GENERATION, eventSequence),
       updateMany: async (args: {
-        readonly data: { readonly status: string };
+        readonly data: {
+          readonly eventSequence?: { readonly increment?: number };
+          readonly status: string;
+        };
         readonly where: unknown;
       }) => {
         lastUpdateWhere = args.where;
@@ -68,7 +75,16 @@ function createRepository(options: { readonly failResultInsert?: Error } = {}) {
         }
 
         status = args.data.status === "CANCELLED" ? "CANCELLED" : "COMPLETED";
+        eventSequence += args.data.eventSequence?.increment ?? 0;
         return { count: 1 };
+      },
+    },
+    reviewEvent: {
+      create: async (args: { readonly data: Record<string, unknown> }) => {
+        events.push("reviewEvent.create");
+        persistedEvents.push(args.data);
+        assert.equal(args.data.sequence, eventSequence);
+        return {};
       },
     },
     reviewResult: {
@@ -92,7 +108,9 @@ function createRepository(options: { readonly failResultInsert?: Error } = {}) {
     transaction: async <T>(callback: (client: Prisma.TransactionClient) => Promise<T>) => {
       events.push("transaction:start");
       const previousStatus = status;
+      const previousEventSequence = eventSequence;
       const previousResult = resultInserted;
+      const previousEventCount = persistedEvents.length;
 
       try {
         const result = await callback(transactionClient);
@@ -100,7 +118,9 @@ function createRepository(options: { readonly failResultInsert?: Error } = {}) {
         return result;
       } catch (error: unknown) {
         status = previousStatus;
+        eventSequence = previousEventSequence;
         resultInserted = previousResult;
+        persistedEvents.length = previousEventCount;
         events.push("transaction:rollback");
         throw error;
       }
@@ -115,6 +135,7 @@ function createRepository(options: { readonly failResultInsert?: Error } = {}) {
     get status() {
       return status;
     },
+    persistedEvents,
     get lastUpdateWhere() {
       return lastUpdateWhere;
     },
@@ -125,13 +146,14 @@ function createRepository(options: { readonly failResultInsert?: Error } = {}) {
 function createClaimRepository() {
   let status: "PENDING" | "PROCESSING" = "PENDING";
   let processingGeneration = 0;
+  let eventSequence = 1;
   const events: string[] = [];
   let lastUpdateData: unknown;
   let lastUpdateWhere: unknown;
 
   const transactionClient = {
     review: {
-      findFirst: async () => reviewRow(status, processingGeneration),
+      findFirst: async () => reviewRow(status, processingGeneration, eventSequence),
       updateMany: async (args: { readonly data: unknown; readonly where: unknown }) => {
         lastUpdateData = args.data;
         lastUpdateWhere = args.where;
@@ -143,8 +165,18 @@ function createClaimRepository() {
         processingGeneration +=
           (args.data as { readonly processingGeneration?: { readonly increment?: number } })
             .processingGeneration?.increment ?? 0;
+        eventSequence +=
+          (args.data as { readonly eventSequence?: { readonly increment?: number } }).eventSequence
+            ?.increment ?? 0;
         status = "PROCESSING";
         return { count: 1 };
+      },
+    },
+    reviewEvent: {
+      create: async (args: { readonly data: Record<string, unknown> }) => {
+        events.push("reviewEvent.create");
+        assert.equal(args.data.sequence, eventSequence);
+        return {};
       },
     },
   } as unknown as Prisma.TransactionClient;
@@ -154,6 +186,7 @@ function createClaimRepository() {
       events.push("transaction:start");
       const previousStatus = status;
       const previousGeneration = processingGeneration;
+      const previousEventSequence = eventSequence;
 
       try {
         const result = await callback(transactionClient);
@@ -162,6 +195,7 @@ function createClaimRepository() {
       } catch (error: unknown) {
         status = previousStatus;
         processingGeneration = previousGeneration;
+        eventSequence = previousEventSequence;
         events.push("transaction:rollback");
         throw error;
       }
@@ -209,6 +243,7 @@ describe("Prisma review result finalization", () => {
       "transaction:start",
       "review.updateMany:COMPLETED",
       "reviewResult.create",
+      "reviewEvent.create",
       "transaction:commit",
     ]);
   });
@@ -239,6 +274,7 @@ describe("Prisma review result finalization", () => {
     assert.deepEqual(fixture.events, [
       "transaction:start",
       "review.updateMany:CANCELLED",
+      "reviewEvent.create",
       "transaction:commit",
       "transaction:start",
       "review.updateMany:COMPLETED",
@@ -315,6 +351,7 @@ describe("Prisma review processing claims", () => {
     assert.deepEqual(fixture.events, [
       "transaction:start",
       "review.updateMany:PROCESSING",
+      "reviewEvent.create",
       "transaction:commit",
     ]);
   });

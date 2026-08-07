@@ -191,6 +191,7 @@ export class PrismaReviewFinalizer implements ReviewFinalizer {
         const created = await transaction.review.create({
           data: {
             createdAt: now,
+            eventSequence: 1,
             id: admission.reviewId,
             language,
             mode: admission.mode,
@@ -198,6 +199,18 @@ export class PrismaReviewFinalizer implements ReviewFinalizer {
             status: "PENDING",
             updatedAt: now,
             userId,
+          },
+        });
+
+        await transaction.reviewEvent.create({
+          data: {
+            createdAt: now,
+            processingGeneration: created.processingGeneration,
+            resultAvailable: false,
+            reviewId: created.id,
+            sequence: created.eventSequence,
+            status: created.status,
+            type: "SNAPSHOT",
           },
         });
 

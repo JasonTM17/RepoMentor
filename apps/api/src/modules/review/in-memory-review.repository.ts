@@ -1,13 +1,20 @@
 import type { AiReviewExecution } from "../ai/ai.types.js";
 import type { ReviewResult } from "../ai/review-result.schema.js";
 import { toReviewResultRecord, type ReviewResultRecord } from "./review-result.persistence.js";
-import { REVIEW_MAX_PROCESSING_GENERATION } from "./review.types.js";
+import {
+  REVIEW_EVENT_TYPES,
+  REVIEW_MAX_EVENT_SEQUENCE,
+  REVIEW_MAX_PROCESSING_GENERATION,
+  type ReviewEventRecord,
+  type ReviewEventType,
+} from "./review.types.js";
 import type {
   CreateReviewInput,
   ReviewListInput,
   ReviewListResult,
   ReviewRecord,
   ReviewRepository,
+  ReviewStatus,
   ReviewStatusTransition,
 } from "./review.types.js";
 
@@ -24,9 +31,31 @@ function copyReview(review: ReviewRecord): ReviewRecord {
   };
 }
 
+function copyEvent(event: ReviewEventRecord): ReviewEventRecord {
+  return {
+    ...event,
+    createdAt: new Date(event.createdAt),
+  };
+}
+
+function eventTypeForStatus(status: ReviewStatus): ReviewEventType {
+  switch (status) {
+    case "COMPLETED":
+      return "COMPLETED";
+    case "FAILED":
+      return "FAILED";
+    case "CANCELLED":
+      return "CANCELLED";
+    default:
+      return "SNAPSHOT";
+  }
+}
+
 export class InMemoryReviewRepository implements ReviewRepository {
   private readonly reviews = new Map<string, ReviewRecord>();
   private readonly results = new Map<string, ReviewResultRecord>();
+  private readonly events = new Map<string, ReviewEventRecord[]>();
+  private readonly eventSequences = new Map<string, number>();
   private sequence = 0;
 
   async create(input: CreateReviewInput): Promise<ReviewRecord> {
@@ -46,6 +75,19 @@ export class InMemoryReviewRepository implements ReviewRepository {
     };
 
     this.reviews.set(id, review);
+    this.eventSequences.set(id, 1);
+    this.events.set(id, [
+      {
+        createdAt: new Date(now),
+        generation: review.processingGeneration,
+        resultAvailable: false,
+        retryable: null,
+        reviewId: id,
+        sequence: 1,
+        status: review.status,
+        type: REVIEW_EVENT_TYPES[0],
+      },
+    ]);
     return copyReview(review);
   }
 
@@ -119,6 +161,7 @@ export class InMemoryReviewRepository implements ReviewRepository {
       status: transition.toStatus,
       updatedAt: new Date(transition.now),
     };
+    this.appendEvent(transitioned, transition.retryable);
     this.reviews.set(id, transitioned);
     return copyReview(transitioned);
   }
@@ -149,6 +192,7 @@ export class InMemoryReviewRepository implements ReviewRepository {
       updatedAt: new Date(now),
     };
 
+    this.appendEvent(completed);
     this.results.set(id, result);
     this.reviews.set(id, completed);
     return copyReview(completed);
@@ -177,8 +221,39 @@ export class InMemoryReviewRepository implements ReviewRepository {
       status: "CANCELLED",
       updatedAt: new Date(now),
     };
+    this.appendEvent(fenced);
     this.reviews.set(id, fenced);
     return copyReview(fenced);
+  }
+
+  async listEventsForUser(
+    userId: string,
+    id: string,
+    afterSequence: number,
+    limit: number,
+  ): Promise<readonly ReviewEventRecord[]> {
+    const review = this.reviews.get(id);
+
+    if (!review || review.userId !== userId || review.deletedAt !== null) {
+      return [];
+    }
+
+    return (this.events.get(id) ?? [])
+      .filter((event) => event.sequence > afterSequence)
+      .slice(0, Math.max(0, limit))
+      .map(copyEvent);
+  }
+
+  async latestEventForUser(userId: string, id: string): Promise<ReviewEventRecord | null> {
+    const review = this.reviews.get(id);
+
+    if (!review || review.userId !== userId || review.deletedAt !== null) {
+      return null;
+    }
+
+    const events = this.events.get(id);
+    const latest = events?.[events.length - 1];
+    return latest ? copyEvent(latest) : null;
   }
 
   async findResultForUser(userId: string, id: string): Promise<ReviewResultRecord | null> {
@@ -204,5 +279,27 @@ export class InMemoryReviewRepository implements ReviewRepository {
       },
       usage: result.usage ? { ...result.usage } : null,
     };
+  }
+
+  private appendEvent(review: ReviewRecord, retryable?: boolean): void {
+    const sequence = (this.eventSequences.get(review.id) ?? 0) + 1;
+
+    if (sequence > REVIEW_MAX_EVENT_SEQUENCE) {
+      throw new Error("Review lifecycle event sequence exhausted");
+    }
+
+    const event: ReviewEventRecord = {
+      createdAt: new Date(review.updatedAt),
+      generation: review.processingGeneration,
+      resultAvailable: review.status === "COMPLETED",
+      retryable: review.status === "FAILED" ? (retryable ?? false) : null,
+      reviewId: review.id,
+      sequence,
+      status: review.status,
+      type: eventTypeForStatus(review.status),
+    };
+
+    this.eventSequences.set(review.id, sequence);
+    this.events.set(review.id, [...(this.events.get(review.id) ?? []), event]);
   }
 }

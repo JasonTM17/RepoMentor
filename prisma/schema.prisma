@@ -38,6 +38,13 @@ enum ReviewStatus {
   CANCELLED
 }
 
+enum ReviewEventType {
+  SNAPSHOT
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
 enum ReviewMode {
   QUICK
   STANDARD
@@ -97,6 +104,7 @@ model Review {
   source               String        @db.VarChar(100000)
   language             String        @db.VarChar(32)
   mode                 ReviewMode    @default(STANDARD)
+  eventSequence        Int           @default(0) @map("event_sequence")
   processingGeneration Int           @default(0) @map("processing_generation")
   status               ReviewStatus  @default(PENDING)
   deletedAt            DateTime?     @map("deleted_at")
@@ -104,10 +112,27 @@ model Review {
   updatedAt            DateTime      @updatedAt @map("updated_at")
   user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   result               ReviewResult?
+  events               ReviewEvent[]
 
   @@index([userId, deletedAt, createdAt])
   @@index([userId, status, deletedAt, createdAt])
   @@map("reviews")
+}
+
+model ReviewEvent {
+  reviewId             String         @map("review_id") @db.VarChar(25)
+  sequence             Int
+  type                 ReviewEventType
+  status               ReviewStatus
+  processingGeneration Int            @map("processing_generation")
+  resultAvailable      Boolean        @map("result_available")
+  retryable            Boolean?
+  createdAt            DateTime       @default(now()) @map("created_at")
+  review               Review         @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@id([reviewId, sequence])
+  @@index([reviewId, sequence])
+  @@map("review_events")
 }
 
 model QuotaAdmission {

@@ -20,6 +20,7 @@ export function createProcessingTransition(
   name: ReviewProcessingTransitionName,
   now: Date,
   expectedProcessingGeneration?: number,
+  retryable?: boolean,
 ): ReviewStatusTransition {
   const rule = REVIEW_PROCESSING_TRANSITIONS[name];
 
@@ -28,5 +29,6 @@ export function createProcessingTransition(
     now: new Date(now),
     toStatus: rule.toStatus,
     ...(expectedProcessingGeneration === undefined ? {} : { expectedProcessingGeneration }),
+    ...(retryable === undefined ? {} : { retryable }),
   };
 }

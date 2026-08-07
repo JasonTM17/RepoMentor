@@ -21,6 +21,10 @@ export class PrismaService implements OnModuleDestroy {
     return this.getClient().reviewResult;
   }
 
+  get reviewEvent(): PrismaClient["reviewEvent"] {
+    return this.getClient().reviewEvent;
+  }
+
   get reviewUsage(): PrismaClient["reviewUsage"] {
     return this.getClient().reviewUsage;
   }

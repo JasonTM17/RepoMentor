@@ -772,7 +772,12 @@ export class ReviewProcessingService {
     const failed = await this.repository.transitionForUser(
       input.userId,
       input.reviewId,
-      createProcessingTransition("fail", this.clock(), expectedProcessingGeneration),
+      createProcessingTransition(
+        "fail",
+        this.clock(),
+        expectedProcessingGeneration,
+        failure.retryable,
+      ),
     );
 
     if (failed?.status === "FAILED") {

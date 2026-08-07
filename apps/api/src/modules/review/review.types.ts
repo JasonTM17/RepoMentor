@@ -19,6 +19,10 @@ export const REVIEW_MAX_PAGE_NUMBER = 10_000;
 // Keep the persisted counter below PostgreSQL's signed INTEGER maximum so a
 // claim can always advance without overflowing the database column.
 export const REVIEW_MAX_PROCESSING_GENERATION = 2_147_483_646;
+export const REVIEW_MAX_EVENT_SEQUENCE = 2_147_483_646;
+
+export const REVIEW_EVENT_TYPES = ["SNAPSHOT", "COMPLETED", "FAILED", "CANCELLED"] as const;
+export type ReviewEventType = (typeof REVIEW_EVENT_TYPES)[number];
 
 export interface ReviewRecord {
   readonly id: string;
@@ -59,8 +63,20 @@ export interface ReviewListResult {
 export interface ReviewStatusTransition {
   readonly fromStatuses: readonly ReviewStatus[];
   readonly expectedProcessingGeneration?: number;
+  readonly retryable?: boolean;
   readonly toStatus: ReviewStatus;
   readonly now: Date;
+}
+
+export interface ReviewEventRecord {
+  readonly reviewId: string;
+  readonly sequence: number;
+  readonly type: ReviewEventType;
+  readonly status: ReviewStatus;
+  readonly generation: number;
+  readonly resultAvailable: boolean;
+  readonly retryable: boolean | null;
+  readonly createdAt: Date;
 }
 
 export interface ReviewRepository {
@@ -73,4 +89,11 @@ export interface ReviewRepository {
     id: string,
     transition: ReviewStatusTransition,
   ): Promise<ReviewRecord | null>;
+  listEventsForUser(
+    userId: string,
+    id: string,
+    afterSequence: number,
+    limit: number,
+  ): Promise<readonly ReviewEventRecord[]>;
+  latestEventForUser(userId: string, id: string): Promise<ReviewEventRecord | null>;
 }

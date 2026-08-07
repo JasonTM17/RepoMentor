@@ -49,6 +49,7 @@ function review(overrides: Partial<PrismaReview> = {}): PrismaReview {
     id: REVIEW_ID,
     language: "typescript",
     mode: "STANDARD",
+    eventSequence: 1,
     processingGeneration: 0,
     source: "const answer = 42;",
     status: "PENDING",
@@ -138,6 +139,7 @@ function createFixture(
 
         const data = args.data as {
           readonly createdAt: Date;
+          readonly eventSequence: number;
           readonly id: string;
           readonly language: string;
           readonly mode: PrismaReview["mode"];
@@ -148,6 +150,7 @@ function createFixture(
         };
         currentReview = review({
           createdAt: data.createdAt,
+          eventSequence: data.eventSequence,
           id: data.id,
           language: data.language,
           mode: data.mode,
@@ -174,6 +177,12 @@ function createFixture(
           existing.userId === where.userId
           ? existing
           : null;
+      },
+    },
+    reviewEvent: {
+      create: async () => {
+        events.push("reviewEvent.create");
+        return {};
       },
     },
   } as unknown as Prisma.TransactionClient;
@@ -233,6 +242,7 @@ describe("Prisma review finalizer", () => {
     assert.equal(JSON.stringify(result).includes(FINGERPRINT_HASH), false);
     assert.deepEqual(fixture.reviewCreateArgs()?.data, {
       createdAt: NOW,
+      eventSequence: 1,
       id: REVIEW_ID,
       language: "typescript",
       mode: "STANDARD",
@@ -252,6 +262,7 @@ describe("Prisma review finalizer", () => {
       "transaction:start",
       "quotaAdmission.findFirst",
       "review.create",
+      "reviewEvent.create",
       "quotaAdmission.updateMany",
       "transaction:commit",
     ]);
@@ -323,6 +334,7 @@ describe("Prisma review finalizer", () => {
       "transaction:start",
       "quotaAdmission.findFirst",
       "review.create",
+      "reviewEvent.create",
       "quotaAdmission.updateMany",
       "transaction:rollback",
     ]);
