@@ -99,7 +99,7 @@ export class InMemoryReviewFinalizer implements ReviewFinalizer {
     if (admission.status === "ADMITTED") {
       const existing = this.reviews.get(admission.reviewId);
 
-      if (!existing) {
+      if (!existing || existing.userId !== input.userId) {
         throw new ReviewFinalizerIndeterminateError();
       }
 
@@ -107,6 +107,10 @@ export class InMemoryReviewFinalizer implements ReviewFinalizer {
     }
 
     if (admission.status !== "RESERVED") {
+      throw new ReviewFinalizerConflictError();
+    }
+
+    if (this.reviews.has(input.reviewId)) {
       throw new ReviewFinalizerConflictError();
     }
 

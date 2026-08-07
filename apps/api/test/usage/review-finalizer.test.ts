@@ -15,6 +15,7 @@ import type { FinalizeReviewInput } from "../../src/modules/usage/review-finaliz
 
 const NOW = new Date("2026-08-07T01:00:00.000Z");
 const OWNER = "owner-a";
+const OTHER_OWNER = "owner-b";
 const ADMISSION_ID = "admission-a";
 const REVIEW_ID = "review-a";
 
@@ -117,6 +118,40 @@ describe("review finalizer contract seam", () => {
       assert.equal(error.message.includes(REVIEW_ID), false);
       return true;
     });
+  });
+
+  it("returns redacted indeterminate for an admitted replay owned by another user", async () => {
+    const finalizer = new InMemoryReviewFinalizer();
+    finalizer.seedReservedAdmission({ ...RESERVED, id: "admission-b", userId: OTHER_OWNER });
+    await finalizer.finalize(input({ admissionId: "admission-b", userId: OTHER_OWNER }));
+    finalizer.seedAdmittedAdmission(RESERVED);
+
+    await assert.rejects(finalizer.finalize(input()), (error: unknown) => {
+      assert.ok(error instanceof ReviewFinalizerIndeterminateError);
+      assert.equal(error.message.includes(ADMISSION_ID), false);
+      assert.equal(error.message.includes(REVIEW_ID), false);
+      assert.equal(error.message.includes(OTHER_OWNER), false);
+      return true;
+    });
+  });
+
+  it("rejects a pre-existing review-id collision without changing existing state", async () => {
+    const finalizer = new InMemoryReviewFinalizer();
+    finalizer.seedReservedAdmission({ ...RESERVED, id: "admission-b", userId: OTHER_OWNER });
+    const existing = await finalizer.finalize(
+      input({ admissionId: "admission-b", userId: OTHER_OWNER }),
+    );
+    finalizer.seedReservedAdmission(RESERVED);
+
+    await assert.rejects(finalizer.finalize(input()), (error: unknown) => {
+      assert.ok(error instanceof ReviewFinalizerConflictError);
+      assert.equal(error.message.includes(REVIEW_ID), false);
+      return true;
+    });
+
+    assert.deepEqual(finalizer.findSummary(OTHER_OWNER, REVIEW_ID), existing.summary);
+    assert.equal(finalizer.findSummary(OWNER, REVIEW_ID), null);
+    assert.equal(finalizer.findAdmission(OWNER, ADMISSION_ID)?.status, "RESERVED");
   });
 
   it("rolls back the review when admitting the reservation fails", async () => {
