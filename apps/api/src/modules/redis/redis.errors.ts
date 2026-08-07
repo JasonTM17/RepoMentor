@@ -1,5 +1,11 @@
 export type RedisOperation =
-  "connect" | "command" | "quota-reservation" | "lock-acquisition" | "lock-release";
+  | "connect"
+  | "command"
+  | "quota-reservation"
+  | "quota-admission-reservation"
+  | "quota-admission-compensation"
+  | "lock-acquisition"
+  | "lock-release";
 
 export class RedisUnavailableError extends Error {
   readonly code = "REDIS_UNAVAILABLE" as const;

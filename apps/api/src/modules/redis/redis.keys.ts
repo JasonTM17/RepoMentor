@@ -6,12 +6,18 @@ export const REDIS_MAX_KEY_COMPONENT_LENGTH = 128;
 export const REDIS_MAX_LOCK_TOKEN_LENGTH = 128;
 
 export const REDIS_KEY_NAMESPACES = {
+  admissionQuota: "repomentor:quota-admission",
   authenticatedQuota: "repomentor:quota:authenticated",
   guestQuota: "repomentor:quota:guest",
   reviewLock: "repomentor:lock:review",
 } as const;
 
 export type RedisQuotaNamespace = "authenticated" | "guest";
+
+export interface RedisQuotaAdmissionKeys {
+  readonly counterKey: string;
+  readonly markerKey: string;
+}
 
 const SAFE_KEY_COMPONENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 const UTC_DAY = /^\d{4}-\d{2}-\d{2}$/u;
@@ -81,4 +87,31 @@ export function buildUsageQuotaKey(
 export function buildReviewLockKey(reviewId: string): string {
   assertKeyComponent("reviewId", reviewId);
   return assertKeyLength([REDIS_KEY_NAMESPACES.reviewLock, reviewId].join(":"));
+}
+
+/**
+ * Both keys use the same Redis Cluster hash tag. The admission marker is
+ * scoped by the opaque admission id and never contains source or credentials.
+ */
+export function buildQuotaAdmissionKeys(
+  namespace: RedisQuotaNamespace,
+  identity: string,
+  utcDay: string,
+  mode: ReviewMode,
+  admissionId: string,
+): RedisQuotaAdmissionKeys {
+  // Reuse the existing validator for namespace, identity, day, mode, and guest mode.
+  buildUsageQuotaKey(namespace, identity, utcDay, mode);
+  assertKeyComponent("admissionId", admissionId);
+
+  const hashTag = `{${namespace}:${identity}:${utcDay}:${mode}}`;
+
+  return {
+    counterKey: assertKeyLength(
+      [REDIS_KEY_NAMESPACES.admissionQuota, hashTag, "counter"].join(":"),
+    ),
+    markerKey: assertKeyLength(
+      [REDIS_KEY_NAMESPACES.admissionQuota, hashTag, "admission", admissionId].join(":"),
+    ),
+  };
 }

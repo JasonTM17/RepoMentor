@@ -44,17 +44,27 @@ enum ReviewMode {
   DEEP
 }
 
+enum QuotaAdmissionStatus {
+  PENDING
+  RESERVED
+  ADMITTED
+  DENIED
+  INDETERMINATE
+  RECONCILE_REQUIRED
+}
+
 model User {
-  id           String     @id @default(cuid()) @db.VarChar(25)
-  email        String     @unique @db.VarChar(320)
-  displayName  String     @map("display_name") @db.VarChar(100)
-  passwordHash String     @map("password_hash") @db.VarChar(255)
-  role         UserRole   @default(USER)
-  status       UserStatus @default(ACTIVE)
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
-  sessions     Session[]
-  reviews      Review[]
+  id              String           @id @default(cuid()) @db.VarChar(25)
+  email           String           @unique @db.VarChar(320)
+  displayName     String           @map("display_name") @db.VarChar(100)
+  passwordHash    String           @map("password_hash") @db.VarChar(255)
+  role            UserRole         @default(USER)
+  status          UserStatus       @default(ACTIVE)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  quotaAdmissions QuotaAdmission[]
+  sessions        Session[]
+  reviews         Review[]
 
   @@map("users")
 }
@@ -98,6 +108,24 @@ model Review {
   @@index([userId, deletedAt, createdAt])
   @@index([userId, status, deletedAt, createdAt])
   @@map("reviews")
+}
+
+model QuotaAdmission {
+  id                 String               @id @default(cuid()) @db.VarChar(25)
+  userId             String               @map("user_id") @db.VarChar(25)
+  idempotencyKeyHash String               @map("idempotency_key_hash") @db.Char(64)
+  reviewId           String               @unique @map("review_id") @db.VarChar(25)
+  mode               ReviewMode
+  utcDay             DateTime             @map("utc_day") @db.Date
+  status             QuotaAdmissionStatus @default(PENDING)
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKeyHash])
+  @@index([userId, utcDay, mode, status])
+  @@index([userId, reviewId])
+  @@map("quota_admissions")
 }
 
 model ReviewResult {
