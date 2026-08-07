@@ -649,3 +649,39 @@ Docker, registry, and deployment evidence remain unverified.
 The active branch is now closed. The next scope must be selected only after
 this clean merged checkpoint; historical refs and worktrees remain frozen and
 must not be swept into the next change.
+
+## Observability metrics resolution — 2026-08-07
+
+The next bounded branch was `feature/observability-metrics`, based exactly on
+main `f76a234`. Its scope was limited to an aggregate application metrics
+seam: strict shared contract, process-local request totals/in-flight and
+status buckets, `/health/metrics` under the existing health boundary, privacy
+tests, and concise API/root documentation. No route labels, source code,
+review results, provider/model data, request headers, credentials, or
+PostgreSQL/Redis/Luna telemetry were added.
+
+The Luna implementation worker did not return a diff in the bounded window,
+so the coordinator took over the same branch without widening scope. The
+branch finished clean and was integrated as three focused commits:
+
+- `4398ab2` / main `e53e1a3`: metrics contract, middleware, service, endpoint,
+  and deterministic API/contract tests;
+- `23247e9` / main `4eec649`: API and root documentation;
+- `761650e` / main `d0ae69d`: bound counters to `Number.MAX_SAFE_INTEGER` in
+  both the runtime contract and its test.
+
+Exact-head review confirmed base `f76a234`, three commits, the intended
+observability files only, a clean branch, and patch-equivalence before
+integration. The first merged-main test attempt exposed stale generated
+`@repomentor/contracts` output after cherry-pick; rebuilding that workspace
+artifact resolved it, and the final merged-main evidence is API `249/249`,
+web `38/38`, contracts `7/7`, plus typecheck, lint, build, format check,
+Prisma validation, package check, diff check, and credential-shaped scan.
+The independent Luna Kongming/advisor reviewer timed out and was shut down;
+that is recorded as no independent ACCEPT. Live PostgreSQL, Redis, Luna,
+Docker, registry, browser interaction E2E, and multi-instance metrics remain
+unverified.
+
+The branch is complete and no longer active. The next bounded scope is the
+Phase 12 quality pass; historical refs/worktrees remain frozen and are not
+eligible for wholesale merge or deletion.
