@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test": "node --test ./test/shell.test.mjs",
+    "e2e": "playwright test",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
@@ -18,6 +19,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@playwright/test": "1.51.1",
     "@repomentor/eslint-config": "workspace:*",
     "@repomentor/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "4.3.3",
