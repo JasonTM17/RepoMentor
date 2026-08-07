@@ -744,3 +744,40 @@ daemon/registry publication, and deployment evidence. These remain explicit
 follow-up limits and do not become production-readiness claims from local
 tests alone. The branch is complete and no longer active; historical refs and
 worktrees remain frozen and are not eligible for wholesale cleanup.
+
+## Phase 12 browser journey resolution — 2026-08-08
+
+The next bounded quality slice was `test/playwright-review-journey`, based
+exactly on main `8547dc1`. Its scope was deterministic browser coverage for
+the currently connected path: register, sign in, preserve the memory-only
+session, open the authenticated review workspace, admit a review with strict
+body and bearer assertions, consume a status-only SSE response, retrieve a
+validated result, and verify that result UI does not expose provider-secret
+material. The browser mocks are explicitly test-only; no live API, database,
+Redis, Luna, Docker, or registry behavior is substituted into the claim.
+
+The Luna implementation worker timed out without a diff, so the coordinator
+implemented the same frozen scope locally. The branch finished with two
+focused commits and was fast-forward integrated:
+
+- `40ef5e2`: make result-boundary UI truthful for API, custom, and demo
+  transports and cover the rendered API label;
+- `f4b5b51`: add Playwright 1.51.1, web-server config, and the deterministic
+  authenticated browser journey with strict request/envelope assertions.
+
+Exact-head review confirmed base `8547dc1`, two intended commits, no tracked
+residual diff, and no cherry-pick duplicate before merge. Merged-main evidence
+on `f4b5b51` is API `250/250`, web `40/40`, contracts `7/7`, full workspace
+tests, typecheck, lint, production build, Prettier, Prisma schema validation
+with a process-local dummy URL, package payload check, diff-check, and a
+credential-shaped scan with no matches. Playwright discovery is `1/1`.
+
+The browser test itself was attempted but could not launch because local
+Playwright 1.51.1 requested Chromium revision `chromium-1161`, which is not
+installed. Browser installation was not forced; therefore this is a test
+asset-availability limitation, not an E2E pass. The current journey also
+does not claim history/logout UI coverage because those browser seams remain
+unconnected. The Luna read-only advisor/Kongming reviewer timed out and was
+shut down without a verdict; this is recorded as no independent ACCEPT. The
+branch is complete and no longer active; historical refs/worktrees remain
+frozen and protected generated `AGENTS.md`/`CLAUDE.md` files are preserved.
