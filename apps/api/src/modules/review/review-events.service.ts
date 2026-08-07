@@ -8,6 +8,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
+import { randomBytes } from "node:crypto";
 import {
   REVIEW_EVENT_SCHEMA_VERSION,
   reviewEventSchema,
@@ -403,7 +404,7 @@ export class ReviewEventStreamService {
       throw new ConflictException();
     }
 
-    const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    const token = randomBytes(32).toString("base64url");
     this.localLeases.set(reviewId, token);
     return { kind: "local", reviewId, token };
   }
