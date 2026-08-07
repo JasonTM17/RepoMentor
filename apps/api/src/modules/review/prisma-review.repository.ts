@@ -234,6 +234,42 @@ export class PrismaReviewRepository implements ReviewRepository {
     });
   }
 
+  async fenceProcessingForUser(
+    userId: string,
+    id: string,
+    now: Date,
+    expectedProcessingGeneration: number,
+  ): Promise<ReviewRecord | null> {
+    return this.prisma.transaction(async (transaction) => {
+      const fenced = await transaction.review.updateMany({
+        data: { status: "CANCELLED", updatedAt: now },
+        where: {
+          deletedAt: null,
+          id,
+          processingGeneration: expectedProcessingGeneration,
+          status: "PROCESSING",
+          userId,
+        },
+      });
+
+      if (fenced.count !== 1) {
+        return null;
+      }
+
+      const review = await transaction.review.findFirst({
+        where: {
+          deletedAt: null,
+          id,
+          processingGeneration: expectedProcessingGeneration,
+          status: "CANCELLED",
+          userId,
+        },
+      });
+
+      return review ? mapReview(review) : null;
+    });
+  }
+
   async findResultForUser(userId: string, id: string): Promise<ReviewResultRecord | null> {
     const result = await this.prisma.reviewResult.findFirst({
       include: { usage: true },

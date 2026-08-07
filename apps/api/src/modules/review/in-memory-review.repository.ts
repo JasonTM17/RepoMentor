@@ -154,6 +154,33 @@ export class InMemoryReviewRepository implements ReviewRepository {
     return copyReview(completed);
   }
 
+  async fenceProcessingForUser(
+    userId: string,
+    id: string,
+    now: Date,
+    expectedProcessingGeneration: number,
+  ): Promise<ReviewRecord | null> {
+    const review = this.reviews.get(id);
+
+    if (
+      !review ||
+      review.userId !== userId ||
+      review.deletedAt !== null ||
+      review.status !== "PROCESSING" ||
+      review.processingGeneration !== expectedProcessingGeneration
+    ) {
+      return null;
+    }
+
+    const fenced: ReviewRecord = {
+      ...review,
+      status: "CANCELLED",
+      updatedAt: new Date(now),
+    };
+    this.reviews.set(id, fenced);
+    return copyReview(fenced);
+  }
+
   async findResultForUser(userId: string, id: string): Promise<ReviewResultRecord | null> {
     const review = this.reviews.get(id);
     const result = this.results.get(id);

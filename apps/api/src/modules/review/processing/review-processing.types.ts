@@ -27,6 +27,12 @@ export interface ReviewProcessingRepository {
     now: Date,
     expectedProcessingGeneration: number,
   ): Promise<ReviewRecord | null>;
+  fenceProcessingForUser(
+    userId: string,
+    id: string,
+    now: Date,
+    expectedProcessingGeneration: number,
+  ): Promise<ReviewRecord | null>;
   findResultForUser(userId: string, id: string): Promise<ReviewResultRecord | null>;
 }
 

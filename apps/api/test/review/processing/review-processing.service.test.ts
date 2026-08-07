@@ -220,6 +220,89 @@ class RecordingReviewRepository extends InMemoryReviewRepository {
 
     return super.finalizeForUser(userId, id, execution, now, expectedProcessingGeneration);
   }
+
+  override async fenceProcessingForUser(
+    userId: string,
+    id: string,
+    now: Date,
+    expectedProcessingGeneration: number,
+  ) {
+    this.transitions.push({
+      id,
+      transition: {
+        fromStatuses: ["PROCESSING"],
+        now: new Date(now),
+        toStatus: "CANCELLED",
+        expectedProcessingGeneration,
+      },
+    });
+
+    return super.fenceProcessingForUser(userId, id, now, expectedProcessingGeneration);
+  }
+}
+
+class DelayedTerminalRepository extends RecordingReviewRepository {
+  readonly terminalSettled: Promise<void>;
+  readonly terminalStarted: Promise<void>;
+  releaseTerminal!: () => void;
+  private readonly terminalGate: Promise<void>;
+  private resolveTerminalSettled!: () => void;
+  private resolveTerminalStarted!: () => void;
+  private terminalStartedResolved = false;
+
+  constructor() {
+    super();
+    this.terminalGate = new Promise<void>((resolve) => {
+      this.releaseTerminal = resolve;
+    });
+    this.terminalSettled = new Promise<void>((resolve) => {
+      this.resolveTerminalSettled = resolve;
+    });
+    this.terminalStarted = new Promise<void>((resolve) => {
+      this.resolveTerminalStarted = resolve;
+    });
+  }
+
+  override async finalizeForUser(
+    userId: string,
+    id: string,
+    execution: AiReviewExecution<ReviewResult>,
+    now: Date,
+    expectedProcessingGeneration: number,
+  ) {
+    this.markTerminalStarted();
+    await this.terminalGate;
+
+    try {
+      return await super.finalizeForUser(userId, id, execution, now, expectedProcessingGeneration);
+    } finally {
+      this.resolveTerminalSettled();
+    }
+  }
+
+  override async transitionForUser(userId: string, id: string, transition: ReviewStatusTransition) {
+    if (transition.toStatus !== "FAILED") {
+      return super.transitionForUser(userId, id, transition);
+    }
+
+    this.markTerminalStarted();
+    await this.terminalGate;
+
+    try {
+      return await super.transitionForUser(userId, id, transition);
+    } finally {
+      this.resolveTerminalSettled();
+    }
+  }
+
+  private markTerminalStarted(): void {
+    if (this.terminalStartedResolved) {
+      return;
+    }
+
+    this.terminalStartedResolved = true;
+    this.resolveTerminalStarted();
+  }
 }
 
 class FinalizationErrorRepository extends RecordingReviewRepository {
@@ -650,6 +733,96 @@ describe("review processing orchestration", () => {
       assert.equal(redisExecutor.hasHeldLock(), false);
       assert.equal(timer.pendingCount(), 0);
     }
+  });
+
+  it("durably fences delayed successful finalization at the lease-loss boundary", async () => {
+    const repository = new DelayedTerminalRepository();
+    await createReview(repository);
+    let markProviderStarted!: () => void;
+    const providerStarted = new Promise<void>((resolve) => {
+      markProviderStarted = resolve;
+    });
+    let resolveProvider!: (result: AiProviderResult) => void;
+    const provider = new FakeAiReviewProvider([
+      () => {
+        markProviderStarted();
+        return new Promise<AiProviderResult>((resolve) => {
+          resolveProvider = resolve;
+        });
+      },
+    ]);
+    const redisExecutor = new ProcessingRedisExecutor();
+    redisExecutor.renewalResult = false;
+    const timer = new FakeProcessingTimer();
+    const processing = createProcessing(
+      repository,
+      provider,
+      redisExecutor,
+      processingRedisConfig({ lockTtlMs: 3_000 }),
+      timer,
+    );
+
+    const run = processing.process(request());
+    await providerStarted;
+    resolveProvider({ output: STALE_RESULT });
+    await repository.terminalStarted;
+
+    await timer.advance(1_000);
+    const outcome = await run;
+
+    assert.equal(outcome.kind, "CANCELLED");
+    if (outcome.kind !== "CANCELLED") {
+      throw new Error("expected lease-loss cancellation");
+    }
+    assert.equal(outcome.cancellation.source, "LOCK_RENEWAL");
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "CANCELLED");
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.processingGeneration, 1);
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
+    assert.equal(timer.pendingCount(), 0);
+
+    repository.releaseTerminal();
+    await repository.terminalSettled;
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "CANCELLED");
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
+  });
+
+  it("durably fences delayed failure finalization at the lease-loss boundary", async () => {
+    const repository = new DelayedTerminalRepository();
+    await createReview(repository);
+    const provider = new FakeAiReviewProvider([
+      new AiProviderError("RATE_LIMITED", { retryable: true }),
+    ]);
+    const redisExecutor = new ProcessingRedisExecutor();
+    redisExecutor.renewalResult = false;
+    const timer = new FakeProcessingTimer();
+    const processing = createProcessing(
+      repository,
+      provider,
+      redisExecutor,
+      processingRedisConfig({ lockTtlMs: 3_000 }),
+      timer,
+    );
+
+    const run = processing.process(request());
+    await repository.terminalStarted;
+
+    await timer.advance(1_000);
+    const outcome = await run;
+
+    assert.equal(outcome.kind, "CANCELLED");
+    if (outcome.kind !== "CANCELLED") {
+      throw new Error("expected lease-loss cancellation");
+    }
+    assert.equal(outcome.cancellation.source, "LOCK_RENEWAL");
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "CANCELLED");
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.processingGeneration, 1);
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
+    assert.equal(timer.pendingCount(), 0);
+
+    repository.releaseTerminal();
+    await repository.terminalSettled;
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "CANCELLED");
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
   });
 
   it("fails closed at the watchdog deadline without overlapping or retrying renewal", async () => {

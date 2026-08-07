@@ -27,7 +27,7 @@ const EXECUTION: AiReviewExecution<ReviewResult> = {
 };
 
 function reviewRow(
-  status: "PENDING" | "PROCESSING" | "COMPLETED",
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "CANCELLED",
   processingGeneration = EXPECTED_GENERATION,
 ): PrismaReview {
   return {
@@ -45,7 +45,7 @@ function reviewRow(
 }
 
 function createRepository(options: { readonly failResultInsert?: Error } = {}) {
-  let status: "PROCESSING" | "COMPLETED" = "PROCESSING";
+  let status: "PROCESSING" | "COMPLETED" | "CANCELLED" = "PROCESSING";
   let resultInserted = false;
   const events: string[] = [];
   let lastUpdateWhere: unknown;
@@ -67,7 +67,7 @@ function createRepository(options: { readonly failResultInsert?: Error } = {}) {
           return { count: 0 };
         }
 
-        status = "COMPLETED";
+        status = args.data.status === "CANCELLED" ? "CANCELLED" : "COMPLETED";
         return { count: 1 };
       },
     },
@@ -209,6 +209,39 @@ describe("Prisma review result finalization", () => {
       "transaction:start",
       "review.updateMany:COMPLETED",
       "reviewResult.create",
+      "transaction:commit",
+    ]);
+  });
+
+  it("fences the owned processing generation before a delayed finalization can write", async () => {
+    const fixture = createRepository();
+
+    const fenced = await fixture.repository.fenceProcessingForUser(
+      USER_ID,
+      REVIEW_ID,
+      NOW,
+      EXPECTED_GENERATION,
+    );
+
+    assert.equal(fenced?.status, "CANCELLED");
+    assert.equal(fixture.status, "CANCELLED");
+    assert.equal(
+      await fixture.repository.finalizeForUser(
+        USER_ID,
+        REVIEW_ID,
+        EXECUTION,
+        NOW,
+        EXPECTED_GENERATION,
+      ),
+      null,
+    );
+    assert.equal(fixture.resultInserted, false);
+    assert.deepEqual(fixture.events, [
+      "transaction:start",
+      "review.updateMany:CANCELLED",
+      "transaction:commit",
+      "transaction:start",
+      "review.updateMany:COMPLETED",
       "transaction:commit",
     ]);
   });

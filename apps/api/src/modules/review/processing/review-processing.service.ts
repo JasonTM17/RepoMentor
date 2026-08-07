@@ -73,6 +73,45 @@ function createLinkedAbortController(callerSignal: AbortSignal | undefined): {
   };
 }
 
+/**
+ * Redis lease loss is an observation; this class turns it into a durable
+ * conditional review transition before a delayed terminal write can win.
+ */
+class ReviewProcessingLeaseFence {
+  private claimedGeneration: number | undefined;
+  private fencePromise: Promise<ReviewRecord | null> | undefined;
+  private lost = false;
+
+  constructor(
+    private readonly fence: (expectedProcessingGeneration: number) => Promise<ReviewRecord | null>,
+  ) {}
+
+  setClaimedGeneration(generation: number): void {
+    this.claimedGeneration = generation;
+    this.startIfNeeded();
+  }
+
+  markLost(): void {
+    this.lost = true;
+    this.startIfNeeded();
+  }
+
+  wait(): Promise<ReviewRecord | null> {
+    return this.fencePromise ?? Promise.resolve(null);
+  }
+
+  private startIfNeeded(): void {
+    const generation = this.claimedGeneration;
+
+    if (!this.lost || generation === undefined || this.fencePromise !== undefined) {
+      return;
+    }
+
+    this.fencePromise = Promise.resolve().then(() => this.fence(generation));
+    void this.fencePromise.catch(() => undefined);
+  }
+}
+
 class ReviewLockKeepalive {
   private readonly lostPromise: Promise<void>;
   private resolveLost!: () => void;
@@ -382,6 +421,14 @@ export class ReviewProcessingService {
     }
 
     const linked = createLinkedAbortController(input.signal);
+    const leaseFence = new ReviewProcessingLeaseFence((expectedProcessingGeneration) =>
+      this.repository.fenceProcessingForUser(
+        input.userId,
+        input.reviewId,
+        this.clock(),
+        expectedProcessingGeneration,
+      ),
+    );
     const keepalive = new ReviewLockKeepalive(
       this.redisExecutor,
       this.redisConfig,
@@ -389,13 +436,14 @@ export class ReviewProcessingService {
       lockToken,
       this.timer,
       () => {
+        leaseFence.markLost();
         linked.controller.abort();
       },
     );
 
     try {
       keepalive.start();
-      return await this.processWithLock(input, linked.controller.signal, keepalive);
+      return await this.processWithLock(input, linked.controller.signal, keepalive, leaseFence);
     } finally {
       keepalive.stop();
       linked.dispose();
@@ -407,6 +455,7 @@ export class ReviewProcessingService {
     input: ReviewProcessingRequest,
     providerSignal: AbortSignal,
     keepalive: ReviewLockKeepalive,
+    leaseFence: ReviewProcessingLeaseFence,
   ): Promise<ReviewProcessingOutcome> {
     if (keepalive.isLost() && !input.signal?.aborted) {
       throw new ReviewProcessingBoundaryError("PROCESSING_LOCK_UNAVAILABLE");
@@ -422,8 +471,15 @@ export class ReviewProcessingService {
       return skipped(claim);
     }
 
+    leaseFence.setClaimedGeneration(claim.generation);
+
     if (keepalive.isLost()) {
-      return this.cancel(input, claim.generation, this.lockLossCancellation(input));
+      return this.cancelAfterLeaseLoss(
+        input,
+        claim.generation,
+        leaseFence,
+        this.lockLossCancellation(input),
+      );
     }
 
     let execution: Awaited<ReturnType<AiReviewService["review"]>>;
@@ -444,15 +500,24 @@ export class ReviewProcessingService {
       execution = await Promise.race([executionPromise, lockLossPromise]);
     } catch (error: unknown) {
       if (input.signal?.aborted) {
-        return this.cancel(input, claim.generation, {
+        const cancellation = {
           code: "CANCELLED",
           kind: "CANCELLATION",
           source: "SIGNAL",
-        });
+        } as const;
+
+        return keepalive.isLost()
+          ? this.cancelAfterLeaseLoss(input, claim.generation, leaseFence, cancellation)
+          : this.cancel(input, claim.generation, cancellation);
       }
 
       if (keepalive.isLost()) {
-        return this.cancel(input, claim.generation, this.lockLossCancellation(input));
+        return this.cancelAfterLeaseLoss(
+          input,
+          claim.generation,
+          leaseFence,
+          this.lockLossCancellation(input),
+        );
       }
 
       const mapped = mapAiError(error, input.signal);
@@ -461,24 +526,33 @@ export class ReviewProcessingService {
         return this.cancel(input, claim.generation, mapped.cancellation);
       }
 
-      return this.runFinalizationWithLock(input, claim.generation, keepalive, () =>
+      return this.runFinalizationWithLock(input, claim.generation, keepalive, leaseFence, () =>
         this.fail(input, claim.generation, mapped.failure),
       );
     }
 
     if (input.signal?.aborted) {
-      return this.cancel(input, claim.generation, {
+      const cancellation = {
         code: "CANCELLED",
         kind: "CANCELLATION",
         source: "SIGNAL",
-      });
+      } as const;
+
+      return keepalive.isLost()
+        ? this.cancelAfterLeaseLoss(input, claim.generation, leaseFence, cancellation)
+        : this.cancel(input, claim.generation, cancellation);
     }
 
     if (keepalive.isLost()) {
-      return this.cancel(input, claim.generation, this.lockLossCancellation(input));
+      return this.cancelAfterLeaseLoss(
+        input,
+        claim.generation,
+        leaseFence,
+        this.lockLossCancellation(input),
+      );
     }
 
-    return this.runFinalizationWithLock(input, claim.generation, keepalive, () =>
+    return this.runFinalizationWithLock(input, claim.generation, keepalive, leaseFence, () =>
       this.complete(input, claim.generation, execution),
     );
   }
@@ -503,44 +577,90 @@ export class ReviewProcessingService {
     input: ReviewProcessingRequest,
     expectedProcessingGeneration: number,
     keepalive: ReviewLockKeepalive,
+    leaseFence: ReviewProcessingLeaseFence,
     finalize: () => Promise<ReviewProcessingOutcome>,
   ): Promise<ReviewProcessingOutcome> {
-    const finalizationPromise = finalize();
     const lockLossPromise = keepalive.waitForLoss().then(() => {
       throw LOCK_RENEWAL_ABORT;
     });
+
+    if (keepalive.isLost()) {
+      return this.cancelAfterLeaseLoss(
+        input,
+        expectedProcessingGeneration,
+        leaseFence,
+        this.lockLossCancellation(input),
+      );
+    }
+
+    // Defer invocation until the loss sentinel is armed. The repository fence
+    // below remains the authority for a loss racing the terminal DB operation.
+    const finalizationPromise = Promise.resolve().then(finalize);
 
     try {
       const outcome = await Promise.race([finalizationPromise, lockLossPromise]);
 
       if (input.signal?.aborted) {
-        return this.cancel(input, expectedProcessingGeneration, {
+        const cancellation = {
           code: "CANCELLED",
           kind: "CANCELLATION",
           source: "SIGNAL",
-        });
+        } as const;
+
+        return keepalive.isLost()
+          ? this.cancelAfterLeaseLoss(input, expectedProcessingGeneration, leaseFence, cancellation)
+          : this.cancel(input, expectedProcessingGeneration, cancellation);
       }
 
       if (keepalive.isLost()) {
-        return this.cancel(input, expectedProcessingGeneration, this.lockLossCancellation(input));
+        return this.cancelAfterLeaseLoss(
+          input,
+          expectedProcessingGeneration,
+          leaseFence,
+          this.lockLossCancellation(input),
+        );
       }
 
       return outcome;
     } catch (error: unknown) {
       if (input.signal?.aborted) {
-        return this.cancel(input, expectedProcessingGeneration, {
+        const cancellation = {
           code: "CANCELLED",
           kind: "CANCELLATION",
           source: "SIGNAL",
-        });
+        } as const;
+
+        return keepalive.isLost()
+          ? this.cancelAfterLeaseLoss(input, expectedProcessingGeneration, leaseFence, cancellation)
+          : this.cancel(input, expectedProcessingGeneration, cancellation);
       }
 
       if (keepalive.isLost() || error === LOCK_RENEWAL_ABORT) {
-        return this.cancel(input, expectedProcessingGeneration, this.lockLossCancellation(input));
+        return this.cancelAfterLeaseLoss(
+          input,
+          expectedProcessingGeneration,
+          leaseFence,
+          this.lockLossCancellation(input),
+        );
       }
 
       throw error;
     }
+  }
+
+  private async cancelAfterLeaseLoss(
+    input: ReviewProcessingRequest,
+    expectedProcessingGeneration: number,
+    leaseFence: ReviewProcessingLeaseFence,
+    cancellation: ReviewProcessingCancellation,
+  ): Promise<ReviewProcessingOutcome> {
+    const fenced = await leaseFence.wait();
+
+    if (fenced?.status === "CANCELLED") {
+      return { cancellation, kind: "CANCELLED", review: fenced, status: "CANCELLED" };
+    }
+
+    return this.cancel(input, expectedProcessingGeneration, cancellation);
   }
 
   /**
