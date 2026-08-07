@@ -4,9 +4,13 @@ import { useCallback, useMemo, useState } from "react";
 import type { ChangeEvent, FC, ReactElement } from "react";
 
 import LineIcon from "@/components/line-icon";
+import ReviewOptionalResultViews from "@/features/review/components/ReviewOptionalResultViews";
+import ReviewResultActions from "@/features/review/components/ReviewResultActions";
 import type {
   ReviewCategory,
   ReviewFinding,
+  ReviewLanguage,
+  ReviewOptionalResultData,
   ReviewResultResponse,
   ReviewSeverity,
   ReviewStatus,
@@ -14,7 +18,9 @@ import type {
 
 interface ReviewResultPanelProps {
   readonly errorMessage: string | null;
+  readonly language: ReviewLanguage;
   readonly onRetry: () => Promise<boolean>;
+  readonly optionalData?: ReviewOptionalResultData | undefined;
   readonly result: ReviewResultResponse | null;
   readonly source: string;
   readonly status: ReviewStatus;
@@ -22,18 +28,9 @@ interface ReviewResultPanelProps {
 
 type FindingFilter = ReviewSeverity | "ALL";
 type CategoryFilter = ReviewCategory | "ALL";
-type CopyState = "idle" | "copied" | "failed";
 
 interface ValueTarget {
   readonly value: string;
-}
-
-interface ClipboardLike {
-  readonly writeText: (value: string) => Promise<void>;
-}
-
-interface NavigatorWithOptionalClipboard {
-  readonly clipboard?: ClipboardLike;
 }
 
 const severityOptions: readonly FindingFilter[] = ["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW"];
@@ -54,10 +51,13 @@ const formatLineReference = (finding: ReviewFinding): string =>
     ? `Line ${finding.startLine}`
     : `Lines ${finding.startLine}-${finding.endLine}`;
 
-const formatFindingText = (finding: ReviewFinding): string =>
-  `${finding.severity} ${finding.category}: ${finding.title}\n${finding.description}\nNext move: ${finding.suggestion}`;
+interface ReviewStatePanelProps {
+  readonly errorMessage: string | null;
+  readonly onRetry: () => Promise<boolean>;
+  readonly status: ReviewStatus;
+}
 
-const ReviewStatePanel: FC<ReviewResultPanelProps> = ({ errorMessage, onRetry, status }) => {
+const ReviewStatePanel: FC<ReviewStatePanelProps> = ({ errorMessage, onRetry, status }) => {
   const isError = status === "error";
   const isBusy = status === "loading" || status === "processing";
   const isProcessing = status === "processing";
@@ -117,12 +117,26 @@ const ReviewStatePanel: FC<ReviewResultPanelProps> = ({ errorMessage, onRetry, s
 
 const ReviewSourceContext: FC<{
   readonly findings: readonly ReviewFinding[];
+  readonly selectedFinding: ReviewFinding | null;
   readonly source: string;
-}> = ({ findings, source }): ReactElement => {
-  const sourceLines = source.split(/\r?\n/u).slice(0, 24);
+}> = ({ findings, selectedFinding, source }): ReactElement => {
+  const allSourceLines = source.split(/\r?\n/u);
+  const selectedLine = selectedFinding?.startLine ?? 1;
+  const visibleStart = selectedFinding
+    ? Math.max(0, Math.min(selectedLine - 1, Math.max(0, allSourceLines.length - 24)))
+    : 0;
+  const sourceLines = allSourceLines.slice(visibleStart, visibleStart + 24);
+  const visibleEnd = visibleStart + sourceLines.length;
+  const selectionCopy = selectedFinding
+    ? `${formatLineReference(selectedFinding)} selected in the source context.`
+    : "Select an issue signal to focus its referenced source lines.";
 
   return (
-    <section className="review-source-context" aria-labelledby="review-source-heading">
+    <section
+      id="review-source-context"
+      className="review-source-context"
+      aria-labelledby="review-source-heading"
+    >
       <div className="review-section-heading">
         <div>
           <h3 id="review-source-heading" className="review-subtitle">
@@ -132,20 +146,33 @@ const ReviewSourceContext: FC<{
             Line references below come from the structured result.
           </p>
         </div>
-        <span className="status-label">First 24 lines</span>
+        <span className="status-label">
+          Lines {visibleStart + 1} to {visibleEnd}
+        </span>
       </div>
+      <p
+        id="review-source-selection-status"
+        className="visually-hidden"
+        role="status"
+        aria-live="polite"
+      >
+        {selectionCopy}
+      </p>
       <pre className="review-code-context" aria-label="Reviewed source context">
         <code>
           {sourceLines.map((line, index) => {
-            const lineNumber = index + 1;
-            const isHighlighted = findings.some(
+            const lineNumber = visibleStart + index + 1;
+            const isSelected = selectedFinding
+              ? lineNumber >= selectedFinding.startLine && lineNumber <= selectedFinding.endLine
+              : false;
+            const isReferenced = findings.some(
               (finding) => lineNumber >= finding.startLine && lineNumber <= finding.endLine,
             );
 
             return (
               <span
                 key={lineNumber}
-                className={`review-code-context-line${isHighlighted ? " review-code-context-line-active" : ""}`}
+                className={`review-code-context-line${isReferenced ? " review-code-context-line-active" : ""}${isSelected ? " review-code-context-line-selected" : ""}`}
               >
                 <span className="review-code-context-number" aria-hidden="true">
                   {lineNumber}
@@ -156,9 +183,10 @@ const ReviewSourceContext: FC<{
           })}
         </code>
       </pre>
-      {sourceLines.length < source.split(/\r?\n/u).length ? (
+      {sourceLines.length < allSourceLines.length ? (
         <p className="review-section-note">
-          Showing the first 24 lines to keep the result readable.
+          Showing a 24-line window to keep the result readable. Selecting an issue moves the window
+          to its referenced line.
         </p>
       ) : null}
     </section>
@@ -167,9 +195,11 @@ const ReviewSourceContext: FC<{
 
 const ReviewFindingView: FC<{
   readonly finding: ReviewFinding;
-  readonly index: number;
-}> = ({ finding, index }): ReactElement => {
-  const learningNoteId = `learning-note-${index}`;
+  readonly findingIndex: number;
+  readonly isSelected: boolean;
+  readonly onSelect: (findingIndex: number) => void;
+}> = ({ finding, findingIndex, isSelected, onSelect }): ReactElement => {
+  const learningNoteId = `learning-note-${findingIndex}`;
 
   return (
     <li className="review-finding">
@@ -178,9 +208,18 @@ const ReviewFindingView: FC<{
           {finding.severity}
         </span>
         <span className="review-finding-category">{finding.category}</span>
-        <span className="review-finding-location">
-          {finding.filePath} / {formatLineReference(finding)}
-        </span>
+        <button
+          className="review-finding-location review-finding-jump"
+          type="button"
+          aria-controls="review-source-context"
+          aria-pressed={isSelected}
+          onClick={() => onSelect(findingIndex)}
+        >
+          <span>
+            {finding.filePath} / {formatLineReference(finding)}
+          </span>
+          <LineIcon name="arrow-right" />
+        </button>
       </div>
       <h4 className="review-finding-title">{finding.title}</h4>
       <p className="review-finding-copy">{finding.description}</p>
@@ -197,73 +236,48 @@ const ReviewFindingView: FC<{
 
 const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
   errorMessage,
+  language,
   onRetry,
+  optionalData,
   result,
   source,
   status,
 }): ReactElement => {
   const [severityFilter, setSeverityFilter] = useState<FindingFilter>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
-  const [copyState, setCopyState] = useState<CopyState>("idle");
+  const [selectedFindingIndex, setSelectedFindingIndex] = useState<number | null>(null);
   const findings = result?.result.findings ?? [];
   const filteredFindings = useMemo(
     () =>
-      findings.filter(
-        (finding) =>
-          (severityFilter === "ALL" || finding.severity === severityFilter) &&
-          (categoryFilter === "ALL" || finding.category === categoryFilter),
-      ),
+      findings
+        .map((finding, findingIndex) => ({ finding, findingIndex }))
+        .filter(
+          ({ finding }) =>
+            (severityFilter === "ALL" || finding.severity === severityFilter) &&
+            (categoryFilter === "ALL" || finding.category === categoryFilter),
+        ),
     [categoryFilter, findings, severityFilter],
   );
-
-  const copyResult = useCallback(async (): Promise<void> => {
-    const clipboard = (globalThis.navigator as unknown as NavigatorWithOptionalClipboard).clipboard;
-
-    if (!result || !clipboard) {
-      setCopyState("failed");
-      return;
-    }
-
-    const content = [result.result.summary, ...findings.map(formatFindingText)].join("\n\n");
-
-    try {
-      await clipboard.writeText(content);
-      setCopyState("copied");
-    } catch {
-      setCopyState("failed");
-    }
-  }, [findings, result]);
+  const selectedFinding =
+    selectedFindingIndex === null ? null : (findings[selectedFindingIndex] ?? null);
+  const selectedFindingIsVisible = filteredFindings.some(
+    ({ findingIndex }) => findingIndex === selectedFindingIndex,
+  );
+  const visibleSelectedFinding = selectedFindingIsVisible ? selectedFinding : null;
+  const selectFinding = useCallback((findingIndex: number): void => {
+    setSelectedFindingIndex(findingIndex);
+  }, []);
 
   if (status !== "success" && status !== "empty") {
-    return (
-      <ReviewStatePanel
-        errorMessage={errorMessage}
-        onRetry={onRetry}
-        result={result}
-        source={source}
-        status={status}
-      />
-    );
+    return <ReviewStatePanel errorMessage={errorMessage} onRetry={onRetry} status={status} />;
   }
 
   if (!result) {
-    return (
-      <ReviewStatePanel
-        errorMessage={null}
-        onRetry={onRetry}
-        result={result}
-        source={source}
-        status="idle"
-      />
-    );
+    return <ReviewStatePanel errorMessage={null} onRetry={onRetry} status="idle" />;
   }
 
   const resultTitle =
     status === "empty" ? "No issue signals returned." : "The structured result is ready.";
-  const copyLabel =
-    copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy unavailable" : "Copy result";
-  const durationLabel =
-    result.execution.durationMs > 0 ? `${result.execution.durationMs} ms` : "Not recorded in demo";
 
   return (
     <section
@@ -285,16 +299,7 @@ const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
       </header>
 
       <div className="review-results-body">
-        <div className="review-result-actions">
-          <span className="review-result-id">Review id: {result.id}</span>
-          <button
-            className="action-secondary review-copy-button"
-            type="button"
-            onClick={() => void copyResult()}
-          >
-            {copyLabel}
-          </button>
-        </div>
+        <ReviewResultActions optionalData={optionalData} result={result} />
 
         <div className="review-result-grid">
           <section className="review-score-panel" aria-labelledby="review-score-heading">
@@ -314,21 +319,15 @@ const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
               Summary
             </h3>
             <p className="review-summary-copy">{result.result.summary}</p>
-            <dl className="review-summary-metrics">
-              <div>
-                <dt>Signals</dt>
-                <dd>{findings.length}</dd>
-              </div>
-              <div>
-                <dt>Status</dt>
-                <dd>Completed</dd>
-              </div>
-            </dl>
           </section>
         </div>
 
         <div className="review-source-result-grid">
-          <ReviewSourceContext findings={findings} source={source} />
+          <ReviewSourceContext
+            findings={findings}
+            selectedFinding={visibleSelectedFinding}
+            source={source}
+          />
 
           <section className="review-issues-section" aria-labelledby="review-issues-heading">
             <div className="review-section-heading">
@@ -388,11 +387,13 @@ const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
 
             {filteredFindings.length > 0 ? (
               <ul className="review-finding-list">
-                {filteredFindings.map((finding, index) => (
+                {filteredFindings.map(({ finding, findingIndex }) => (
                   <ReviewFindingView
-                    key={`${finding.filePath}-${finding.startLine}-${finding.endLine}-${index}`}
+                    key={`${finding.filePath}-${finding.startLine}-${finding.endLine}-${findingIndex}`}
                     finding={finding}
-                    index={index}
+                    findingIndex={findingIndex}
+                    isSelected={findingIndex === selectedFindingIndex}
+                    onSelect={selectFinding}
                   />
                 ))}
               </ul>
@@ -405,40 +406,11 @@ const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
           </section>
         </div>
 
-        <section className="review-execution-panel" aria-labelledby="review-execution-heading">
-          <div className="review-section-heading">
-            <div>
-              <h3 id="review-execution-heading" className="review-subtitle">
-                Transport metadata
-              </h3>
-              <p className="review-section-copy">
-                The fixture mirrors the safe execution fields the API can return.
-              </p>
-            </div>
-            <span className="status-label">No live usage</span>
-          </div>
-          <dl className="review-execution-grid">
-            <div>
-              <dt>Provider</dt>
-              <dd>{result.execution.provider}</dd>
-            </div>
-            <div>
-              <dt>Model</dt>
-              <dd>{result.execution.model}</dd>
-            </div>
-            <div>
-              <dt>Reasoning</dt>
-              <dd>{result.execution.reasoningEffort}</dd>
-            </div>
-            <div>
-              <dt>Duration</dt>
-              <dd>{durationLabel}</dd>
-            </div>
-          </dl>
-          <p className="review-section-note">
-            Demo metadata is static and does not claim a provider call, quota, or token usage.
-          </p>
-        </section>
+        <ReviewOptionalResultViews
+          language={language}
+          optionalData={optionalData}
+          source={source}
+        />
       </div>
     </section>
   );

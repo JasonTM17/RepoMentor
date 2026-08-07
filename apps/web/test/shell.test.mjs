@@ -37,6 +37,11 @@ const source = Object.freeze({
   reviewWorkspace: readTrackedSource("features/review/components/ReviewWorkspace.tsx"),
   reviewSourceEditor: readTrackedSource("features/review/components/ReviewSourceEditor.tsx"),
   reviewResultPanel: readTrackedSource("features/review/components/ReviewResultPanel.tsx"),
+  reviewResultActions: readTrackedSource("features/review/components/ReviewResultActions.tsx"),
+  reviewOptionalViews: readTrackedSource(
+    "features/review/components/ReviewOptionalResultViews.tsx",
+  ),
+  reviewExports: readTrackedSource("features/review/helpers/reviewExports.ts"),
   reviewApi: readTrackedSource("features/review/api/reviewApi.ts"),
   reviewDemoTransport: readTrackedSource("features/review/api/demoReviewTransport.ts"),
   reviewHelpers: readTrackedSource("features/review/helpers/reviewHelpers.ts"),
@@ -94,6 +99,17 @@ const reviewPollingRuntime = import(
 const reviewHelpersRuntime = import(
   `data:text/javascript,${encodeURIComponent(
     typescript.transpileModule(source.reviewHelpers, {
+      compilerOptions: {
+        module: typescript.ModuleKind.ESNext,
+        target: typescript.ScriptTarget.ES2022,
+      },
+    }).outputText,
+  )}`
+);
+
+const reviewExportsRuntime = import(
+  `data:text/javascript,${encodeURIComponent(
+    typescript.transpileModule(source.reviewExports, {
       compilerOptions: {
         module: typescript.ModuleKind.ESNext,
         target: typescript.ScriptTarget.ES2022,
@@ -773,7 +789,7 @@ test("review result runtime validation enforces ISO timestamps, usage invariants
   }
 });
 
-test("review result renders summary, score boundary, issue filters, and learning notes", () => {
+test("review result renders safe boundaries, issue selection, and learning notes", () => {
   assert.match(source.reviewResultPanel, /status === "loading"/u);
   assert.match(source.reviewResultPanel, /status === "processing"/u);
   assert.match(source.reviewResultPanel, /status === "error"/u);
@@ -787,8 +803,65 @@ test("review result renders summary, score boundary, issue filters, and learning
   assert.match(source.reviewResultPanel, /No score is invented/u);
   assert.match(source.reviewResultPanel, /Check for result/u);
   assert.match(source.reviewResultPanel, /learningNoteId/u);
-  assert.match(source.reviewResultPanel, /readonly index: number/u);
-  assert.match(source.reviewResultPanel, /finding\.endLine\}-\$\{index\}/u);
+  assert.match(source.reviewResultPanel, /readonly findingIndex: number/u);
+  assert.match(source.reviewResultPanel, /aria-pressed=\{isSelected\}/u);
+  assert.match(source.reviewResultPanel, /review-code-context-line-selected/u);
+  assert.doesNotMatch(
+    source.reviewResultPanel,
+    /result\.execution\.(provider|model|reasoningEffort|durationMs)/u,
+  );
+});
+
+test("review optional views expose real data seams and explicit unavailable states", () => {
+  assert.match(source.reviewWorkspace, /optionalData\?: ReviewOptionalResultData/u);
+  assert.match(source.reviewOptionalViews, /Improved code/u);
+  assert.match(source.reviewOptionalViews, /Generated test/u);
+  assert.match(source.reviewOptionalViews, /Learning question/u);
+  assert.match(source.reviewOptionalViews, /Original versus improved/u);
+  assert.match(source.reviewOptionalViews, /Not supplied/u);
+  assert.match(source.reviewOptionalViews, /ReviewDiffEditor/u);
+  assert.match(source.reviewOptionalViews, /optionalData\?\.improvedCode/u);
+  assert.match(source.reviewSourceEditor, /dynamic<DiffEditorProps>/u);
+  assert.match(source.reviewSourceEditor, /data-editor-engine="monaco-diff"/u);
+});
+
+test("review result actions use browser APIs only after a user action", () => {
+  assert.match(source.reviewResultActions, /Copy improved code/u);
+  assert.match(source.reviewResultActions, /Copy test case/u);
+  assert.match(source.reviewResultActions, /Download Markdown/u);
+  assert.match(source.reviewResultActions, /Download JSON/u);
+  assert.match(source.reviewResultActions, /navigator\?\.clipboard/u);
+  assert.match(source.reviewResultActions, /new browser\.Blob/u);
+  assert.match(source.reviewResultActions, /createObjectURL/u);
+  assert.match(source.reviewResultActions, /role="status"/u);
+  assert.match(source.reviewResultActions, /disabled=\{!improvedCode\}/u);
+  assert.match(source.reviewResultActions, /disabled=\{!generatedTest\}/u);
+});
+
+test("review exports remain source-free by default and include optional data only when supplied", async () => {
+  const { createReviewExportPayload, formatReviewJson, formatReviewMarkdown } =
+    await reviewExportsRuntime;
+  const result = createReviewResultResponse();
+  const payload = createReviewExportPayload(result);
+
+  assert.equal(payload.id, "review-1");
+  assert.equal(Object.hasOwn(payload, "optional"), false);
+  assert.equal(JSON.stringify(payload).includes("execution"), false);
+  assert.equal(JSON.stringify(payload).includes("source"), false);
+  assert.match(formatReviewMarkdown(result), /# Review result/u);
+  assert.match(formatReviewJson(result), /"schemaVersion": "v1"/u);
+
+  const optionalData = {
+    generatedTest: 'test("guard", () => expect(true).toBe(true));',
+    improvedCode: "return fallback;",
+    learningQuestion: "Which boundary is easiest to explain?",
+  };
+  const optionalPayload = createReviewExportPayload(result, optionalData);
+
+  assert.deepEqual(optionalPayload.optional, optionalData);
+  assert.match(formatReviewMarkdown(result, optionalData), /## Improved code/u);
+  assert.match(formatReviewMarkdown(result, optionalData), /## Generated test/u);
+  assert.match(formatReviewMarkdown(result, optionalData), /## Learning question/u);
 });
 
 test("review fixture remains deterministic and has an explicit empty-result path", () => {
@@ -842,9 +915,18 @@ test("review CSS preserves product accessibility and responsive contracts", () =
   assert.match(source.styles, /\.review-input\s*\{[\s\S]*min-height:\s*var\(--touch-target\)/u);
   assert.match(source.styles, /\.review-input:focus-visible\s*\{[\s\S]*outline:/u);
   assert.match(source.styles, /\.review-input:disabled\s*\{[\s\S]*cursor:\s*not-allowed/u);
+  assert.match(source.styles, /\.review-monaco-viewport:focus-within\s*,[\s\S]*outline:/u);
+  assert.match(source.styles, /\.review-finding-jump:focus-visible\s*\{[\s\S]*outline:/u);
+  assert.match(source.styles, /\.review-finding-jump\[aria-pressed="true"\]/u);
+  assert.match(source.styles, /\.review-code-context-line-selected\s*\{/u);
   assert.match(source.styles, /\.review-workspace-grid\s*\{[\s\S]*grid-template-columns:/u);
   assert.match(source.styles, /@media\s*\(max-width:\s*62rem\)[\s\S]*\.review-workspace-grid/u);
+  assert.match(source.styles, /@media\s*\(max-width:\s*50rem\)[\s\S]*\.review-optional-grid/u);
   assert.match(source.styles, /@media\s*\(max-width:\s*30rem\)[\s\S]*\.review-field-grid/u);
+  assert.match(
+    source.styles,
+    /@media\s*\(max-width:\s*30rem\)[\s\S]*\.review-result-action-buttons/u,
+  );
   assert.match(source.styles, /@media\s*\(prefers-reduced-motion\s*:\s*reduce\s*\)/u);
   assert.doesNotMatch(source.styles, /transition:\s*all/u);
   assert.doesNotMatch(source.styles, /overflow-x:\s*hidden/u);
@@ -854,10 +936,14 @@ test("review source copy contains no em dash, emoji, or banned marketing languag
   const reviewSources = [
     source.reviewPage,
     source.reviewWorkspace,
+    source.reviewSourceEditor,
     source.reviewResultPanel,
+    source.reviewResultActions,
+    source.reviewOptionalViews,
     source.reviewApi,
     source.reviewDemoTransport,
     source.reviewHelpers,
+    source.reviewExports,
     source.reviewPolling,
   ];
 

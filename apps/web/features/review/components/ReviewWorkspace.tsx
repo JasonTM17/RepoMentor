@@ -19,12 +19,14 @@ import type {
   ReviewFieldErrors,
   ReviewLanguage,
   ReviewMode,
+  ReviewOptionalResultData,
   ReviewStatus,
   ReviewTextField,
   ReviewTransportFactory,
 } from "@/features/review/types";
 
 interface ReviewWorkspaceProps {
+  readonly optionalData?: ReviewOptionalResultData | undefined;
   readonly transportFactory?: ReviewTransportFactory;
 }
 
@@ -138,7 +140,10 @@ const ReviewStatusRail: FC<{ readonly status: ReviewStatus }> = ({ status }): Re
   );
 };
 
-const ReviewWorkspace: FC<ReviewWorkspaceProps> = ({ transportFactory }): ReactElement => {
+const ReviewWorkspace: FC<ReviewWorkspaceProps> = ({
+  optionalData,
+  transportFactory,
+}): ReactElement => {
   const [draft, setDraft] = useState<ReviewDraft>(createInitialReviewDraft);
   const [errors, setErrors] = useState<ReviewFieldErrors>({});
   const [touched, setTouched] = useState<Record<ReviewTextField, boolean>>(initialTouchedState);
@@ -485,7 +490,9 @@ const ReviewWorkspace: FC<ReviewWorkspaceProps> = ({ transportFactory }): ReactE
         </h2>
         <ReviewResultPanel
           errorMessage={errorMessage}
+          language={draft.language}
           onRetry={retry}
+          optionalData={optionalData}
           result={result}
           source={draft.source}
           status={status}
