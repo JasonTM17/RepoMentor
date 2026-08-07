@@ -58,6 +58,8 @@
   --review-state-min-height: 18rem;
   --review-sidebar-min: 17rem;
   --review-copy-max: 42rem;
+  --review-monaco-height: 24rem;
+  --review-diff-height: 22rem;
 }
 
 * {
@@ -1141,6 +1143,66 @@ button {
     line-height: 1.55;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+
+  .review-monaco-viewport,
+  .review-monaco-diff-viewport {
+    min-width: 0;
+    border: var(--depth-rule);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    overflow: hidden;
+  }
+
+  .review-monaco-viewport {
+    height: var(--review-monaco-height);
+  }
+
+  .review-monaco-diff-viewport {
+    height: var(--review-diff-height);
+  }
+
+  .review-monaco-viewport:hover,
+  .review-monaco-diff-viewport:hover {
+    border-color: var(--color-line-strong);
+  }
+
+  .review-monaco-viewport:active,
+  .review-monaco-diff-viewport:active {
+    border-color: var(--color-accent-strong);
+  }
+
+  .review-monaco-viewport:focus-within,
+  .review-monaco-diff-viewport:focus-within {
+    border-color: var(--color-focus);
+    outline: var(--focus-width) solid var(--color-focus);
+    outline-offset: var(--focus-offset);
+  }
+
+  .review-monaco-viewport[data-editor-state="disabled"] {
+    background: var(--color-surface-muted);
+    cursor: not-allowed;
+  }
+
+  .review-monaco-state {
+    display: grid;
+    min-height: 100%;
+    align-content: center;
+    gap: var(--space-3);
+    padding: var(--space-6);
+    background: var(--color-surface-muted);
+  }
+
+  .review-monaco-state p {
+    max-width: var(--measure-copy);
+    margin: 0;
+    color: var(--color-ink-muted);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+  }
+
+  .review-monaco-state-error {
+    background: var(--color-danger-soft);
   }
 
   .review-field-hint,

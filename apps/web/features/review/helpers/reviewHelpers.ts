@@ -4,11 +4,29 @@ import type {
   ReviewMetrics,
   ReviewResult,
   ReviewTextField,
+  ReviewLanguage,
 } from "@/features/review/types";
 
 export const REVIEW_MAX_SOURCE_LENGTH = 100_000;
 export const REVIEW_MAX_TITLE_LENGTH = 80;
 export const REVIEW_MAX_CONTEXT_LENGTH = 500;
+
+export const MONACO_LANGUAGE_BY_REVIEW_LANGUAGE: Readonly<Record<ReviewLanguage, string>> =
+  Object.freeze({
+    csharp: "csharp",
+    cpp: "cpp",
+    go: "go",
+    java: "java",
+    javascript: "javascript",
+    other: "plaintext",
+    python: "python",
+    rust: "rust",
+    sql: "sql",
+    typescript: "typescript",
+  });
+
+export const getMonacoLanguage = (language: ReviewLanguage): string =>
+  MONACO_LANGUAGE_BY_REVIEW_LANGUAGE[language];
 
 export const createInitialReviewDraft = (): ReviewDraft => ({
   source: `const buildLesson = (finding: Finding | null) => {
@@ -29,11 +47,8 @@ export const createInitialReviewDraft = (): ReviewDraft => ({
 });
 
 export const estimateReviewMetrics = (source: string): ReviewMetrics => {
-  const trimmedSource = source.trim();
-
   return {
     characterCount: source.length,
-    estimatedTokenCount: trimmedSource.length === 0 ? 0 : Math.ceil(trimmedSource.length / 4),
     lineCount: source.length === 0 ? 0 : source.split(/\r?\n/u).length,
   };
 };

@@ -5,6 +5,7 @@ import type { ChangeEvent, FC, FormEvent, ReactElement } from "react";
 
 import LineIcon from "@/components/line-icon";
 import ReviewResultPanel from "@/features/review/components/ReviewResultPanel";
+import ReviewSourceEditor from "@/features/review/components/ReviewSourceEditor";
 import {
   createInitialReviewDraft,
   estimateReviewMetrics,
@@ -370,25 +371,22 @@ const ReviewWorkspace: FC<ReviewWorkspaceProps> = ({ transportFactory }): ReactE
 
             <fieldset className="review-form-group review-source-group">
               <legend className="review-form-legend">Source code</legend>
-              <label className="review-field">
+              <div className="review-field">
                 <span className="review-label-row">
-                  <span className="review-label">Paste the focused change</span>
+                  <span id="review-source-label" className="review-label">
+                    Paste the focused change
+                  </span>
                   <span className="review-required">Required</span>
                 </span>
-                <textarea
-                  className={`review-input review-source-input${sourceError ? " review-input-error" : ""}`}
-                  name="source"
-                  rows={14}
-                  value={draft.source}
-                  onChange={(event) =>
-                    updateTextField("source", (event.target as unknown as ValueTarget).value)
-                  }
-                  onBlur={() => markFieldTouched("source")}
+                <ReviewSourceEditor
+                  describedBy={sourceDescribedBy}
                   disabled={isBusy}
-                  aria-invalid={sourceError ? true : undefined}
-                  aria-describedby={sourceDescribedBy}
-                  spellCheck={false}
-                  required
+                  invalid={Boolean(sourceError)}
+                  labelId="review-source-label"
+                  language={draft.language}
+                  onBlur={() => markFieldTouched("source")}
+                  onChange={(value) => updateTextField("source", value)}
+                  value={draft.source}
                 />
                 <span id="review-source-hint" className="review-field-hint">
                   Keep the excerpt narrow enough that the review signal stays close to the changed
@@ -401,17 +399,15 @@ const ReviewWorkspace: FC<ReviewWorkspaceProps> = ({ transportFactory }): ReactE
                 >
                   <span>{metrics.characterCount.toLocaleString()} characters</span>
                   <span aria-hidden="true">·</span>
-                  <span>about {metrics.estimatedTokenCount.toLocaleString()} tokens</span>
-                  <span aria-hidden="true">·</span>
                   <span>{metrics.lineCount.toLocaleString()} lines</span>
-                  <span className="review-metrics-note">Local estimates only</span>
+                  <span className="review-metrics-note">Local source counts</span>
                 </span>
                 {sourceError ? (
                   <span id="review-source-error" className="review-field-error" role="alert">
                     {sourceError}
                   </span>
                 ) : null}
-              </label>
+              </div>
             </fieldset>
 
             <div className="review-form-actions">

@@ -35,6 +35,7 @@ const source = Object.freeze({
   validation: readTrackedSource("features/auth/helpers/validation.ts"),
   reviewPage: readTrackedSource("app/reviews/new/page.tsx"),
   reviewWorkspace: readTrackedSource("features/review/components/ReviewWorkspace.tsx"),
+  reviewSourceEditor: readTrackedSource("features/review/components/ReviewSourceEditor.tsx"),
   reviewResultPanel: readTrackedSource("features/review/components/ReviewResultPanel.tsx"),
   reviewApi: readTrackedSource("features/review/api/reviewApi.ts"),
   reviewDemoTransport: readTrackedSource("features/review/api/demoReviewTransport.ts"),
@@ -82,6 +83,17 @@ const reviewApiRuntime = import(
 const reviewPollingRuntime = import(
   `data:text/javascript,${encodeURIComponent(
     typescript.transpileModule(source.reviewPolling, {
+      compilerOptions: {
+        module: typescript.ModuleKind.ESNext,
+        target: typescript.ScriptTarget.ES2022,
+      },
+    }).outputText,
+  )}`
+);
+
+const reviewHelpersRuntime = import(
+  `data:text/javascript,${encodeURIComponent(
+    typescript.transpileModule(source.reviewHelpers, {
       compilerOptions: {
         module: typescript.ModuleKind.ESNext,
         target: typescript.ScriptTarget.ES2022,
@@ -531,7 +543,7 @@ test("auth source contains no emoji or em dash in visible UI copy", () => {
 test("review route exposes an operable editor and honest transport label", () => {
   assert.match(source.reviewPage, /<ReviewWorkspace\s*\/>/u);
   assert.match(source.reviewWorkspace, /<main\s+id="main-content"/u);
-  assert.match(source.reviewWorkspace, /name="source"/u);
+  assert.match(source.reviewWorkspace, /<ReviewSourceEditor[\s\S]*value=\{draft\.source\}/u);
   assert.match(source.reviewWorkspace, /name="title"/u);
   assert.match(source.reviewWorkspace, /name="context"/u);
   assert.match(source.reviewWorkspace, /value=\{draft\.language\}/u);
@@ -544,6 +556,39 @@ test("review route exposes an operable editor and honest transport label", () =>
   assert.match(source.reviewWorkspace, /GET \/api\/v1\/reviews\/:id\/result/u);
   assert.match(source.reviewWorkspace, /does not call live AI/u);
   assert.match(source.reviewWorkspace, /report usage/u);
+});
+
+test("review source input uses a real SSR-safe Monaco seam with accessible states", () => {
+  assert.match(source.reviewSourceEditor, /dynamic<EditorProps>/u);
+  assert.match(source.reviewSourceEditor, /ssr:\s*false/u);
+  assert.match(source.reviewSourceEditor, /data-editor-engine="monaco"/u);
+  assert.match(source.reviewSourceEditor, /ariaLabel:\s*"Source code to review"/u);
+  assert.match(source.reviewSourceEditor, /"aria-describedby": describedBy/u);
+  assert.match(source.reviewSourceEditor, /role:\s*"textbox"/u);
+  assert.match(source.reviewSourceEditor, /MonacoLoadingState/u);
+  assert.match(source.reviewSourceEditor, /MonacoUnavailableState/u);
+  assert.match(source.reviewWorkspace, /review-source-hint review-source-metrics/u);
+  assert.match(source.reviewWorkspace, /review-source-error/u);
+});
+
+test("review editor maps the complete language set to Monaco identifiers", async () => {
+  const { getMonacoLanguage } = await reviewHelpersRuntime;
+  const languageMap = {
+    csharp: "csharp",
+    cpp: "cpp",
+    go: "go",
+    java: "java",
+    javascript: "javascript",
+    other: "plaintext",
+    python: "python",
+    rust: "rust",
+    sql: "sql",
+    typescript: "typescript",
+  };
+
+  for (const [reviewLanguage, monacoLanguage] of Object.entries(languageMap)) {
+    assert.equal(getMonacoLanguage(reviewLanguage), monacoLanguage);
+  }
 });
 
 test("review transport preserves the accepted process and result endpoints", () => {

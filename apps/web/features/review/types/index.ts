@@ -35,8 +35,19 @@ export type ReviewFieldErrors = Partial<Record<ReviewTextField, string>>;
 
 export interface ReviewMetrics {
   readonly characterCount: number;
-  readonly estimatedTokenCount: number;
   readonly lineCount: number;
+}
+
+/**
+ * Optional result views are kept separate from the accepted live result contract.
+ * The current demo transport does not provide this data.
+ */
+export interface ReviewOptionalResultData {
+  readonly generatedTest?: string;
+  readonly improvedCode?: string;
+  readonly improvedSource?: string;
+  readonly learningQuestion?: string;
+  readonly originalSource?: string;
 }
 
 export interface ReviewFinding {
