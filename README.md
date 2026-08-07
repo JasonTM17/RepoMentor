@@ -332,6 +332,11 @@ discovery is `1/1`, but execution remains blocked because Chromium revision
 `chromium-1161` is not installed locally. No Docker image, registry artifact,
 tag, public package, GitHub release, or deployment was created or claimed.
 
+GitHub Container Validation run `31204852778` passed against code head
+`4b2dfb7`: workflow syntax, Hadolint, Dockerfile and Compose contracts, both
+`linux/amd64` no-publish image builds, API liveness, and web shell smoke. This
+is CI validation evidence only; it is not a registry publication or deployment.
+
 ## Security and environment boundaries
 
 Never commit `.env`, API keys, database credentials, JWT secrets, private

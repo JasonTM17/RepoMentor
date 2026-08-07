@@ -106,7 +106,7 @@ checkpoint addendum follows the table.
 | Compose configuration                                       | Pass: `docker compose config --quiet` with safe dummy values; configuration only.                                                                                                                               |
 | Contracts package dry-run                                   | Pass without publishing: `npm pack --dry-run --json` returned `@repomentor/contracts@0.1.0` with `33` local entries, including `dist/.test-dist` produced by test compilation. This is not an approved payload. |
 | Frozen dependency install                                   | `pnpm run deps:install` installed the dependency tree but exited with `ERR_PNPM_IGNORED_BUILDS` while requesting build approval. No approval was enabled; this is an environment/tooling limitation.            |
-| Live Docker and dependency checks                           | Not run: `docker info` could not connect to the local Docker Desktop Linux engine. No image build, Compose startup, or HTTP smoke is claimed.                                                                   |
+| Live Docker and dependency checks                           | Not run locally: `docker info` could not connect to the local Docker Desktop Linux engine. No local service startup, live dependency check, or HTTP smoke is claimed; the separate GitHub no-publish validation run is recorded below. |
 | Full root suite, web production build, and release workflow | Not run in this docs refresh. Do not infer them from the passing focused checks above.                                                                                                                          |
 
 ## Current checkpoint addendum — 2026-08-08
@@ -126,6 +126,11 @@ semantic tag, public package, GitHub release, or deployment was created.
 Live PostgreSQL, Redis, HTTP provider, external Luna, and Docker daemon
 evidence remain unverified.
 
+GitHub Container Validation run `31204852778` passed against code head
+`4b2dfb7`: workflow syntax, Hadolint, Dockerfile and Compose contracts, both
+`linux/amd64` no-publish image builds, API liveness, and web shell smoke. This
+is CI validation evidence only; it is not a registry publication or deployment.
+
 The validation table above is historical evidence from the earlier docs
 refresh; rerun all release gates on the exact tag commit before publication.
 
@@ -138,7 +143,9 @@ workflow. Its static job runs workflow syntax validation, Hadolint, Dockerfile
 contract checks, and `docker compose config --quiet` with safe dummy values.
 Its build job builds the API and web images for `linux/amd64` with
 `push: false`, then smoke-tests API `/health/live` and the web `/` shell. This
-workflow definition is a gate, not evidence that a current GitHub run passed.
+workflow passed for the current code head in run `31204852778`; the run did not
+use registry credentials or publish images. A passing validation run is not a
+registry publication or deployment claim.
 
 ### Tagged dual-registry release
 
