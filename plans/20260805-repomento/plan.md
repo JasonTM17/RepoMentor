@@ -280,6 +280,25 @@ guest integration claim; timed-out commands are indeterminate and cannot be
 blindly retried, identity derivation must remain server-side, lock leases need
 processing/fencing alignment, and an undersized UTC TTL cap safely fails closed.
 
+Phase 09D2 is accepted on exact `main` at `829ad06`, based on `8412b9c`, after
+the coordinator cherry-picked worker commits `fe04d207` (quota admission
+ledger) and `02978e02` (Redis absolute-expiry repair) as `28e0c7b` and
+`53146aa`, then applied lint fix `f92491c` and formatter `829ad06`. Its additive
+foundation covers the Prisma `QuotaAdmission` schema/migration, hashed
+idempotency, owner/status repository behavior, and Redis admission
+marker/compensation. Evidence is Prisma generate/validate with a non-secret
+placeholder `DATABASE_URL`, API `tsc --noEmit`/build, ESLint, root Prettier,
+compiled API `141/141` across 33 suites, focused Redis `6/6`, diff-check, and a
+credential-shaped scan with no matches. An isolated worker hit EPERM during
+generated output; coordinator main gates succeeded after direct binaries. The
+worker used `gpt-5.6-luna` / `max`; Luna manager and Kongming/Terra counsel
+accepted the exact head with no P0/P1. This is not production readiness: no
+live Redis/Postgres/HTTP/guest/process-lock integration was run or claimed;
+live EVAL and migration/DB isolation remain P2. Custom caller-supplied
+`admissionId`/`reviewId` conflict policy and replay `retryAfter` are follow-ups.
+D2A integration is blocked on a design decision; no commit was made and a safe
+durable ledger is required.
+
 The current local main checkpoint includes the accepted web-auth contract
 integration at `5ccb4cb`, review-domain integration through `b33d7d6`, truthful
 README/package/GitHub About/media updates through `3b1f3b1`, Phase 09C history
@@ -371,6 +390,8 @@ without live integration evidence.
 | `main` | 09B | Luna ak-fe usage UI worker + Luna manager arbiter + Kongming/Terra counsel | `4c0e26d`, `84df4f2`, `b4b6236`, `aaea4f5`, `e9cf5bc`, `4951c5b`, `b9390a5`, `9e24463`, `ffcb819` (worker `53b805f`, `27c7fb7`, `c88c045`, `1c362e8`, `a7d861f`, `cb1cf3c`, `93e077a`, `9e6a346`, `6695ed2`) | accepted bounded `/dashboard`, `/history`, `/usage` checkpoint; 32 web, 107 API, 5 contracts, 144 root tests; live auth/API and server history filters deferred |
 | `main` | 09C | Luna usage-history filter worker + Luna manager arbiter + Kongming/Terra counsel | `f66bd45`, `5fba494`, `b662058`, `8a4acc3` (worker `97db82b`, `e462686`, `f37ed79`, `0a6aaef`) | accepted bounded owner-safe filters/search/UTC/sort; 112 API tests; live PostgreSQL, Redis enforcement, guest quota, and cursor/snapshot evidence deferred |
 | `main` | 09D1 | Luna Redis primitive worker + Luna manager arbiter + Kongming/Terra counsel | `e2be702`, `08edbab`, `3518f76`, `0eda9cf` (worker `cb4ce7f`, `d50da34`, `42b6464`, `62d921f`) | accepted bounded Redis quota/lock primitives; 17 focused, 129 API tests; no live Redis, HTTP/guest wiring, or production-readiness claim |
+| `main` | 09D2 | Luna quota-admission worker + Luna manager arbiter + Kongming/Terra counsel | `28e0c7b`, `53146aa`, `f92491c`, `829ad06` (worker `fe04d207`, `02978e02`) | accepted foundation at exact `main` `829ad06`; 141/141 compiled API across 33 suites and focused Redis 6/6; no live Redis/Postgres/HTTP/guest/process-lock or production-readiness claim |
+| `docs/phase-09d2-quota-admission` | docs | coordinator | `docs(plan): record Phase 09D2 admission checkpoint` (parent `829ad06`; this commit) | docs-only update; exactly the two Phase 09D2 planning files |
 | `main` | auth hardening | coordinator validation follow-up | `0b47a45` | accepted; rejects non-canonical Base64URL token encodings; full API/root tests pass |
 | `main` | docs/release | Faraday Luna + coordinator follow-up | `54c039f`, `d7e873c`, `2da1bd5`, `4673295`, `3b1f3b1` | accepted; README/release metadata, real UI GIF, and CI evidence; no production/public-package claim |
 | `main` | 13 | Raman Luna + manager arbiter | `014c5e7`, `9456850`, `cf2e62b`, `16a81d1`, `69f83ab`, `d910080`, `10f1b71`, `6448e67`, `952bbc5`, `dc238d3`, `14f0c3e`, `3d98a4d` | accepted; CI run `31030844884` passed Docker/Compose/build/smoke gates; registry publication pending |
@@ -429,6 +450,9 @@ without live integration evidence.
 | phase-09-redis-primitives | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-usage-redis` (`feature/usage-redis-enforcement`) | accepted; worker exact `62d921f`; 4 focused commits, 17 focused and 129 API tests; no live Redis claim | `plans/reports/phase-09-redis-primitives.md` (suggested, not created) |
 | phase-09-redis-primitives-manager | reviewer/arbiter | `gpt-5.6-luna` / `max` | read-only exact-head review | accepted after remediation; exact `62d921f`; no P0/P1; live Redis/HTTP deferred | manager thread `019fd14f-e844-7f83-988f-7a27e3639fe2` |
 | phase-09-redis-primitives-kongming-counsel | security/architecture advisor | `gpt-5.6-terra` / `max` | read-only exact-head counsel | accepted after fail-fast remediation; no P0/P1; live Redis and integration risks remain P2 | counsel thread `019fd4b0-e28f-7361-b7c6-b9752bd24428` |
+| phase-09d2-quota-admission | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-quota-admission` (`feature/quota-admission-ledger`) | accepted; worker `fe04d207`, `02978e02`; unrelated worker-local `pnpm-workspace.yaml` edit preserved | additive QuotaAdmission foundation; no live integration claim; D2A remains blocked |
+| phase-09d2-manager | reviewer/arbiter | `gpt-5.6-luna` / `max` | read-only exact-head review | accepted; exact `main` `829ad06`; no P0/P1; manager thread `019fd14f-e844-7f83-988f-7a27e3639fe2` | live EVAL, migration/DB isolation, and integration wiring remain P2/follow-up |
+| phase-09d2-kongming-counsel | security/architecture advisor | `gpt-5.6-terra` / `max` | read-only exact-head counsel | accepted; exact `main` `829ad06`; no P0/P1; counsel thread `019fd4b0-e28f-7361-b7c6-b9752bd24428` | safe durable ledger required for blocked D2A; conflict/replay semantics remain follow-ups |
 | phase-13-docs-release-media | documentation/media implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docs-release-media` | accepted; worker `019fd2ac-2034-7752-83ef-e2d7cefda10e`; merged through `4673295` | Faraday report; real 3-frame UI GIF |
 | phase-13-docker-release | Docker/CI implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-release` | accepted; worker `019fd2b1-daad-7302-824c-adef31c220ff`; merged through `3d98a4d` | Raman report; CI `31030844884` green; live registry pending |
 | phase-13-docker-compose-runtime | Compose/env/docs implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-compose-runtime` | accepted; worker `019fd2d1-eb9d-7fd0-ab68-4f5f2b44073f`; merged through `2cb9c9d` | Volta report; Docker daemon/live startup unavailable |
@@ -443,3 +467,7 @@ without live integration evidence.
 - Phase 02 checks prove the application/UI foundation and transport boundary;
   readiness is still application-only, Swagger production exposure remains a
   hardening follow-up, and full browser E2E begins in the later quality phase.
+- Phase 09D2 D2A integration is blocked pending a safe durable-ledger design;
+  no commit was made. Custom caller-supplied `admissionId`/`reviewId` conflict
+  policy and replay `retryAfter` remain follow-ups, while live EVAL and
+  migration/DB-isolation evidence remain P2.

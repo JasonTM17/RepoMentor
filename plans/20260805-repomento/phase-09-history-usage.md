@@ -137,3 +137,30 @@ lock lease duration must align with processing/fencing; and a configured
 reservation rather than shortening a daily quota window. Endpoint enforcement,
 durable usage reconciliation, live Redis tests, and cancellation/provider
 failure compensation remain the next integration slice.
+
+## Accepted checkpoint: Phase 09D2 quota admission foundation
+
+Phase 09D2 is accepted on exact `main` at `829ad06`, based on `8412b9c`, after
+the coordinator cherry-picked worker commits `fe04d207` (quota admission
+ledger) and `02978e02` (Redis absolute-expiry repair) as `28e0c7b` and
+`53146aa`, then applied lint fix `f92491c` and formatter `829ad06`. The final
+exact `main` before this docs commit is `829ad06`. The source scope is an
+additive Prisma `QuotaAdmission` schema/migration, hashed idempotency,
+owner/status repository behavior, and Redis admission marker/compensation.
+The worker used `gpt-5.6-luna` / `max`; Luna manager and Kongming/Terra counsel
+accepted the exact head with no P0/P1 blocker.
+
+Evidence is Prisma generate and validate with a non-secret placeholder
+`DATABASE_URL`, API `tsc --noEmit` and build, ESLint, root Prettier, compiled
+API suite `141/141` across `33` suites, focused Redis `6/6`, diff-check, and a
+credential-shaped scan with no matches. An isolated worker encountered EPERM
+while generating output; coordinator main gates succeeded after direct
+binaries.
+
+This is a foundation checkpoint, not production readiness or Phase 09
+completion. No live Redis/Postgres/HTTP/guest/process-lock integration was run
+or claimed. Live EVAL execution and migration/DB-isolation verification remain
+P2. Caller-supplied custom `admissionId`/`reviewId` conflict policy and replay
+`retryAfter` remain follow-ups. D2A integration is blocked on a design
+decision: no commit was made, and a safe durable ledger is required before
+integration wiring.
