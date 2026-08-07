@@ -11,6 +11,11 @@ import { AuthTokenService } from "../src/modules/auth/auth-token.service.js";
 import { AuthRateLimiter } from "../src/modules/auth/auth-rate-limiter.js";
 import { AUTH_REPOSITORY } from "../src/modules/auth/auth.types.js";
 import { InMemoryAuthRepository } from "../src/modules/auth/in-memory-auth.repository.js";
+import { QUOTA_ADMISSION_FINGERPRINT_CONFIG } from "../src/modules/usage/quota-admission.config.js";
+
+// Test-only fixture; this is not a user or provider API key.
+const TEST_QUOTA_ADMISSION_FINGERPRINT_SECRET =
+  "test-only-quota-admission-fingerprint-fixture-32-bytes";
 
 const tokenConfig = {
   accessSecret: "access-secret-for-controller-tests-32-bytes",
@@ -39,6 +44,8 @@ describe("authentication bootstrap", () => {
     const repository = new InMemoryAuthRepository();
     const tokenService = new AuthTokenService(tokenConfig);
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(QUOTA_ADMISSION_FINGERPRINT_CONFIG)
+      .useValue({ fingerprintSecret: TEST_QUOTA_ADMISSION_FINGERPRINT_SECRET })
       .overrideProvider(AUTH_REPOSITORY)
       .useValue(repository)
       .overrideProvider(AuthTokenService)

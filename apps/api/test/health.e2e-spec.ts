@@ -14,6 +14,11 @@ import request from "supertest";
 
 import { AppModule } from "../src/app.module.js";
 import { configureApp } from "../src/app.js";
+import { QUOTA_ADMISSION_FINGERPRINT_CONFIG } from "../src/modules/usage/quota-admission.config.js";
+
+// Test-only fixture; this is not a user or provider API key.
+const TEST_QUOTA_ADMISSION_FINGERPRINT_SECRET =
+  "test-only-quota-admission-fingerprint-fixture-32-bytes";
 
 const expectedLivenessPayload: LivenessHealthPayload = {
   status: "ok",
@@ -39,7 +44,10 @@ describe("health bootstrap", () => {
   before(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(QUOTA_ADMISSION_FINGERPRINT_CONFIG)
+      .useValue({ fingerprintSecret: TEST_QUOTA_ADMISSION_FINGERPRINT_SECRET })
+      .compile();
 
     app = configureApp(moduleRef.createNestApplication());
     await app.init();
