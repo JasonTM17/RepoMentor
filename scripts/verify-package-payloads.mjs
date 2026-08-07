@@ -46,7 +46,7 @@ const BEARER_CREDENTIAL_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/-]{8,}\b/gi;
 const KEY_SHAPED_CREDENTIAL_PATTERN =
   /\b(?:ghp_|github_pat_|sk-|sk_|xox[baprs]_)[A-Za-z0-9_-]{8,}\b/gi;
 
-const PRODUCTION_MODULES = ["auth", "envelopes", "health", "index", "problem"];
+const PRODUCTION_MODULES = ["auth", "envelopes", "health", "index", "problem", "review"];
 const EXPECTED_PAYLOAD = [
   "package.json",
   ...PRODUCTION_MODULES.flatMap((moduleName) => [
