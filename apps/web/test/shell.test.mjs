@@ -55,6 +55,7 @@ const source = Object.freeze({
   usageDashboard: readTrackedSource("features/usage/components/UsageDashboard.tsx"),
   usageHistory: readTrackedSource("features/usage/components/UsageHistory.tsx"),
   usageOverview: readTrackedSource("features/usage/components/UsageOverview.tsx"),
+  usageTransport: readTrackedSource("features/usage/hooks/useUsageTransport.ts"),
   usageQuotaGrid: readTrackedSource("features/usage/components/UsageQuotaGrid.tsx"),
   usageSourceNote: readTrackedSource("features/usage/components/UsageSourceNote.tsx"),
   usageStatePanel: readTrackedSource("features/usage/components/UsageStatePanel.tsx"),
@@ -1226,10 +1227,17 @@ test("usage routes are linked from the shell and keep the existing review and au
   assert.match(source.usageDashboard, /id="main-content"/u);
   assert.match(source.usageHistory, /id="main-content"/u);
   assert.match(source.usageOverview, /id="main-content"/u);
+  assert.match(source.usageDashboard, /useUsageTransport/u);
+  assert.match(source.usageHistory, /useUsageTransport/u);
+  assert.match(source.usageOverview, /useUsageTransport/u);
+  assert.match(source.usageTransport, /useInitializeAuthSession/u);
+  assert.match(source.usageTransport, /createUsageApiTransport\(\{ getAccessToken \}\)/u);
+  assert.match(source.usageTransport, /createDemoUsageTransport\(\)/u);
+  assert.doesNotMatch(source.usageTransport, /localStorage|sessionStorage/u);
 });
 
 test("usage API validates strict summary, history, quota, and envelope shapes", async () => {
-  const { UsageApiError, usageApi } = await usageApiRuntime;
+  const { UsageApiError, createUsageApiTransport, usageApi } = await usageApiRuntime;
   const originalFetch = globalThis.fetch;
   const validSummary = {
     asOf: "2026-08-06T00:00:00.000Z",
@@ -1300,7 +1308,26 @@ test("usage API validates strict summary, history, quota, and envelope shapes", 
     for (const request of seenRequests) {
       assert.equal(request.init.credentials, "include");
       assert.equal(request.init.method, "GET");
+      assert.equal(request.init.headers, undefined);
     }
+
+    let accessToken;
+    const authenticatedTransport = createUsageApiTransport({
+      getAccessToken: () => accessToken,
+    });
+    seenRequests.length = 0;
+    globalThis.fetch = async (input, init) => {
+      seenRequests.push({ init, input });
+      return createJsonResponse(200, { data: validSummary });
+    };
+
+    await assert.doesNotReject(() => authenticatedTransport.getSummary());
+    assert.equal(seenRequests[0].init.headers, undefined);
+    accessToken = "memory-only-access-token";
+    await assert.doesNotReject(() => authenticatedTransport.getSummary());
+    assert.deepEqual(seenRequests[1].init.headers, {
+      Authorization: "Bearer memory-only-access-token",
+    });
 
     globalThis.fetch = async () =>
       createJsonResponse(200, { data: { ...validSummary, totalTokens: 99 } });
@@ -1468,6 +1495,7 @@ test("usage UI is source-free, secret-free, and avoids banned visible copy", () 
     source.usageDashboard,
     source.usageHistory,
     source.usageOverview,
+    source.usageTransport,
     source.usageQuotaGrid,
     source.usageSourceNote,
     source.usageStatePanel,
