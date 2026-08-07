@@ -538,3 +538,38 @@ without live integration evidence.
   follow-ups. The first process-lock range is held by an independent Luna P1
   finding about delayed terminal finalization; remediation must pass before
   merge. Guest identity/quota and live Redis/HTTP evidence remain deferred.
+
+## Continuation checkpoint — 2026-08-07 (Luna-only)
+
+The coordinator checkpoint is `main` at `c84b76b` (clean, 21 commits ahead of
+`origin/main`). The accepted local continuation now includes the package
+payload/release guard, guest QUICK review, Redis process-lock renewal and
+generation fence, fence-error remediation, and the AK FE review experience:
+
+- guest chain: `a7e1f8a`, `a218b9c`, `679edbd`, `681bd12`;
+- process-lock chain: `0c26cef`, `fef1eeb`, `b878d45`, `9f710cf`, `ec28a99`;
+- web review chain: `e313157`, `14c8eeb`, `5dfb7c7`, `c84b76b`.
+
+Post-merge evidence on this exact main is API `229/229` across 44 suites, web
+`37/37`, contracts `5/5`, full workspace tests, typecheck, lint, production
+build, Prettier, package payload `21/21`, diff-check, and a credential-shaped
+scan with no matches. These are deterministic/fake or local-build gates; live
+PostgreSQL, Redis, Luna, Docker, registry publication, and multi-instance
+runtime evidence remain unclaimed.
+
+Branch hygiene is frozen under AK review: branch names do not authorize a
+merge, and no dirty worktree is eligible. The branch triage found 41 refs not
+merged into `main` and 7 dirty worktrees. Only
+`feature/review-stream-lifecycle` is the active missing-scope branch; old
+process/auth/history/usage branches are preserved and require exact residual
+diff review before any action. No worktree, editor/Codex data, AGENTS file, or
+unrelated dirty change may be deleted or swept into a commit.
+
+The active stream slice is additive and must freeze the following before
+merge: durable transaction-coupled per-review event sequence, exclusive
+`Last-Event-ID` replay, raw status-only SSE without source/result/provider
+data, fetch-based bearer-auth streaming, polling fallback, explicit cancel
+only, duplicate process idempotency, retry/cancel race fencing, owner
+isolation, bounded heartbeat/lifetime, and honest live-integration limits.
+Kongming's current decision is HOLD until those exact-head implementation and
+race tests exist; an independent Luna arbiter must review the final branch.
