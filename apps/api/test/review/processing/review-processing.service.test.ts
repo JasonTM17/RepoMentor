@@ -305,6 +305,19 @@ class DelayedTerminalRepository extends RecordingReviewRepository {
   }
 }
 
+class FenceFailureDelayedTerminalRepository extends DelayedTerminalRepository {
+  constructor(private readonly fenceError: Error) {
+    super();
+  }
+
+  override async fenceProcessingForUser(
+    ..._args: Parameters<InMemoryReviewRepository["fenceProcessingForUser"]>
+  ): Promise<Awaited<ReturnType<InMemoryReviewRepository["fenceProcessingForUser"]>>> {
+    void _args;
+    throw this.fenceError;
+  }
+}
+
 class FinalizationErrorRepository extends RecordingReviewRepository {
   constructor(private readonly finalizationError: Error) {
     super();
@@ -816,6 +829,84 @@ describe("review processing orchestration", () => {
     assert.equal(outcome.cancellation.source, "LOCK_RENEWAL");
     assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "CANCELLED");
     assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.processingGeneration, 1);
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
+    assert.equal(timer.pendingCount(), 0);
+
+    repository.releaseTerminal();
+    await repository.terminalSettled;
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "CANCELLED");
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
+  });
+
+  it("fails closed when the lease fence rejects during delayed successful finalization", async () => {
+    const fenceError = new Error("lease fence unavailable");
+    const repository = new FenceFailureDelayedTerminalRepository(fenceError);
+    await createReview(repository);
+    let markProviderStarted!: () => void;
+    const providerStarted = new Promise<void>((resolve) => {
+      markProviderStarted = resolve;
+    });
+    let resolveProvider!: (result: AiProviderResult) => void;
+    const provider = new FakeAiReviewProvider([
+      () => {
+        markProviderStarted();
+        return new Promise<AiProviderResult>((resolve) => {
+          resolveProvider = resolve;
+        });
+      },
+    ]);
+    const redisExecutor = new ProcessingRedisExecutor();
+    redisExecutor.renewalResult = false;
+    const timer = new FakeProcessingTimer();
+    const processing = createProcessing(
+      repository,
+      provider,
+      redisExecutor,
+      processingRedisConfig({ lockTtlMs: 3_000 }),
+      timer,
+    );
+
+    const run = processing.process(request());
+    await providerStarted;
+    resolveProvider({ output: STALE_RESULT });
+    await repository.terminalStarted;
+
+    await timer.advance(1_000);
+    await assert.rejects(run, (error: unknown) => error === fenceError);
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "CANCELLED");
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
+    assert.equal(timer.pendingCount(), 0);
+
+    repository.releaseTerminal();
+    await repository.terminalSettled;
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "CANCELLED");
+    assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
+  });
+
+  it("fails closed when the lease fence rejects during delayed failure finalization", async () => {
+    const fenceError = new Error("lease fence unavailable");
+    const repository = new FenceFailureDelayedTerminalRepository(fenceError);
+    await createReview(repository);
+    const provider = new FakeAiReviewProvider([
+      new AiProviderError("RATE_LIMITED", { retryable: true }),
+    ]);
+    const redisExecutor = new ProcessingRedisExecutor();
+    redisExecutor.renewalResult = false;
+    const timer = new FakeProcessingTimer();
+    const processing = createProcessing(
+      repository,
+      provider,
+      redisExecutor,
+      processingRedisConfig({ lockTtlMs: 3_000 }),
+      timer,
+    );
+
+    const run = processing.process(request());
+    await repository.terminalStarted;
+
+    await timer.advance(1_000);
+    await assert.rejects(run, (error: unknown) => error === fenceError);
+    assert.equal((await repository.findByIdForUser(USER_ID, REVIEW_ID))?.status, "CANCELLED");
     assert.equal(await repository.findResultForUser(USER_ID, REVIEW_ID), null);
     assert.equal(timer.pendingCount(), 0);
 

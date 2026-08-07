@@ -596,6 +596,7 @@ export class ReviewProcessingService {
     // Defer invocation until the loss sentinel is armed. The repository fence
     // below remains the authority for a loss racing the terminal DB operation.
     const finalizationPromise = Promise.resolve().then(finalize);
+    void finalizationPromise.catch(() => undefined);
 
     try {
       const outcome = await Promise.race([finalizationPromise, lockLossPromise]);
@@ -654,13 +655,30 @@ export class ReviewProcessingService {
     leaseFence: ReviewProcessingLeaseFence,
     cancellation: ReviewProcessingCancellation,
   ): Promise<ReviewProcessingOutcome> {
-    const fenced = await leaseFence.wait();
+    let fenceFailed = false;
+    let fenceError: unknown;
 
-    if (fenced?.status === "CANCELLED") {
-      return { cancellation, kind: "CANCELLED", review: fenced, status: "CANCELLED" };
+    try {
+      const fenced = await leaseFence.wait();
+
+      if (fenced?.status === "CANCELLED") {
+        return { cancellation, kind: "CANCELLED", review: fenced, status: "CANCELLED" };
+      }
+    } catch (error: unknown) {
+      fenceFailed = true;
+      fenceError = error;
     }
 
-    return this.cancel(input, expectedProcessingGeneration, cancellation);
+    // A rejected lease fence must not leave the already-started terminal
+    // promise unguarded. The expected-generation cancellation is a fallback
+    // durable fence; preserve the original fence error for the caller.
+    const fallback = await this.cancel(input, expectedProcessingGeneration, cancellation);
+
+    if (fenceFailed && fallback.status === "CANCELLED") {
+      throw fenceError;
+    }
+
+    return fallback;
   }
 
   /**
