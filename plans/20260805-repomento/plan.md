@@ -296,8 +296,11 @@ accepted the exact head with no P0/P1. This is not production readiness: no
 live Redis/Postgres/HTTP/guest/process-lock integration was run or claimed;
 live EVAL and migration/DB isolation remain P2. Custom caller-supplied
 `admissionId`/`reviewId` conflict policy and replay `retryAfter` are follow-ups.
-D2A integration is blocked on a design decision; no commit was made and a safe
-durable ledger is required.
+D2A integration is no longer blocked: the coordinator accepted the bounded
+authenticated integration through `0b573a2`, including the durable ledger,
+fingerprint-bound finalizer, and authenticated `POST /api/v1/reviews`. The
+remaining work is deployment secret/env hardening, guest/process-lock wiring,
+and live dependency evidence; none is production-readiness evidence yet.
 
 The current local main checkpoint includes the accepted web-auth contract
 integration at `5ccb4cb`, review-domain integration through `b33d7d6`, truthful
@@ -316,6 +319,16 @@ unavailable, and Docker Hub namespace/credentials have not been supplied.
 The release workflow is prepared with immutable tags, digest checks, SBOM,
 provenance, and scan gates; a protected release ref and registry evidence are
 still required.
+
+The latest local `main` checkpoint is `dd03a5e`. It includes the Luna env
+contract commit `eab8131`, the docs refresh `389ae48`, and the private
+package/image release-boundary docs `dd03a5e`. The exact source gate at
+`eab8131` passed Prisma validate/generate, contracts build, lint, typecheck,
+`192/192` API tests across 38 suites, web/contracts tests, production build,
+and format check. The docs/package worker separately passed formatting,
+diff-check, credential-shaped/stale-claim scans, and a contracts pack dry-run;
+no public package, license, tag, registry publication, deployment, or live
+dependency claim was made.
 
 ## Commit and validation contract
 
@@ -400,6 +413,10 @@ without live integration evidence.
 | `main` | docs/release | Faraday Luna + coordinator follow-up | `54c039f`, `d7e873c`, `2da1bd5`, `4673295`, `3b1f3b1` | accepted; README/release metadata, real UI GIF, and CI evidence; no production/public-package claim |
 | `main` | 13 | Raman Luna + manager arbiter | `014c5e7`, `9456850`, `cf2e62b`, `16a81d1`, `69f83ab`, `d910080`, `10f1b71`, `6448e67`, `952bbc5`, `dc238d3`, `14f0c3e`, `3d98a4d` | accepted; CI run `31030844884` passed Docker/Compose/build/smoke gates; registry publication pending |
 | `main` | 13 | Volta Luna + manager arbiter | `eab4557`, `6e90530`, `8c0f0c0`, `86a1c69`, `2cb9c9d` | accepted Compose/env/docs slice; local startup and live smoke pending |
+| `main` | 13-env | Luna env-contract worker + coordinator | `eab8131` (worker `a6234bb`) | accepted required quota fingerprint secret wiring in `.env.example`, Compose, and container validation; safe config check passed; no live daemon claim |
+| `main` | docs/package | Luna docs/package worker + coordinator | `389ae48`, `dd03a5e` (worker `46c324d`, `052c52e`) | accepted README/release refresh; private package boundary, license gate, GHCR/Docker Hub gates, exact evidence, and real GIF limits recorded; no publication claim |
+| read-only counsel | docs/package-advisor | Terra advisor | `019fdc0a-81e8-7610-b96d-488a28e17408` | completed; reviewed stale claims, exact-head evidence, media/GitHub About boundaries; no edits or acceptance claim |
+| read-only counsel | docs/package-kongming | Terra package/release counsel | `019fdc0a-82ca-7382-9a64-33a0e1082a35` | completed; confirmed private manifests, missing license/payload checker, registry gates, and package naming risks; no edits or acceptance claim |
 
 ## Agent/thread ledger
 
@@ -454,13 +471,17 @@ without live integration evidence.
 | phase-09-redis-primitives | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-usage-redis` (`feature/usage-redis-enforcement`) | accepted; worker exact `62d921f`; 4 focused commits, 17 focused and 129 API tests; no live Redis claim | `plans/reports/phase-09-redis-primitives.md` (suggested, not created) |
 | phase-09-redis-primitives-manager | reviewer/arbiter | `gpt-5.6-luna` / `max` | read-only exact-head review | accepted after remediation; exact `62d921f`; no P0/P1; live Redis/HTTP deferred | manager thread `019fd14f-e844-7f83-988f-7a27e3639fe2` |
 | phase-09-redis-primitives-kongming-counsel | security/architecture advisor | `gpt-5.6-terra` / `max` | read-only exact-head counsel | accepted after fail-fast remediation; no P0/P1; live Redis and integration risks remain P2 | counsel thread `019fd4b0-e28f-7361-b7c6-b9752bd24428` |
-| phase-09d2-quota-admission | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-quota-admission` (`feature/quota-admission-ledger`) | accepted; worker `fe04d207`, `02978e02`; unrelated worker-local `pnpm-workspace.yaml` edit preserved | additive QuotaAdmission foundation; no live integration claim; D2A remains blocked |
+| phase-09d2-quota-admission | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-quota-admission` (`feature/quota-admission-ledger`) | accepted; worker `fe04d207`, `02978e02`; unrelated worker-local `pnpm-workspace.yaml` edit preserved | additive QuotaAdmission foundation; no live integration claim; D2A was later accepted as a separate integration slice |
 | phase-09d2-manager | reviewer/arbiter | `gpt-5.6-luna` / `max` | read-only exact-head review | accepted; exact `main` `829ad06`; no P0/P1; manager thread `019fd14f-e844-7f83-988f-7a27e3639fe2` | live EVAL, migration/DB isolation, and integration wiring remain P2/follow-up |
-| phase-09d2-kongming-counsel | security/architecture advisor | `gpt-5.6-terra` / `max` | read-only exact-head counsel | accepted; exact `main` `829ad06`; no P0/P1; counsel thread `019fd4b0-e28f-7361-b7c6-b9752bd24428` | safe durable ledger required for blocked D2A; conflict/replay semantics remain follow-ups |
+| phase-09d2-kongming-counsel | security/architecture advisor | `gpt-5.6-terra` / `max` | read-only exact-head counsel | accepted; exact `main` `829ad06`; no P0/P1; counsel thread `019fd4b0-e28f-7361-b7c6-b9752bd24428` | durable-ledger requirement was addressed by the later D2A integration; conflict/replay semantics remain follow-ups |
 | phase-13-docs-release-media | documentation/media implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docs-release-media` | accepted; worker `019fd2ac-2034-7752-83ef-e2d7cefda10e`; merged through `4673295` | Faraday report; real 3-frame UI GIF |
 | phase-13-docker-release | Docker/CI implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-release` | accepted; worker `019fd2b1-daad-7302-824c-adef31c220ff`; merged through `3d98a4d` | Raman report; CI `31030844884` green; live registry pending |
 | phase-13-docker-compose-runtime | Compose/env/docs implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docker-compose-runtime` | accepted; worker `019fd2d1-eb9d-7fd0-ab68-4f5f2b44073f`; merged through `2cb9c9d` | Volta report; Docker daemon/live startup unavailable |
 | phase-13-container-advisor | supply-chain advisor | `gpt-5.6-terra` / `max` | read-only counsel | completed; worker `019fd2b2-1664-7780-9d71-72f8b7f4582c`; no edits | hold findings resolved statically; live publish still gated |
+| phase-13-env-contract | implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-quota-admission-env` | accepted; worker `019fdbfc-455d-7f21-ab09-b69858391aa7`, commit `a6234bb`, merged as `eab8131` | required fingerprint-secret env/Compose/validation wiring; safe config check passed; no live daemon claim |
+| phase-13-docs-package | documentation/package implementer | `gpt-5.6-luna` / `max` | `D:\worktrees\RepoMentor-docs-package` | accepted; worker `019fdc0c-2d58-73f1-bd28-e03746ccf90d`; merged as `389ae48`, `dd03a5e` | README/release refresh; private package boundary and exact release gates; no metadata/publication claim |
+| phase-13-docs-package-advisor | documentation/security advisor | `gpt-5.6-terra` / `max` | read-only counsel | completed; worker `019fdc0a-81e8-7610-b96d-488a28e17408`; no edits | stale-claim, exact-head, media, and GitHub About review; advisory only |
+| phase-13-docs-package-kongming | package/release advisor | `gpt-5.6-terra` / `max` | read-only counsel | completed; worker `019fdc0a-82ca-7382-9a64-33a0e1082a35`; no edits | private manifests, license/payload, registry naming, and release-gate review; advisory only |
 
 ## Unresolved questions
 
@@ -472,7 +493,8 @@ without live integration evidence.
   readiness is still application-only, Swagger production exposure remains a
   hardening follow-up, and full browser E2E begins in the later quality phase.
 - Phase 09D2A authenticated admission integration is accepted as a bounded
-  checkpoint at `0b573a2`; it is not production readiness. Live Redis EVAL,
+  checkpoint at `0b573a2`; exact source/env/docs checkpoint is now `dd03a5e`;
+  it is not production readiness. Live Redis EVAL,
   PostgreSQL migration/transaction isolation, HTTP process, guest quota,
   process-lock, external Luna, registry, and deployment evidence remain
   deferred. Custom caller-supplied `admissionId`/`reviewId` conflict policy

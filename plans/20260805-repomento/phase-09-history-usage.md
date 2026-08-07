@@ -161,9 +161,10 @@ This is a foundation checkpoint, not production readiness or Phase 09
 completion. No live Redis/Postgres/HTTP/guest/process-lock integration was run
 or claimed. Live EVAL execution and migration/DB-isolation verification remain
 P2. Caller-supplied custom `admissionId`/`reviewId` conflict policy and replay
-`retryAfter` remain follow-ups. D2A integration is blocked on a design
-decision: no commit was made, and a safe durable ledger is required before
-integration wiring.
+`retryAfter` remain follow-ups. At this earlier foundation checkpoint, D2A
+integration was blocked on a design decision: no commit was made, and a safe
+durable ledger was required before integration wiring. The later D2A
+checkpoint recorded below resolved that boundary.
 
 ## Accepted checkpoint: Phase 09D2A authenticated quota admission integration
 
@@ -197,3 +198,23 @@ evidence was run or claimed. The next safe slices are deployment secret/env
 contract hardening, guest/process-lock integration, and then live dependency
 evidence; caller-supplied custom identity conflict policy and replay
 `retryAfter` remain explicit follow-ups.
+
+## Documentation and package-boundary refresh
+
+The coordinator accepted the docs/package refresh on exact local `main` after
+cherry-picking `46c324d` as `389ae48` and `052c52e` as `dd03a5e`. `README.md`
+now identifies the exact `eab8131` source/config checkpoint and records the
+current `192/192` API rerun without presenting it as live-service evidence.
+`docs/release.md` records the private root/workspace package boundary, the
+owner-controlled license gate, the prepared-but-unpublished GHCR/Docker Hub
+workflow, the exact tag/CI/digest/SBOM/provenance gates, and the real GIF as
+media evidence only.
+
+The exact source gate at `eab8131` passed Prisma validate/generate, contracts
+build, lint, typecheck, `192/192` API tests across 38 suites, web/contracts
+tests, production build, and format check. The docs worker additionally passed
+format, diff-check, credential-shaped scan, stale-claim scan, and a
+`@repomentor/contracts` pack dry-run showing only `dist` plus `package.json`.
+No package metadata, license, tag, registry publication, deployment, or public
+package claim was added. Terra advisor/Kongming reviews were read-only counsel;
+they made no edits and do not replace Luna acceptance.
