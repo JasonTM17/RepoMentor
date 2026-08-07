@@ -28,10 +28,11 @@ reported separately and never inferred from unit or build evidence.
   `gpt-5.6-luna`; use reasoning `max` whenever the live capability exposes it.
   A route that cannot verify or pin Luna is blocked rather than silently
   substituted.
-- Kongming architecture counsel is the only exception: the user explicitly
-  allows a Terra counsel thread for advisory analysis only. Terra counsel may
-  not edit files, run implementation work, merge branches, or act as an
-  arbiter; all project changes and acceptance decisions remain Luna-owned.
+- There is no model exception for the current continuation. Every advisor,
+  counsel, worker, tester, reviewer, arbiter, and manager used for RepoMentor
+  work is pinned to `gpt-5.6-luna` with priority service and max reasoning
+  where supported. Historical Terra counsel rows below are archival context
+  only and are not authorization for new work or acceptance decisions.
 - Use AgentKit's `understand -> decide -> execute -> verify -> deliver` spine
   and the orchestration contract in `ak-orchestrate`.
 - Parallel writers use isolated worktrees and disjoint ownership. Shared
@@ -337,6 +338,23 @@ the API `193/193` deterministic test gate, and was accepted by the Luna
 arbiter as bounded DI plumbing. Live Redis remains a P2 runtime limitation;
 the process-lock implementation and guest route are still pending.
 
+The current coordinator checkpoint is `90d3033`. The docs/package continuation
+is represented by focused commits `682cbf3` (README source/evidence refresh),
+`90d3033` (release/package/image gate refresh), and package payload commits
+`061c57b`, `ccc4f63`, `6d9212b`, `3e21505`, and `2d50ad8`. The package gate
+verifies all six manifests remain private, redacts bounded diagnostics, and
+accepts the exact 21-file contracts payload after clearing stale generated
+`dist` output. Deterministic package, contracts, format, typecheck, and lint
+checks pass; publication, license approval, registries, and live Docker remain
+gated and unclaimed.
+
+The process-lock range is intentionally not integrated yet. Luna worker commits
+`098aa24`, `019c3b2`, and `b2378ee` implement token-checked renewal and
+fail-closed cancellation, but the independent Luna arbiter returned `HOLD` for
+a P1 delayed terminal-finalization race. Remediation and adversarial tests are
+active in `D:\worktrees\RepoMentor-feature-review-process-lock-v3`; no process
+lock acceptance claim is made until that exact-head review passes.
+
 ## Commit and validation contract
 
 Each worker reports one task per commit using:
@@ -425,6 +443,11 @@ without live integration evidence.
 | `main` | docs/package | Luna docs/package worker + coordinator | `389ae48`, `dd03a5e` (worker `46c324d`, `052c52e`) | accepted README/release refresh; private package boundary, license gate, GHCR/Docker Hub gates, exact evidence, and real GIF limits recorded; no publication claim |
 | read-only counsel | docs/package-advisor | Terra advisor | `019fdc0a-81e8-7610-b96d-488a28e17408` | completed; reviewed stale claims, exact-head evidence, media/GitHub About boundaries; no edits or acceptance claim |
 | read-only counsel | docs/package-kongming | Terra package/release counsel | `019fdc0a-82ca-7382-9a64-33a0e1082a35` | completed; confirmed private manifests, missing license/payload checker, registry gates, and package naming risks; no edits or acceptance claim |
+| `main` | docs/package-refresh-v2 | Luna docs/package workers + coordinator | `682cbf3`, `90d3033`, `061c57b`, `ccc4f63`, `6d9212b`, `3e21505`, `2d50ad8` | integrated at `90d3033`; second Luna package arbiter accepted exact `00eb996`; stale-output follow-up verified on coordinator; no publication claim |
+| `feature/review-process-lock-v3` | 13-process-lock | Luna process worker + independent Luna arbiter + remediation | `098aa24`, `019c3b2`, `b2378ee`; worker `019fdc64`; arbiter `019fdc73`; remediation `019fdc7c` | HOLD at `b2378ee` because delayed finalization can race lease loss; no merge/acceptance claim |
+| `feature/guest-review` | 09D3-guest | Luna implementation worker | active; worker `019fdc76`; worktree `D:\worktrees\RepoMentor-feature-guest-review` | server-derived HMAC guest identity, QUICK quota, no-history route in progress; no merge/live claim |
+| `feature/web-review-experience` | 08B-review-ui | Luna AK FE worker | active; worker `019fdc7e`; worktree `D:\worktrees\RepoMentor-feature-web-review-experience` | Monaco/result actions/diff boundaries in progress; no merge/live claim |
+| read-only counsel | current-Kongming-audit | Luna advisor | active; thread `019fdc7e-4cd0-73e1-947e-73d8d0534dfe` | security/streaming/docs/release requirement audit in progress; no edits or acceptance claim |
 
 ## Agent/thread ledger
 
@@ -511,6 +534,7 @@ without live integration evidence.
   deferred. Custom caller-supplied `admissionId`/`reviewId` conflict policy
   and replay `retryAfter` remain follow-ups.
 - The shared Redis executor/config seam is accepted at `d7122db` as bounded DI
-  plumbing. Process-lock wiring and the guest no-history route remain pending;
-  three Luna process-lock worker attempts stopped without diffs, so no
-  implementation or acceptance claim is made.
+  plumbing. Process-lock renewal and guest no-history integration are active
+  follow-ups. The first process-lock range is held by an independent Luna P1
+  finding about delayed terminal finalization; remediation must pass before
+  merge. Guest identity/quota and live Redis/HTTP evidence remain deferred.
