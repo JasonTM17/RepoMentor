@@ -4,10 +4,11 @@ RepoMentor is a developer-first workspace for AI-assisted code review and
 programming practice. It is a production-oriented monorepo, but the current
 repository checkpoint is an application slice, not a production release.
 
-The documentation below describes the post-integration checkpoint at
-[`369c9588`](https://github.com/JasonTM17/RepoMentor/commit/369c9588f9cc0a51c28794272185b21f42394c2f),
-the current main base. It does not describe planned features as if they were
-available.
+The documentation below describes the exact local checkpoint at
+`eab8131fdf8f6937b0e21c85aedc43c3e9e38013`, including the quota-admission
+fingerprint configuration wired at this head. The accepted 09D2A integration
+gate is recorded at `0b573a2`; neither SHA is a release, tag, registry, or
+package-publication claim.
 
 ## Current status
 
@@ -26,15 +27,25 @@ This checkpoint contains:
   and reviews;
 - a local-only Docker Compose application layer for the API and web images,
   PostgreSQL, and Redis, with localhost-bound ports and health-gated startup;
+- owner-scoped usage summary, history, and quota read routes;
+- an authenticated quota-admission path for `POST /api/v1/reviews` with a
+  bounded `Idempotency-Key`, Redis reservation markers, durable Prisma
+  `QuotaAdmission` state, versioned keyed request fingerprints, and a
+  Prisma-backed review finalizer;
 - focused unit and in-memory controller tests for the implemented boundaries.
 
 The review API now includes a narrow authenticated synchronous processing and
-persisted-result transport seam. It is tested with an in-memory repository and
-fake Luna provider; there is no live AI call, PostgreSQL or Redis integration,
-queue, application usage/quota accounting, SSE or other result streaming,
-connected editor, production deployment, registry publication, or package
-publication. The container build workflow is implemented and validated on
-GitHub-hosted runners, but it is not a registry publication or deployment.
+persisted-result transport seam plus authenticated quota admission. Admission
+canonicalizes the request, hashes idempotency material, reserves the
+authenticated Redis quota, and finalizes the preallocated review and admission
+state through the Prisma boundary. It is tested with deterministic Redis
+executors, in-memory repositories, and a fake Luna provider; there is no live
+PostgreSQL, Redis/EVAL, HTTP provider, or external Luna call. A guest HTTP
+route, process-lock wiring, queue, SSE or other result streaming, connected
+editor, production deployment, registry publication, and package publication
+remain outside this checkpoint. The container workflow is prepared for
+validation and a future release, but it is not a registry publication or
+deployment.
 
 ## Architecture
 
@@ -87,7 +98,7 @@ Successful responses are wrapped as `{ "data": ... }`; failures use an
 | `POST /api/v1/auth/logout`         | Revokes the presented refresh session when valid and clears the cookie; malformed or repeated logout is idempotent.              |
 | `POST /api/v1/auth/logout-all`     | Authenticated session revocation for every session belonging to the user.                                                        |
 | `GET /api/v1/auth/me`              | Returns the authenticated public user.                                                                                           |
-| `POST /api/v1/reviews`             | Creates an authenticated, user-owned review in `PENDING` status; default mode is `STANDARD`.                                     |
+| `POST /api/v1/reviews`             | Requires authentication and a bounded `Idempotency-Key`; reserves quota and creates or safely replays an owned `PENDING` review. |
 | `GET /api/v1/reviews`              | Lists only the authenticated user's active reviews with page, limit, and status filtering.                                       |
 | `GET /api/v1/reviews/:id`          | Returns one owned review, including source code.                                                                                 |
 | `DELETE /api/v1/reviews/:id`       | Soft-deletes one owned review and returns `204`.                                                                                 |
@@ -95,6 +106,9 @@ Successful responses are wrapped as `{ "data": ... }`; failures use an
 | `POST /api/v1/reviews/:id/cancel`  | Moves an owned review to `CANCELLED` when the status policy allows it.                                                           |
 | `POST /api/v1/reviews/:id/process` | Runs one bounded synchronous Luna review; returns a source-free completion or idempotent skip response.                          |
 | `GET /api/v1/reviews/:id/result`   | Returns one owned completed result with validated findings and safe Luna execution metadata; non-completed reviews return `409`. |
+| `GET /api/v1/usage/summary`        | Returns an owner-scoped, source-free usage summary.                                                                              |
+| `GET /api/v1/usage/history`        | Returns owner-scoped, source-free history with bounded filters and stable pagination.                                            |
+| `GET /api/v1/usage/quota`          | Returns the authenticated UTC-day quota read model and configured limits.                                                        |
 
 Review statuses are `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`, and
 `CANCELLED`. Processing accepts no provider, model, or prompt options from the
@@ -128,6 +142,22 @@ of copying credentials into a command history or commit:
 ```bash
 node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
 ```
+
+Quota and admission configuration is server-side. The authenticated daily
+limits default to QUICK/STANDARD/DEEP `20/10/3` and are configured with
+`USER_QUICK_REVIEWS_PER_DAY`, `USER_STANDARD_REVIEWS_PER_DAY`, and
+`USER_DEEP_REVIEWS_PER_DAY` (each bounded from `0` to `100000`).
+`QUOTA_ADMISSION_FINGERPRINT_SECRET` is required outside test-only injection,
+must be a non-empty UTF-8 secret of 32 to 4096 bytes, and is used only by the
+server to derive versioned request-fingerprint hashes. Compose requires it;
+keep the `.env.example` placeholder empty and never commit a real value.
+
+The Redis primitive configuration also accepts `GUEST_QUICK_REVIEWS_PER_DAY`
+(default `3`), `USAGE_REDIS_QUOTA_TTL_MAX_SECONDS` (default `86400`, bounded
+to `1..86400`), and `USAGE_REDIS_LOCK_TTL_MS` (default `10000`, bounded to
+`1000..60000`). Guest quota remains a primitive/configuration boundary with no
+guest HTTP route, and the lock TTL is not evidence that processing has a wired
+process lock.
 
 The Luna provider boundary is server-side only. Keep `LUNA_API_KEY` in the API
 runtime and never expose it to clients. `LUNA_API_BASE_URL` is fixed to
@@ -222,29 +252,28 @@ stored as review input; the current repository never executes it. The
 processing route pins the server-owned Luna provider/model and never accepts
 client prompt overrides.
 
+Quota admission keeps raw idempotency material out of durable records and stores
+only the request fingerprint hash plus explicit version metadata. The
+fingerprint secret is server-only, HTTP callers cannot supply the fingerprint
+metadata, and ambiguous Redis or persistence outcomes fail closed into bounded
+safe statuses rather than being silently retried.
+
 ## Validation evidence
 
 The following checks were run in this worktree on Node `v24.12.0` and pnpm
 `11.0.9`. The Prisma commands used a syntactically valid local-only URL in
 the process environment; they did not connect to PostgreSQL.
 
-| Check                                       | Result and evidence                                                                                                                                                                                   |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm run deps:install`                     | Pass, frozen install with scripts disabled.                                                                                                                                                           |
-| `pnpm db:generate`                          | Pass, generated Prisma Client `6.19.0`; no database connection.                                                                                                                                       |
-| `pnpm --filter @repomentor/contracts build` | Pass.                                                                                                                                                                                                 |
-| `pnpm db:validate`                          | Pass; schema accepted by Prisma `6.19.0`.                                                                                                                                                             |
-| `pnpm lint`                                 | Pass for root, API, web, and contracts.                                                                                                                                                               |
-| `pnpm typecheck`                            | Pass after generated Prisma and contracts artifacts were prepared.                                                                                                                                    |
-| `pnpm test`                                 | Pass: 16 web tests, 5 contract tests, and 91/91 API tests (112/112 total).                                                                                                                            |
-| Focused AI tests                            | Pass: 22/22; deterministic provider-boundary tests do not call a live network.                                                                                                                        |
-| `pnpm build`                                | Pass: static web routes `/`, `/_not-found`, `/login`, and `/register` plus API and contracts.                                                                                                         |
-| `pnpm format:check`                         | Pass.                                                                                                                                                                                                 |
-| `docker compose config --quiet`             | Pass with safe URL-safe dummy values; resolved the API/web services, service-DNS URLs, required ports, dependencies, volumes, and internal network.                                                   |
-| Missing required Compose variables          | Pass: config rejected missing `NEXT_PUBLIC_API_ORIGIN`, `API_HOST_PORT`, `WEB_HOST_PORT`, and dependency URL inputs.                                                                                  |
-| GitHub Actions container validation         | Pass: run [`31030844884`](https://github.com/JasonTM17/RepoMentor/actions/runs/31030844884) linted workflows/Dockerfiles, validated Compose, built API/web images, and smoked `/health/live` and `/`. |
-| Local Docker daemon and live Compose smoke  | Not available in this environment; local Compose startup and PostgreSQL/Redis dependency health remain unverified.                                                                                    |
-| Real UI media capture                       | Pass: Chrome captured the running Next UI at `/`, `/login`, and `/register`; ImageMagick encoded the committed GIF. This is media evidence, not browser visual QA.                                    |
+| Check                                          | Result and evidence                                                                                                                                                                                                                                                                          |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accepted 09D2A API gate                        | Pass: the repository plan records `192/192` API tests across 38 suites at the accepted authenticated-admission integration checkpoint `0b573a2`.                                                                                                                                             |
+| Current exact-head API rerun                   | Pass: `pnpm --filter @repomentor/api test` at `eab8131fdf8f6937b0e21c85aedc43c3e9e38013` reports `192` tests, `38` suites, `192` passed, `0` failed. The run uses deterministic adapters, in-memory repositories, and fake Luna; it is not live-service evidence.                            |
+| Focused admission/config evidence              | Pass within the current API run, not additive to `192/192`: authenticated HTTP orchestration `10/10`, fingerprint configuration `6/6`, and fingerprint derivation `6/6`.                                                                                                                     |
+| Prisma and shared-contract preparation         | Pass: `pnpm db:generate`, `pnpm --filter @repomentor/contracts build`, and `pnpm db:validate` with a local-only URL; no PostgreSQL connection.                                                                                                                                               |
+| `docker compose config --quiet`                | Pass with safe dummy values, including the required fingerprint secret; this validates configuration only.                                                                                                                                                                                   |
+| Historical GitHub Actions container validation | Pass: run [`31030844884`](https://github.com/JasonTM17/RepoMentor/actions/runs/31030844884) linted workflows/Dockerfiles, validated Compose, built API/web images, and smoked `/health/live` and `/`. It is historical infrastructure evidence, not exact-head release or publication proof. |
+| Local Docker daemon and live Compose smoke     | Not available in this environment; the Docker Desktop daemon was not running, so local startup and PostgreSQL/Redis dependency health remain unverified.                                                                                                                                     |
+| Real UI media capture                          | Pass: Chrome captured the running Next UI at `/`, `/login`, and `/register`; ImageMagick encoded the committed GIF. This is media evidence, not browser visual QA.                                                                                                                           |
 
 ## Security and environment boundaries
 
@@ -282,10 +311,12 @@ PostgreSQL, Redis, AI output, or a production deployment._
 - No live PostgreSQL or Redis service was available or verified by the checks
   above. API integration tests override the Prisma repositories with in-memory
   implementations.
-- The synchronous processing and result routes are covered with fake Luna and
-  in-memory repositories only. There is no live AI call, live PostgreSQL or
-  Redis integration, queue/worker runtime, application usage/quota accounting,
-  or SSE result stream at this checkpoint.
+- The authenticated quota-admission path and synchronous processing/result
+  routes are covered with deterministic Redis executors, fake Luna, and
+  in-memory repositories only. There is no live Redis EVAL, PostgreSQL
+  transaction/isolation, HTTP provider, or external Luna call.
+- Guest quota is not exposed through an HTTP route, and the Redis process-lock
+  primitive is not wired into the processing route.
 - The web shell is not connected to a review dashboard or repository data.
 - The captured GIF is not a browser visual-regression baseline and does not
   claim a live browser session or backend integration.
@@ -296,6 +327,9 @@ PostgreSQL, Redis, AI output, or a production deployment._
 - `NEXT_PUBLIC_API_ORIGIN` is a web build-time value; changing the browser API
   origin requires rebuilding the web image. The Compose healthchecks do not
   provide dependency-aware API readiness.
+- The root package and every current workspace package are private; no npm or
+  other public package artifact is claimed. No tag, registry publication, or
+  deployment has happened.
 - No license file or package `license` field is present. Treat licensing as a
   blocker for a public package or public release until the project owner adds
   a license supported by repository evidence.
