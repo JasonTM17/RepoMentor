@@ -109,7 +109,7 @@ export const useAuthForm = (mode: AuthMode): UseAuthFormResult => {
       setStatus("success");
       setServerMessage(
         mode === "login"
-          ? "The server accepted the credentials. Session handoff remains at the API boundary."
+          ? "The server accepted the credentials. Open the review workspace to start an authenticated review."
           : "Your account request was accepted. Sign in to continue. Registration does not sign you in automatically.",
       );
       return true;

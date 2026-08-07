@@ -18,7 +18,7 @@ interface AuthCopy {
   readonly formTitle: string;
   readonly submitLabel: string;
   readonly successAction: string;
-  readonly successHref: "/" | "/login";
+  readonly successHref: "/login" | "/reviews/new";
   readonly successTitle: string;
   readonly switchHref: "/login" | "/register";
   readonly switchLabel: string;
@@ -34,8 +34,8 @@ const authCopy: Record<AuthMode, AuthCopy> = {
     formCopy: "Use the email and password attached to your RepoMentor session.",
     formTitle: "Sign in",
     submitLabel: "Sign in",
-    successAction: "Return to workspace",
-    successHref: "/",
+    successAction: "Open review workspace",
+    successHref: "/reviews/new",
     successTitle: "Credentials accepted",
     switchHref: "/register",
     switchLabel: "Create an account",

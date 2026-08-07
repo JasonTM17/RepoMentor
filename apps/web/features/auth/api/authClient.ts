@@ -5,6 +5,50 @@ import type {
   RegisterResponse,
 } from "@/features/auth/types";
 
+export interface AuthSessionSnapshot {
+  readonly accessToken?: string;
+}
+
+type AuthSessionListener = () => void;
+
+let accessToken: string | undefined;
+let authSessionSnapshot: AuthSessionSnapshot = Object.freeze({});
+const authSessionListeners = new Set<AuthSessionListener>();
+let refreshAttempted = false;
+let refreshPromise: Promise<void> | undefined;
+
+export const getAccessToken = (): string | undefined => accessToken;
+
+export const getAuthSessionSnapshot = (): AuthSessionSnapshot => authSessionSnapshot;
+
+export const subscribeAuthSession = (listener: AuthSessionListener): (() => void) => {
+  authSessionListeners.add(listener);
+  return () => {
+    authSessionListeners.delete(listener);
+  };
+};
+
+export const setAccessToken = (nextAccessToken: string): void => {
+  if (accessToken === nextAccessToken) {
+    return;
+  }
+
+  accessToken = nextAccessToken;
+  refreshAttempted = true;
+  authSessionSnapshot = Object.freeze({ accessToken: nextAccessToken });
+  authSessionListeners.forEach((listener) => listener());
+};
+
+export const clearAccessToken = (): void => {
+  if (accessToken === undefined) {
+    return;
+  }
+
+  accessToken = undefined;
+  authSessionSnapshot = Object.freeze({});
+  authSessionListeners.forEach((listener) => listener());
+};
+
 const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN?.replace(/\/+$/u, "") ?? "";
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const timestampPattern =
@@ -176,13 +220,66 @@ const postAuth = async <TResponse>(
   return parsedResponse;
 };
 
+export const refreshAccessToken = (): Promise<void> => {
+  if (accessToken !== undefined) {
+    return Promise.resolve();
+  }
+
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  if (refreshAttempted) {
+    return Promise.resolve();
+  }
+
+  refreshAttempted = true;
+  refreshPromise = (async () => {
+    let response: Response;
+
+    try {
+      response = await fetch(`${apiOrigin}/api/v1/auth/refresh`, {
+        credentials: "include",
+        method: "POST",
+      });
+    } catch {
+      return;
+    }
+
+    let body: unknown;
+
+    try {
+      body = await response.json();
+    } catch {
+      body = undefined;
+    }
+
+    if (!response.ok || response.status !== 201) {
+      return;
+    }
+
+    const parsedResponse = parseSuccessEnvelope(body, isLoginResponse);
+
+    if (parsedResponse) {
+      setAccessToken(parsedResponse.accessToken);
+    }
+  })().finally(() => {
+    refreshPromise = undefined;
+  });
+
+  return refreshPromise;
+};
+
 /**
  * The API owns the refresh cookie. This client validates the response envelope
  * and never writes access or refresh tokens to browser storage.
  */
 export const authClient = Object.freeze({
-  login: (payload: LoginRequest): Promise<LoginResponse> =>
-    postAuth("login", payload, 201, isLoginResponse),
+  login: async (payload: LoginRequest): Promise<LoginResponse> => {
+    const response = await postAuth("login", payload, 201, isLoginResponse);
+    setAccessToken(response.accessToken);
+    return response;
+  },
   register: (payload: RegisterRequest): Promise<RegisterResponse> =>
     postAuth("register", payload, 202, isRegisterResponse),
 });
