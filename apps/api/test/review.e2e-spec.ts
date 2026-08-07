@@ -16,8 +16,35 @@ import { AuthRateLimiter } from "../src/modules/auth/auth-rate-limiter.js";
 import { AuthTokenService } from "../src/modules/auth/auth-token.service.js";
 import { AUTH_REPOSITORY } from "../src/modules/auth/auth.types.js";
 import { InMemoryAuthRepository } from "../src/modules/auth/in-memory-auth.repository.js";
+import { type RedisCommandExecutor } from "../src/modules/redis/redis.types.js";
 import { InMemoryReviewRepository } from "../src/modules/review/in-memory-review.repository.js";
 import { REVIEW_REPOSITORY } from "../src/modules/review/review.types.js";
+import {
+  QUOTA_ADMISSION_FINGERPRINT_CONFIG,
+  type QuotaAdmissionFingerprintConfig,
+} from "../src/modules/usage/quota-admission.config.js";
+import { InMemoryQuotaAdmissionRepository } from "../src/modules/usage/in-memory-quota-admission.repository.js";
+import { QUOTA_ADMISSION_REDIS_EXECUTOR } from "../src/modules/usage/quota-admission-http.service.js";
+import { QUOTA_ADMISSION_REPOSITORY } from "../src/modules/usage/quota-admission.types.js";
+import {
+  ReviewFinalizerConflictError,
+  ReviewFinalizerIndeterminateError,
+  ReviewFinalizerNotFoundError,
+} from "../src/modules/usage/review-finalizer.errors.js";
+import {
+  assertReviewFinalizerAdmissionFingerprint,
+  assertReviewFinalizerFingerprintMetadata,
+  REVIEW_FINALIZER,
+  type FinalizeReviewInput,
+  type ReviewFinalizer,
+  type ReviewFinalizerResult,
+  type ReviewFinalizerSummary,
+} from "../src/modules/usage/review-finalizer.types.js";
+import {
+  USAGE_DEFAULT_REDIS_CONFIG,
+  USAGE_REDIS_CONFIG,
+  type UsageRedisConfig,
+} from "../src/modules/usage/usage.config.js";
 
 const tokenConfig = {
   accessSecret: "access-secret-for-review-controller-tests-32-bytes",
@@ -44,6 +71,114 @@ const validExecution: AiReviewExecution<ReviewResult> = {
   usage: validUsage,
 };
 
+// Test-only fixture; this is not a user or provider API key.
+const TEST_QUOTA_ADMISSION_FINGERPRINT_SECRET =
+  "test-only-review-quota-admission-fingerprint-fixture-32-bytes";
+
+function testRedisConfig(): UsageRedisConfig {
+  return {
+    authenticatedDailyLimits: { DEEP: 3, QUICK: 20, STANDARD: 10 },
+    ...USAGE_DEFAULT_REDIS_CONFIG,
+  };
+}
+
+class DeterministicQuotaAdmissionRedisExecutor implements RedisCommandExecutor {
+  calls = 0;
+
+  async eval(
+    _script: string,
+    options: { readonly arguments: readonly string[] },
+  ): Promise<unknown> {
+    this.calls += 1;
+    const limit = Number(options.arguments[0]);
+    assert.ok(Number.isSafeInteger(limit) && limit > 0);
+    return [1, 1, limit - 1, 1, 0];
+  }
+
+  async set(): Promise<"OK"> {
+    return "OK";
+  }
+}
+
+class ReviewApiFinalizerFake implements ReviewFinalizer {
+  private readonly finalizedAdmissions = new Set<string>();
+
+  constructor(
+    private readonly admissionRepository: InMemoryQuotaAdmissionRepository,
+    private readonly reviewRepository: InMemoryReviewRepository,
+  ) {}
+
+  async finalize(input: FinalizeReviewInput): Promise<ReviewFinalizerResult> {
+    const fingerprint = assertReviewFinalizerFingerprintMetadata(input);
+    const admission = await this.admissionRepository.findForOwner(input.userId, input.admissionId);
+
+    if (!admission) {
+      throw new ReviewFinalizerNotFoundError();
+    }
+
+    if (admission.reviewId !== input.reviewId || admission.mode !== input.mode) {
+      throw new ReviewFinalizerConflictError();
+    }
+
+    assertReviewFinalizerAdmissionFingerprint(
+      {
+        fingerprintVersion: admission.fingerprintVersion ?? null,
+        requestFingerprintHash: admission.requestFingerprintHash ?? null,
+      },
+      fingerprint,
+    );
+
+    if (this.finalizedAdmissions.has(input.admissionId)) {
+      const existing = await this.reviewRepository.findByIdForUser(input.userId, input.reviewId);
+
+      if (!existing) {
+        throw new ReviewFinalizerIndeterminateError();
+      }
+
+      return { kind: "REPLAYED", summary: reviewSummary(existing) };
+    }
+
+    if (admission.status !== "RESERVED") {
+      throw new ReviewFinalizerConflictError();
+    }
+
+    const existing = await this.reviewRepository.findByIdForUser(input.userId, input.reviewId);
+
+    if (existing) {
+      throw new ReviewFinalizerConflictError();
+    }
+
+    const review = await this.reviewRepository.create({
+      id: input.reviewId,
+      language: input.language,
+      mode: input.mode,
+      source: input.source,
+      userId: input.userId,
+    });
+    this.finalizedAdmissions.add(input.admissionId);
+
+    return { kind: "FINALIZED", summary: reviewSummary(review) };
+  }
+}
+
+function reviewSummary(review: {
+  readonly id: string;
+  readonly language: string;
+  readonly mode: FinalizeReviewInput["mode"];
+  readonly status: ReviewFinalizerSummary["status"];
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+}): ReviewFinalizerSummary {
+  return {
+    createdAt: new Date(review.createdAt),
+    id: review.id,
+    language: review.language,
+    mode: review.mode,
+    status: review.status,
+    updatedAt: new Date(review.updatedAt),
+  };
+}
+
 interface ReviewUser {
   readonly accessToken: string;
   readonly id: string;
@@ -56,11 +191,20 @@ describe("review API", () => {
   let provider: FakeAiReviewProvider;
   let providerFailure: Error | undefined;
   let rateLimiter: AuthRateLimiter;
+  let quotaAdmissionRepository: InMemoryQuotaAdmissionRepository;
+  let redisExecutor: DeterministicQuotaAdmissionRedisExecutor;
   let userSequence = 0;
+  let idempotencySequence = 0;
 
   before(async () => {
     authRepository = new InMemoryAuthRepository();
     reviewRepository = new InMemoryReviewRepository();
+    quotaAdmissionRepository = new InMemoryQuotaAdmissionRepository();
+    redisExecutor = new DeterministicQuotaAdmissionRedisExecutor();
+    const fingerprintConfig: QuotaAdmissionFingerprintConfig = {
+      fingerprintSecret: TEST_QUOTA_ADMISSION_FINGERPRINT_SECRET,
+    };
+    const finalizer = new ReviewApiFinalizerFake(quotaAdmissionRepository, reviewRepository);
     provider = new FakeAiReviewProvider([
       () => {
         if (providerFailure) {
@@ -74,7 +218,9 @@ describe("review API", () => {
       },
     ]);
     const tokenService = new AuthTokenService(tokenConfig);
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    })
       .overrideProvider(AUTH_REPOSITORY)
       .useValue(authRepository)
       .overrideProvider(AuthTokenService)
@@ -83,6 +229,16 @@ describe("review API", () => {
       .useValue(provider)
       .overrideProvider(REVIEW_REPOSITORY)
       .useValue(reviewRepository)
+      .overrideProvider(QUOTA_ADMISSION_FINGERPRINT_CONFIG)
+      .useValue(fingerprintConfig)
+      .overrideProvider(QUOTA_ADMISSION_REPOSITORY)
+      .useValue(quotaAdmissionRepository)
+      .overrideProvider(QUOTA_ADMISSION_REDIS_EXECUTOR)
+      .useValue(redisExecutor)
+      .overrideProvider(REVIEW_FINALIZER)
+      .useValue(finalizer)
+      .overrideProvider(USAGE_REDIS_CONFIG)
+      .useValue(testRedisConfig())
       .compile();
 
     app = configureApp(moduleRef.createNestApplication());
@@ -98,6 +254,7 @@ describe("review API", () => {
     rateLimiter.clear();
     providerFailure = undefined;
     provider.requests.length = 0;
+    redisExecutor.calls = 0;
   });
 
   async function createUser(): Promise<ReviewUser> {
@@ -120,14 +277,81 @@ describe("review API", () => {
     };
   }
 
-  async function createReview(user: ReviewUser, source = "const answer = 42;") {
+  function nextIdempotencyKey(): string {
+    idempotencySequence += 1;
+    return `review-idempotency-key-${idempotencySequence}`;
+  }
+
+  function postReview(user: ReviewUser, source: string, idempotencyKey = nextIdempotencyKey()) {
+    return request(app.getHttpServer())
+      .post("/api/v1/reviews")
+      .set("authorization", `Bearer ${user.accessToken}`)
+      .set("Idempotency-Key", idempotencyKey)
+      .send({ language: "TypeScript", source });
+  }
+
+  async function createReview(
+    user: ReviewUser,
+    source = "const answer = 42;",
+    idempotencyKey = nextIdempotencyKey(),
+  ) {
+    const response = await postReview(user, source, idempotencyKey);
+    assert.equal(response.status, 201);
+    return response.body.data as { id: string; status: string };
+  }
+
+  it("requires Idempotency-Key for authenticated review admission", async () => {
+    const user = await createUser();
+    const source = "const missingAdmissionKey = true;";
     const response = await request(app.getHttpServer())
       .post("/api/v1/reviews")
       .set("authorization", `Bearer ${user.accessToken}`)
       .send({ language: "TypeScript", source });
-    assert.equal(response.status, 201);
-    return response.body.data as { id: string; status: string };
-  }
+
+    assert.equal(response.status, 400);
+    assert.equal("data" in response.body, false);
+    assert.equal(JSON.stringify(response.body).includes(source), false);
+  });
+
+  it("replays identical authenticated admission without a second review or Redis reservation", async () => {
+    const user = await createUser();
+    const source = "const replayedAdmission = true;";
+    const idempotencyKey = nextIdempotencyKey();
+    const created = await createReview(user, source, idempotencyKey);
+    const replayed = await postReview(user, source, idempotencyKey);
+
+    assert.equal(replayed.status, 200);
+    assert.equal(replayed.body.data.id, created.id);
+    assert.equal(replayed.body.data.status, "PENDING");
+    assert.equal("source" in replayed.body.data, false);
+    assert.equal(JSON.stringify(replayed.body).includes(source), false);
+    assert.equal(JSON.stringify(replayed.body).includes(idempotencyKey), false);
+    assert.equal(redisExecutor.calls, 1);
+
+    const stored = await reviewRepository.listForUser({ limit: 20, page: 1, userId: user.id });
+    assert.equal(stored.total, 1);
+    assert.equal(stored.items[0]?.id, created.id);
+  });
+
+  it("conflicts when an authenticated idempotency key is reused for different source", async () => {
+    const user = await createUser();
+    const firstSource = "const firstAdmissionSource = true;";
+    const conflictingSource = "const conflictingAdmissionSource = true;";
+    const idempotencyKey = nextIdempotencyKey();
+    await createReview(user, firstSource, idempotencyKey);
+
+    const conflict = await postReview(user, conflictingSource, idempotencyKey);
+
+    assert.equal(conflict.status, 409);
+    assert.equal("data" in conflict.body, false);
+    assert.equal(JSON.stringify(conflict.body).includes(firstSource), false);
+    assert.equal(JSON.stringify(conflict.body).includes(conflictingSource), false);
+    assert.equal(JSON.stringify(conflict.body).includes(idempotencyKey), false);
+    assert.equal(redisExecutor.calls, 1);
+
+    const stored = await reviewRepository.listForUser({ limit: 20, page: 1, userId: user.id });
+    assert.equal(stored.total, 1);
+  });
 
   it("creates pending reviews and omits source from list summaries", async () => {
     const user = await createUser();
@@ -168,10 +392,12 @@ describe("review API", () => {
     const oversized = await request(app.getHttpServer())
       .post("/api/v1/reviews")
       .set("authorization", `Bearer ${user.accessToken}`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .send({ language: "typescript", source: "x".repeat(100_001) });
     const blank = await request(app.getHttpServer())
       .post("/api/v1/reviews")
       .set("authorization", `Bearer ${user.accessToken}`)
+      .set("Idempotency-Key", nextIdempotencyKey())
       .send({ language: "typescript", source: "   \n\t" });
 
     assert.equal(oversized.status, 400);
