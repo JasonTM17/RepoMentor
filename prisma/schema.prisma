@@ -114,6 +114,8 @@ model QuotaAdmission {
   id                 String               @id @default(cuid()) @db.VarChar(25)
   userId             String               @map("user_id") @db.VarChar(25)
   idempotencyKeyHash String               @map("idempotency_key_hash") @db.Char(64)
+  requestFingerprintHash String?          @map("request_fingerprint_hash") @db.Char(64)
+  fingerprintVersion     Int?             @map("fingerprint_version")
   reviewId           String               @unique @map("review_id") @db.VarChar(25)
   mode               ReviewMode
   utcDay             DateTime             @map("utc_day") @db.Date
