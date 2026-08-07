@@ -685,3 +685,26 @@ unverified.
 The branch is complete and no longer active. The next bounded scope is the
 Phase 12 quality pass; historical refs/worktrees remain frozen and are not
 eligible for wholesale merge or deletion.
+
+## API journey quality resolution — 2026-08-07
+
+The next Phase 12 slice was `test/api-review-journey`, based exactly on main
+`d416db9`. It added one deterministic API journey test only: registration,
+login, authenticated review admission, fake-Luna processing, persisted result
+read, owner review-list history, refresh-cookie logout, and access-token
+revocation. The test asserts source-free boundaries and uses the existing
+in-memory repositories/fake provider; it does not claim live database,
+Redis, Luna, browser, or deployment coverage.
+
+The branch finished clean and was integrated immediately as focused commit
+`37d089d` / main `9359a56`. Exact-head review confirmed one changed test file,
+no runtime changes, clean status, and no cherry-pick duplicate. Final
+merged-main evidence is API `250/250`, web `38/38`, contracts `7/7`, plus
+typecheck, lint, build, format check, Prisma validation, package check, diff
+check, and credential-shaped scan. This closes the bounded API journey slice;
+browser Playwright E2E, live services, and registry/deployment evidence remain
+separate follow-ups.
+
+The branch is complete and no longer active. Do not start another branch until
+the next scope is explicitly bounded; preserve historical worktrees and
+unmerged refs as frozen inventory.
