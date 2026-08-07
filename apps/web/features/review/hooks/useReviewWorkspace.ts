@@ -33,14 +33,25 @@ export const useReviewWorkspace = (
 ): UseReviewWorkspaceResult => {
   const requestVersion = useRef(0);
   const activeStreamAbort = useRef<AbortController | null>(null);
+  const activeReviewCancellation = useRef<(() => Promise<void>) | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastDraft, setLastDraft] = useState<ReviewDraft | null>(null);
   const [result, setResult] = useState<ReviewResultResponse | null>(null);
   const [status, setStatus] = useState<ReviewStatus>("idle");
 
+  const requestActiveCancellation = useCallback((): void => {
+    const cancellation = activeReviewCancellation.current;
+    activeReviewCancellation.current = null;
+
+    if (cancellation) {
+      void cancellation().catch(() => undefined);
+    }
+  }, []);
+
   const startReview = useCallback(
     async (draft: ReviewDraft): Promise<boolean> => {
       activeStreamAbort.current?.abort();
+      requestActiveCancellation();
       const currentVersion = requestVersion.current + 1;
       requestVersion.current = currentVersion;
       setErrorMessage(null);
@@ -49,6 +60,7 @@ export const useReviewWorkspace = (
       setStatus("loading");
       const streamAbort = new AbortController();
       activeStreamAbort.current = streamAbort;
+      let activeCancellation: (() => Promise<void>) | null = null;
 
       try {
         const transport = transportFactory(draft);
@@ -67,6 +79,11 @@ export const useReviewWorkspace = (
         }
 
         setStatus("processing");
+        const cancel = transport.cancel;
+        if (cancel) {
+          activeCancellation = () => cancel(reviewId).then(() => undefined);
+          activeReviewCancellation.current = activeCancellation;
+        }
         let streamPromise: Promise<ReviewStreamOutcome> | undefined;
         if (transport.stream) {
           try {
@@ -145,13 +162,16 @@ export const useReviewWorkspace = (
         setErrorMessage(safeErrorMessage);
         return false;
       } finally {
+        if (activeReviewCancellation.current === activeCancellation) {
+          activeReviewCancellation.current = null;
+        }
         if (activeStreamAbort.current === streamAbort) {
           activeStreamAbort.current = null;
         }
         streamAbort.abort();
       }
     },
-    [transportFactory],
+    [requestActiveCancellation, transportFactory],
   );
 
   useEffect(() => {
@@ -159,18 +179,20 @@ export const useReviewWorkspace = (
       requestVersion.current += 1;
       activeStreamAbort.current?.abort();
       activeStreamAbort.current = null;
+      requestActiveCancellation();
     };
-  }, []);
+  }, [requestActiveCancellation]);
 
   const reset = useCallback((): void => {
     requestVersion.current += 1;
     activeStreamAbort.current?.abort();
     activeStreamAbort.current = null;
+    requestActiveCancellation();
     setErrorMessage(null);
     setLastDraft(null);
     setResult(null);
     setStatus("idle");
-  }, []);
+  }, [requestActiveCancellation]);
 
   const retry = useCallback((): Promise<boolean> => {
     if (!lastDraft) {
