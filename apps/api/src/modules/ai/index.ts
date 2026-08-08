@@ -1,4 +1,5 @@
 export * from "./ai.errors.js";
+export * from "./ai-pricing.js";
 export * from "./ai-review.service.js";
 export * from "./ai.policy.js";
 export * from "./ai.types.js";
