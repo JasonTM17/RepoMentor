@@ -66,6 +66,36 @@ enum QuotaAdmissionStatus {
   RECONCILE_REQUIRED
 }
 
+enum AuditAction {
+  AUTH_REGISTER
+  AUTH_LOGIN
+  SESSION_REFRESH
+  SESSION_LOGOUT
+  SESSION_LOGOUT_ALL
+  AUTH_ME
+  AUTH_PASSWORD_CHANGE
+  REVIEW_CREATE
+  REVIEW_LIST
+  REVIEW_READ
+  REVIEW_BULK_DELETE
+  REVIEW_DELETE
+  REVIEW_RETRY
+  REVIEW_CANCEL
+  REVIEW_PROCESS
+  REVIEW_EVENTS_READ
+  REVIEW_RESULT_READ
+}
+
+enum AuditOutcome {
+  SUCCESS
+  FAILURE
+}
+
+enum AuditActorType {
+  ANONYMOUS
+  AUTHENTICATED
+}
+
 model User {
   id              String           @id @default(cuid()) @db.VarChar(25)
   email           String           @unique @db.VarChar(320)
@@ -191,4 +221,25 @@ model ReviewUsage {
   reviewResult      ReviewResult @relation(fields: [reviewResultId], references: [id], onDelete: Cascade)
 
   @@map("review_usages")
+}
+
+model AuditLog {
+  id         String          @id @default(cuid()) @db.VarChar(25)
+  action     AuditAction
+  outcome    AuditOutcome
+  actorType  AuditActorType  @map("actor_type")
+  userId     String?         @map("user_id") @db.VarChar(64)
+  sessionId  String?         @map("session_id") @db.VarChar(64)
+  requestId  String          @map("request_id") @db.VarChar(128)
+  route      String          @db.VarChar(128)
+  method     String          @db.VarChar(8)
+  statusCode Int             @map("status_code")
+  targetId   String?         @map("target_id") @db.VarChar(64)
+  occurredAt DateTime        @default(now()) @map("occurred_at")
+
+  @@index([userId, occurredAt])
+  @@index([sessionId, occurredAt])
+  @@index([action, occurredAt])
+  @@index([requestId])
+  @@map("audit_logs")
 }
