@@ -324,7 +324,9 @@ describe("review API", () => {
     idempotencyKey = nextIdempotencyKey(),
     metadata: {
       readonly context?: string;
+      readonly language?: string;
       readonly learnerLevel?: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+      readonly mode?: "QUICK" | "STANDARD" | "DEEP";
       readonly title?: string;
     } = {},
   ) {
@@ -344,8 +346,15 @@ describe("review API", () => {
     user: ReviewUser,
     source = "const answer = 42;",
     idempotencyKey = nextIdempotencyKey(),
+    metadata: {
+      readonly context?: string;
+      readonly language?: string;
+      readonly learnerLevel?: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+      readonly mode?: "QUICK" | "STANDARD" | "DEEP";
+      readonly title?: string;
+    } = {},
   ) {
-    const response = await postReview(user, source, idempotencyKey);
+    const response = await postReview(user, source, idempotencyKey, metadata);
     assert.equal(response.status, 201);
     return response.body.data as { id: string; status: string };
   }
@@ -645,6 +654,94 @@ describe("review API", () => {
     assert.equal(processing.status, 200);
     assert.equal(processing.body.data.meta.total, 1);
     assert.equal(processing.body.data.items[0].status, "PROCESSING");
+  });
+
+  it("filters history by title, language, mode, and deterministic date order", async () => {
+    const user = await createUser();
+    const first = await createReview(user, "const alphaFirstSource = true;", nextIdempotencyKey(), {
+      mode: "DEEP",
+      title: "Alpha boundary",
+    });
+    const second = await createReview(
+      user,
+      "const alphaSecondSource = true;",
+      nextIdempotencyKey(),
+      { mode: "DEEP", title: "Alpha lifecycle" },
+    );
+    await createReview(user, "const betaSource = true;", nextIdempotencyKey(), {
+      language: "javascript",
+      mode: "QUICK",
+      title: "Beta boundary",
+    });
+
+    const asc = await request(app.getHttpServer())
+      .get("/api/v1/reviews")
+      .query({ language: "TYPESCRIPT", mode: "DEEP", sort: "asc", title: "alpha" })
+      .set("authorization", `Bearer ${user.accessToken}`);
+    const desc = await request(app.getHttpServer())
+      .get("/api/v1/reviews")
+      .query({ language: "typescript", mode: "DEEP", sort: "desc", title: "ALPHA" })
+      .set("authorization", `Bearer ${user.accessToken}`);
+    const invalidSort = await request(app.getHttpServer())
+      .get("/api/v1/reviews")
+      .query({ sort: "sideways" })
+      .set("authorization", `Bearer ${user.accessToken}`);
+    const oversizedTitle = await request(app.getHttpServer())
+      .get("/api/v1/reviews")
+      .query({ title: "x".repeat(81) })
+      .set("authorization", `Bearer ${user.accessToken}`);
+    assert.equal(asc.status, 200);
+    assert.equal(desc.status, 200);
+    const ascIds = asc.body.data.items.map((item: { readonly id: string }) => item.id);
+    const descIds = desc.body.data.items.map((item: { readonly id: string }) => item.id);
+
+    assert.deepEqual([...ascIds].sort(), [first.id, second.id].sort());
+    assert.deepEqual(descIds, [...ascIds].reverse());
+    assert.equal("source" in asc.body.data.items[0], false);
+    assert.equal(JSON.stringify(asc.body).includes("alphaFirstSource"), false);
+    assert.equal(invalidSort.status, 400);
+    assert.equal(oversizedTitle.status, 400);
+  });
+
+  it("bulk soft-deletes only active reviews owned by the caller", async () => {
+    const owner = await createUser();
+    const other = await createUser();
+    const ownerFirst = await createReview(owner, "const ownerFirst = true;");
+    const ownerSecond = await createReview(owner, "const ownerSecond = true;");
+    const otherReview = await createReview(other, "const otherReview = true;");
+
+    const duplicateIds = await request(app.getHttpServer())
+      .delete("/api/v1/reviews")
+      .set("authorization", `Bearer ${owner.accessToken}`)
+      .send({ ids: [ownerFirst.id, ownerFirst.id] });
+    const deleted = await request(app.getHttpServer())
+      .delete("/api/v1/reviews")
+      .set("authorization", `Bearer ${owner.accessToken}`)
+      .send({ ids: [ownerFirst.id, otherReview.id, "missing-review-id"] });
+    const repeated = await request(app.getHttpServer())
+      .delete("/api/v1/reviews")
+      .set("authorization", `Bearer ${owner.accessToken}`)
+      .send({ ids: [ownerFirst.id] });
+    const ownerList = await request(app.getHttpServer())
+      .get("/api/v1/reviews")
+      .set("authorization", `Bearer ${owner.accessToken}`);
+    const otherList = await request(app.getHttpServer())
+      .get("/api/v1/reviews")
+      .set("authorization", `Bearer ${other.accessToken}`);
+
+    assert.equal(duplicateIds.status, 400);
+    assert.equal(deleted.status, 200);
+    assert.equal(deleted.body.data.deletedCount, 1);
+    assert.equal(repeated.status, 200);
+    assert.equal(repeated.body.data.deletedCount, 0);
+    assert.deepEqual(
+      ownerList.body.data.items.map((item: { readonly id: string }) => item.id),
+      [ownerSecond.id],
+    );
+    assert.deepEqual(
+      otherList.body.data.items.map((item: { readonly id: string }) => item.id),
+      [otherReview.id],
+    );
   });
 
   it("prevents cross-user access and soft-deletes owned reviews", async () => {

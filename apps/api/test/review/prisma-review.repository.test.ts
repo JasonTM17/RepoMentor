@@ -365,3 +365,69 @@ describe("Prisma review processing claims", () => {
     ]);
   });
 });
+
+describe("Prisma review history queries", () => {
+  it("keeps history filters, sort, and owner predicates on count and page reads", async () => {
+    let countArgs: unknown;
+    let findManyArgs: unknown;
+    let updateManyArgs: unknown;
+    const prisma = {
+      review: {
+        count: async (args: unknown) => {
+          countArgs = args;
+          return 1;
+        },
+        findMany: async (args: unknown) => {
+          findManyArgs = args;
+          return [{ ...reviewRow("PENDING"), title: "Alpha boundary" }];
+        },
+        updateMany: async (args: unknown) => {
+          updateManyArgs = args;
+          return { count: 1 };
+        },
+      },
+    } as unknown as PrismaService;
+    const repository = new PrismaReviewRepository(prisma);
+
+    const result = await repository.listForUser({
+      language: "typescript",
+      limit: 20,
+      mode: "DEEP",
+      page: 1,
+      sort: "asc",
+      status: "PENDING",
+      title: "alpha",
+      userId: USER_ID,
+    });
+    const where = (countArgs as { readonly where: Record<string, unknown> }).where;
+    const pageQuery = findManyArgs as {
+      readonly orderBy: readonly Record<string, unknown>[];
+      readonly where: Record<string, unknown>;
+    };
+
+    assert.equal(result.total, 1);
+    assert.equal(result.items[0]?.title, "Alpha boundary");
+    assert.deepEqual(where, {
+      deletedAt: null,
+      language: "typescript",
+      mode: "DEEP",
+      status: "PENDING",
+      title: { contains: "alpha", mode: "insensitive" },
+      userId: USER_ID,
+    });
+    assert.deepEqual(pageQuery.orderBy, [{ createdAt: "asc" }, { id: "asc" }]);
+    assert.deepEqual(pageQuery.where, where);
+
+    const deletedCount = await repository.softDeleteManyForUser(
+      USER_ID,
+      [REVIEW_ID, "other-user-review"],
+      NOW,
+    );
+
+    assert.equal(deletedCount, 1);
+    assert.deepEqual(updateManyArgs, {
+      data: { deletedAt: NOW },
+      where: { deletedAt: null, id: { in: [REVIEW_ID, "other-user-review"] }, userId: USER_ID },
+    });
+  });
+});
