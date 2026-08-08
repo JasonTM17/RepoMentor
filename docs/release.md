@@ -24,19 +24,21 @@ not evidence of a live deployment or production readiness.
   the current checkpoint addendum; they do not establish a tag, release,
   registry artifact, license, deployment, or production certification.
 
-## Current unreleased `main` boundary — 2026-08-08
+## Current unreleased `main` boundary — 2026-08-09
 
 The release checkpoint above remains `c3d1fe81928062929009e58d47c911ee8d5625ec`.
 The current `main` and `origin/main` heads are aligned at
-`58a9a6a67d95e736dcc7a0a46e83315d89c031e8`. This current head is unreleased:
-the 23 post-tag commits and 41 changed paths are not folded into `v0.1.4`.
-They include migration/seed commands, offline Prisma migration-image
-hardening, owner-scoped review-history API controls, the authenticated web
-history workspace, and sensitive-action audit logging. See the [current-head
-continuation report](../plans/reports/20260808-repomento-continuation.md)
-for exact CI, arbiter, branch, provenance, and open-gate evidence.
+`2e061c88815aada6f46069d65de498cb623da4ea`. This current head is unreleased:
+26 post-tag commits and 53 changed paths are not folded into `v0.1.4`. They
+include migration/seed commands, offline Prisma migration-image hardening,
+owner-scoped review-history API controls, the authenticated web history
+workspace, sensitive-action audit logging, and persisted admin-role
+enforcement. See the [current-head continuation report](../plans/reports/20260808-repomento-continuation.md)
+for the earlier audit-slice CI, arbiter, branch, provenance, and open-gate
+evidence; that report is historical evidence and does not replace the current
+head identity.
 
-## Sensitive-action audit logging slice — current main
+## Sensitive-action audit logging slice — preserved evidence
 
 The completed slice is documented in
 `plans/reports/20260808-security-audit-logging-worker.md`. Implementation
@@ -57,9 +59,32 @@ Coordinator validation at
 `282/282`, web `48/48`, contracts `7/7`, typecheck, lint, build, format,
 package, Prisma validate/generate, diff-check, and credential scan. Hosted
 Application Gates run `31265734227` and Container validation run `31265734234`
-passed at this head. Node 20 deprecation annotations in hosted logs are
-non-failing warnings only. No live PostgreSQL, Redis, Luna/provider,
+passed at this evidence head. Node 20 deprecation annotations in hosted logs
+are non-failing warnings only. No live PostgreSQL, Redis, Luna/provider,
 deployment, or browser claim is made.
+
+## Unreleased AI cost-estimation slice — feature branch
+
+The cost-estimation code is currently present only on
+`feature/usage-cost-estimation` at code head
+`85256008c89226e10e9bfc15404f964c8e4ff189`; `main` and `origin/main` remain at
+`2e061c88815aada6f46069d65de498cb623da4ea`. The three implementation commits
+are `000f642` (`feat(ai)`), `8f0e6dc` (`feat(usage)`), and `8525600`
+(`feat(web)`). This documentation-only slice does not merge or publish that
+feature branch, and the `v0.1.4` images do not include it.
+
+The optional API pricing configuration consists of `AI_PRICING_VERSION`,
+`AI_INPUT_USD_MICROS_PER_MILLION_TOKENS`,
+`AI_CACHED_INPUT_USD_MICROS_PER_MILLION_TOKENS`, and
+`AI_OUTPUT_USD_MICROS_PER_MILLION_TOKENS`. All three rates are non-negative
+integer **USD micros per million tokens**; the version and rates are
+deployment-owned and versioned. All four must be unset or all four must be
+valid. There is no default price, and a partial/invalid configuration fails
+API startup without displaying configured values. Completed reviews persist
+their estimate and pricing version immutably; historical or no-pricing rows
+remain nullable/unavailable, and mixed pricing versions are not presented as a
+single numeric aggregate. The estimate is an operator-configured accounting
+signal only, not a provider invoice or real-billing-accuracy claim.
 
 ## Current status
 

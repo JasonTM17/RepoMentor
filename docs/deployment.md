@@ -29,6 +29,38 @@ required JWT/cookie/quota values, and set `NEXT_PUBLIC_API_ORIGIN` to the host
 published API URL. The API uses Compose service names (`postgres`, `redis`) in
 container connection strings; the browser uses the host-published API origin.
 
+### Optional AI cost estimates
+
+Cost estimation is an optional API-runtime configuration. Leave all four
+variables unset to run without estimates; there is no default provider price.
+When enabled, set these four variables together:
+
+```dotenv
+# AI_PRICING_VERSION=<deployment-owned-version>
+# AI_INPUT_USD_MICROS_PER_MILLION_TOKENS=<integer>
+# AI_CACHED_INPUT_USD_MICROS_PER_MILLION_TOKENS=<integer>
+# AI_OUTPUT_USD_MICROS_PER_MILLION_TOKENS=<integer>
+```
+
+The three rate values must be non-negative integers in **USD micros per
+million tokens**. `AI_PRICING_VERSION` identifies the deployment-owned pricing
+table used with those rates; do not invent or copy a provider rate into this
+repository. A configured zero is an explicit zero rate, while an entirely
+unset configuration means that no estimate is available. Keep the variables
+absent or commented out when disabled; `VARIABLE=` is supplied configuration
+and is invalid here.
+
+The configuration is all-or-none. A partial or invalid configuration fails API
+startup, and its bounded error reports variable names only; raw values are not
+shown. Rates and their version are deployment-owned configuration, so rotate
+them by publishing a new version rather than rewriting a prior one. The API
+calculates and persists the estimate and pricing version when a review
+completes; it does not recalculate completed records after deployment config
+changes. Historical rows, rows completed without pricing, and aggregates that
+mix priced and unpriced or differently versioned rows remain nullable and are
+reported as unavailable/mixed. These are configured estimates, not provider
+invoices or a claim of real billing accuracy.
+
 Validate configuration before attempting a startup:
 
 ```text

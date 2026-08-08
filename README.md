@@ -14,20 +14,29 @@ GitHub Release was published after those tagged gates passed. Earlier SHAs in
 this document remain exact-head evidence anchors for their own checks; docs-only
 commits do not change the runtime inputs.
 
-## Current unreleased `main` boundary — 2026-08-08
+## Current unreleased `main` boundary — 2026-08-09
 
 The tagged `v0.1.4` artifact remains pinned to
 `c3d1fe81928062929009e58d47c911ee8d5625ec`. The current `main` and
 `origin/main` heads are aligned at
-`58a9a6a67d95e736dcc7a0a46e83315d89c031e8`, which is **not** a new release
-tag. Twenty-three commits and 41 paths follow the release tag, including
-safe database migration/seed commands, offline Prisma migration-image
-hardening, owner-scoped history filters and bulk delete, the authenticated
-responsive `/history` workspace, sensitive-action audit logging, and the
-continuation/evidence documentation. The exact evidence and remaining live/runtime
-limits are recorded in [the 2026-08-08 continuation report](plans/reports/20260808-repomento-continuation.md).
+`2e061c88815aada6f46069d65de498cb623da4ea`, which is **not** a new release
+tag. Twenty-six commits and 53 paths follow the release tag, including safe
+database migration/seed commands, offline Prisma migration-image hardening,
+owner-scoped history filters and bulk delete, the authenticated responsive
+`/history` workspace, sensitive-action audit logging, and persisted admin-role
+enforcement. The exact audit-slice evidence and remaining live/runtime limits
+are recorded in [the 2026-08-08 continuation report](plans/reports/20260808-repomento-continuation.md);
+its head references are historical rather than a replacement for the current
+`main` identity.
 
-### Sensitive-action audit logging — current main
+The unreleased AI cost-estimation code is isolated on
+`feature/usage-cost-estimation` at code head
+`85256008c89226e10e9bfc15404f964c8e4ff189`; it is not in `main`, `origin/main`,
+`v0.1.4`, or either published image. The implementation and operator rules
+are recorded in [the release boundary](docs/release.md) and
+[deployment notes](docs/deployment.md).
+
+### Sensitive-action audit logging — preserved evidence
 
 The completed audit slice is recorded in
 [the worker report](plans/reports/20260808-security-audit-logging-worker.md).
