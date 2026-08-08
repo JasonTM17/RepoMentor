@@ -1,22 +1,34 @@
 # syntax=docker/dockerfile:1.7
 
-ARG NODE_IMAGE=node:24.12.0-alpine3.22@sha256:4f4a059445c5a6ef2b9d169d9afde176301263178141fc05ba657dab1c84f9a7
+ARG NODE_IMAGE=node:24.16.0-alpine3.22@sha256:191c9f0080fcbbc6547a85dc0ff7988072214a355aabdc1d2ec55a7dae5eea8a
+ARG NPM_VERSION=12.0.2
+ARG OPENSSL_LIB_VERSION=3.5.7-r0
 
 # The ARG includes an explicit tag and immutable digest; Hadolint cannot infer that through interpolation.
 # hadolint ignore=DL3006
 FROM ${NODE_IMAGE} AS base
 
+ARG NPM_VERSION
+ARG OPENSSL_LIB_VERSION
+
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
 
-RUN npm install --global pnpm@11.0.9 \
+RUN apk add --no-cache \
+      "libcrypto3=${OPENSSL_LIB_VERSION}" \
+      "libssl3=${OPENSSL_LIB_VERSION}" \
+  && npm install --global --ignore-scripts "npm@${NPM_VERSION}" \
+  && npm install --global --ignore-scripts pnpm@11.0.9 \
+  && npm cache clean --force \
   && pnpm config set store-dir /pnpm/store
 
 WORKDIR /workspace
 
 FROM base AS build
 
-RUN apk add --no-cache build-base python3
+RUN apk add --no-cache \
+      build-base=0.5-r3 \
+      python3=3.12.13-r0
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/package.json
@@ -44,6 +56,16 @@ RUN pnpm rebuild argon2 \
 # The ARG includes an explicit tag and immutable digest; Hadolint cannot infer that through interpolation.
 # hadolint ignore=DL3006
 FROM ${NODE_IMAGE} AS runtime
+
+ARG OPENSSL_LIB_VERSION
+
+RUN apk add --no-cache \
+      "libcrypto3=${OPENSSL_LIB_VERSION}" \
+      "libssl3=${OPENSSL_LIB_VERSION}" \
+  && rm -rf \
+      /usr/local/lib/node_modules/npm \
+      /usr/local/bin/npm \
+      /usr/local/bin/npx
 
 ENV NODE_ENV=production
 ENV PORT=3000
