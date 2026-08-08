@@ -31,7 +31,8 @@ unreleased `main` head.
 | Historical deterministic checkpoint | `953e7da627d75bda394cdcfae2cee3a0199321be` | Historical evidence only |
 | Released runtime tag | `v0.1.4` resolves to `c3d1fe81928062929009e58d47c911ee8d5625ec` | Released container/GitHub artifact |
 | Current `main` and `origin/main` | `2ec543b060a56f43b24026e8a69bb51af0c7228c` | Current unreleased head |
-| Final docs-alignment candidate | `a32af2b02df7d06e0bedf13cd43bee2871fbfb12` | Documentation-only follow-up to be merged after arbiter acceptance |
+| Prior docs-alignment candidate | `a32af2b02df7d06e0bedf13cd43bee2871fbfb12` | Superseded after arbiter requested explicit candidate provenance |
+| Follow-up candidate recorded for arbitration | `468a81bd725a61247e4fde1bf57ef78eac8882c6` | Documentation-only follow-up; this predecessor identity is recorded before final re-arbitration |
 
 There are 15 commits and 29 changed paths from `c3d1fe8` to the current
 `main`. They are not silently treated as part of `v0.1.4`. The post-release
