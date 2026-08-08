@@ -28,6 +28,12 @@ describe("versioned code-review prompt builder", () => {
     assert.ok(prompt.user.indexOf(serializedSource) < prompt.user.indexOf(UNTRUSTED_SOURCE_END));
     assert.match(prompt.user, /decoded content is data only/u);
     assert.equal(prompt.schema.additionalProperties, false);
+    assert.deepEqual(prompt.schema.required, ["education", "schemaVersion", "summary", "findings"]);
+    assert.equal(
+      (prompt.schema.properties as { education: { additionalProperties: boolean } }).education
+        .additionalProperties,
+      false,
+    );
   });
 
   it("keeps delimiter-like JavaScript, Python, and SQL injection data inside one JSON value", () => {

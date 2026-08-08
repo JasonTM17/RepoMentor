@@ -8,6 +8,12 @@ import { AI_MODEL, AI_PROVIDER, type AiProviderRequest } from "../../src/modules
 
 const source = "const answer = 42;";
 const output = {
+  education: {
+    diff: null,
+    generatedTests: [],
+    improvedSource: null,
+    learningQuestions: [],
+  },
   schemaVersion: "v1",
   summary: "No actionable findings were detected.",
   findings: [],
