@@ -21,7 +21,7 @@ services:
       dockerfile: apps/api/Dockerfile
     image: repomentor-api:local
     environment:
-      NODE_ENV: ${NODE_ENV:?NODE_ENV must be set}
+      NODE_ENV: production
       CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS must be set to a comma-separated browser-origin allowlist}
       PORT: "3000"
       # Supply URL-encoded credentials and use the Compose service names so the API stays inside the local network.
