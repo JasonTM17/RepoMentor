@@ -63,6 +63,13 @@ export interface CreateUserInput {
   readonly status: AuthUserStatus;
 }
 
+export interface ChangePasswordInput {
+  readonly userId: string;
+  readonly expectedPasswordHash: string;
+  readonly nextPasswordHash: string;
+  readonly now: Date;
+}
+
 export interface CreateSessionInput {
   readonly id: string;
   readonly userId: string;
@@ -91,6 +98,7 @@ export interface AuthRepository {
   findUserByEmail(email: string): Promise<AuthUserRecord | null>;
   findUserById(id: string): Promise<AuthUserRecord | null>;
   createUser(input: CreateUserInput): Promise<AuthUserRecord>;
+  changePassword(input: ChangePasswordInput): Promise<boolean>;
   createSession(input: CreateSessionInput): Promise<AuthSessionRecord>;
   findSessionById(id: string): Promise<AuthSessionRecord | null>;
   rotateRefreshToken(input: RotateRefreshTokenInput): Promise<RefreshRotationResult>;

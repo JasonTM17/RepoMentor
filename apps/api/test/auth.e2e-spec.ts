@@ -214,6 +214,131 @@ describe("authentication bootstrap", () => {
     assert.equal(revokedRefresh.status, 401);
   });
 
+  it("changes the password, revokes every session, and requires re-authentication", async () => {
+    const oldPassword = "correct horse battery staple";
+    const newPassword = "new correct horse battery staple";
+    await request(app.getHttpServer()).post("/api/v1/auth/register").send({
+      displayName: "Password Change User",
+      email: "password-change@example.com",
+      password: oldPassword,
+    });
+    const firstLogin = await request(app.getHttpServer()).post("/api/v1/auth/login").send({
+      email: "password-change@example.com",
+      password: oldPassword,
+    });
+    const secondLogin = await request(app.getHttpServer()).post("/api/v1/auth/login").send({
+      email: "password-change@example.com",
+      password: oldPassword,
+    });
+    const changed = await request(app.getHttpServer())
+      .patch("/api/v1/auth/password")
+      .set("authorization", `Bearer ${firstLogin.body.data.accessToken}`)
+      .send({
+        currentPassword: oldPassword,
+        newPassword,
+        newPasswordConfirmation: newPassword,
+      });
+    const revokedMe = await request(app.getHttpServer())
+      .get("/api/v1/auth/me")
+      .set("authorization", `Bearer ${firstLogin.body.data.accessToken}`);
+    const revokedRefresh = await request(app.getHttpServer())
+      .post("/api/v1/auth/refresh")
+      .set("cookie", cookieHeader(secondLogin));
+    const oldLogin = await request(app.getHttpServer()).post("/api/v1/auth/login").send({
+      email: "password-change@example.com",
+      password: oldPassword,
+    });
+    const newLogin = await request(app.getHttpServer()).post("/api/v1/auth/login").send({
+      email: "password-change@example.com",
+      password: newPassword,
+    });
+
+    assert.equal(changed.status, 200);
+    assert.deepEqual(changed.body, { data: { passwordChanged: true } });
+    assert.match(changed.headers["set-cookie"]?.[0] ?? "", /Expires=Thu, 01 Jan 1970/u);
+    assert.equal(JSON.stringify(changed.body).includes(oldPassword), false);
+    assert.equal(JSON.stringify(changed.body).includes(newPassword), false);
+    assert.equal(revokedMe.status, 401);
+    assert.equal(revokedRefresh.status, 401);
+    assert.equal(oldLogin.status, 401);
+    assert.equal(newLogin.status, 201);
+  });
+
+  it("maps password-change credential and confirmation failures without echoing secrets", async () => {
+    const oldPassword = "password-change-current";
+    const newPassword = "password-change-replacement";
+    await request(app.getHttpServer()).post("/api/v1/auth/register").send({
+      displayName: "Password Failure User",
+      email: "password-failure@example.com",
+      password: oldPassword,
+    });
+    const login = await request(app.getHttpServer()).post("/api/v1/auth/login").send({
+      email: "password-failure@example.com",
+      password: oldPassword,
+    });
+    const wrongCurrent = await request(app.getHttpServer())
+      .patch("/api/v1/auth/password")
+      .set("authorization", `Bearer ${login.body.data.accessToken}`)
+      .send({
+        currentPassword: "wrong password",
+        newPassword,
+        newPasswordConfirmation: newPassword,
+      });
+    const mismatchedConfirmation = await request(app.getHttpServer())
+      .patch("/api/v1/auth/password")
+      .set("authorization", `Bearer ${login.body.data.accessToken}`)
+      .send({
+        currentPassword: oldPassword,
+        newPassword,
+        newPasswordConfirmation: "different replacement password",
+      });
+    const invalidBody = await request(app.getHttpServer())
+      .patch("/api/v1/auth/password")
+      .set("authorization", `Bearer ${login.body.data.accessToken}`)
+      .send({
+        currentPassword: oldPassword,
+        newPassword: "short",
+        newPasswordConfirmation: "short",
+        passwordHash: "must not be accepted",
+      });
+
+    assert.equal(wrongCurrent.status, 401);
+    assert.equal(wrongCurrent.body.error.code, "UNAUTHORIZED");
+    assert.equal(mismatchedConfirmation.status, 400);
+    assert.equal(mismatchedConfirmation.body.error.code, "BAD_REQUEST");
+    assert.equal(invalidBody.status, 400);
+    assert.equal(invalidBody.body.error.code, "VALIDATION_FAILED");
+    for (const response of [wrongCurrent, mismatchedConfirmation, invalidBody]) {
+      const serialized = JSON.stringify(response.body);
+      assert.equal(serialized.includes(oldPassword), false);
+      assert.equal(serialized.includes(newPassword), false);
+      assert.equal(serialized.includes("must not be accepted"), false);
+    }
+  });
+
+  it("documents the password-change route and strict DTO fields in Swagger", async () => {
+    const response = await request(app.getHttpServer()).get("/api/docs-json");
+    const operation = response.body.paths?.["/api/v1/auth/password"]?.patch;
+    const requestSchema = operation?.requestBody?.content?.["application/json"]?.schema;
+    const dtoSchema = response.body.components?.schemas?.ChangePasswordDto;
+
+    assert.equal(response.status, 200);
+    assert.ok(operation);
+    assert.equal(requestSchema.$ref, "#/components/schemas/ChangePasswordDto");
+    assert.deepEqual(Object.keys(dtoSchema.properties).sort(), [
+      "currentPassword",
+      "newPassword",
+      "newPasswordConfirmation",
+    ]);
+    assert.deepEqual(dtoSchema.required.sort(), [
+      "currentPassword",
+      "newPassword",
+      "newPasswordConfirmation",
+    ]);
+    assert.equal(operation.responses["200"].description.includes("All active sessions"), true);
+    assert.match(JSON.stringify(operation.responses["401"]), /current password/u);
+  });
+
   it("rate-limits login with a generic bounded response", async () => {
     rateLimiter.clear();
     let blocked: request.Response | undefined;

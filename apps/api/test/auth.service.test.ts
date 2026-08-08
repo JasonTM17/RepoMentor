@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 
 import { AuthService } from "../src/modules/auth/auth.service.js";
 import { AuthTokenService } from "../src/modules/auth/auth-token.service.js";
@@ -160,5 +160,126 @@ describe("authentication service", () => {
       )?.status,
       "REVOKED",
     );
+  });
+
+  it("changes the password atomically and revokes every active session", async () => {
+    const { repository, service, tokens } = createFixture();
+    await service.register(
+      "password-change@example.com",
+      "Password Change User",
+      "correct horse battery staple",
+      now,
+    );
+    const firstLogin = await service.login(
+      "password-change@example.com",
+      "correct horse battery staple",
+      {},
+      now,
+    );
+    const secondLogin = await service.login(
+      "password-change@example.com",
+      "correct horse battery staple",
+      {},
+      now,
+    );
+    const context = tokens.verifyAccessToken(firstLogin.accessToken, now);
+
+    assert.deepEqual(
+      await service.changePassword(
+        { sessionId: context.sessionId, userId: context.subject },
+        "correct horse battery staple",
+        "new correct horse battery staple",
+        "new correct horse battery staple",
+        new Date("2026-08-05T12:00:01.000Z"),
+      ),
+      { passwordChanged: true },
+    );
+
+    await assert.rejects(
+      service.login(
+        "password-change@example.com",
+        "correct horse battery staple",
+        {},
+        new Date("2026-08-05T12:00:02.000Z"),
+      ),
+      UnauthorizedException,
+    );
+    const newLogin = await service.login(
+      "password-change@example.com",
+      "new correct horse battery staple",
+      {},
+      new Date("2026-08-05T12:00:02.000Z"),
+    );
+
+    assert.equal(newLogin.user.id, context.subject);
+    assert.equal(
+      (await repository.findUserById(context.subject))?.passwordHash,
+      "hash:new correct horse battery staple",
+    );
+    assert.equal(
+      (
+        await repository.findSessionById(
+          tokens.verifyRefreshToken(firstLogin.refreshToken, now).sessionId,
+        )
+      )?.revocationReason,
+      "LOGOUT_ALL",
+    );
+    assert.equal(
+      (
+        await repository.findSessionById(
+          tokens.verifyRefreshToken(secondLogin.refreshToken, now).sessionId,
+        )
+      )?.revocationReason,
+      "LOGOUT_ALL",
+    );
+  });
+
+  it("rejects a mismatched or unchanged replacement password before hashing", async () => {
+    let hashCalls = 0;
+    const hasher = {
+      hashPassword: async (password: string) => {
+        hashCalls += 1;
+        return `hash:${password}`;
+      },
+      verifyPassword: async (password: string, passwordHash?: string) =>
+        passwordHash === `hash:${password}`,
+    } as unknown as PasswordHasherService;
+    const repository = new InMemoryAuthRepository();
+    const service = new AuthService(repository, hasher, new AuthTokenService(tokenConfig));
+    await service.register(
+      "password-validation@example.com",
+      "Validation User",
+      "current password",
+      now,
+    );
+    const login = await service.login(
+      "password-validation@example.com",
+      "current password",
+      {},
+      now,
+    );
+    const context = new AuthTokenService(tokenConfig).verifyAccessToken(login.accessToken, now);
+
+    await assert.rejects(
+      service.changePassword(
+        { sessionId: context.sessionId, userId: context.subject },
+        "current password",
+        "new valid password",
+        "different valid password",
+        now,
+      ),
+      BadRequestException,
+    );
+    await assert.rejects(
+      service.changePassword(
+        { sessionId: context.sessionId, userId: context.subject },
+        "current password",
+        "current password",
+        "current password",
+        now,
+      ),
+      BadRequestException,
+    );
+    assert.equal(hashCalls, 1);
   });
 });

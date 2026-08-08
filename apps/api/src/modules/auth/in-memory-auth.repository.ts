@@ -3,6 +3,7 @@ import type {
   AuthRepository,
   AuthSessionRecord,
   AuthUserRecord,
+  ChangePasswordInput,
   CreateSessionInput,
   CreateUserInput,
   RefreshRotationResult,
@@ -68,6 +69,28 @@ export class InMemoryAuthRepository implements AuthRepository {
 
     this.users.set(user.id, user);
     return copyUser(user);
+  }
+
+  async changePassword(input: ChangePasswordInput): Promise<boolean> {
+    const user = this.users.get(input.userId);
+
+    if (!user || user.status !== "ACTIVE" || user.passwordHash !== input.expectedPasswordHash) {
+      return false;
+    }
+
+    this.users.set(user.id, {
+      ...user,
+      passwordHash: input.nextPasswordHash,
+      updatedAt: input.now,
+    });
+
+    for (const session of this.sessions.values()) {
+      if (session.userId === user.id && session.status === "ACTIVE") {
+        this.sessions.set(session.id, revokeSessionRecord(session, "LOGOUT_ALL", input.now));
+      }
+    }
+
+    return true;
   }
 
   async createSession(input: CreateSessionInput): Promise<AuthSessionRecord> {

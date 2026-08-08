@@ -6,6 +6,7 @@ import type {
   AuthRepository,
   AuthSessionRecord,
   AuthUserRecord,
+  ChangePasswordInput,
   CreateSessionInput,
   CreateUserInput,
   RefreshRotationResult,
@@ -130,6 +131,37 @@ export class PrismaAuthRepository implements AuthRepository {
 
       throw error;
     }
+  }
+
+  async changePassword(input: ChangePasswordInput): Promise<boolean> {
+    return this.prisma.transaction(async (client) => {
+      const updated = await client.user.updateMany({
+        data: {
+          passwordHash: input.nextPasswordHash,
+          updatedAt: input.now,
+        },
+        where: {
+          id: input.userId,
+          passwordHash: input.expectedPasswordHash,
+          status: "ACTIVE",
+        },
+      });
+
+      if (updated.count !== 1) {
+        return false;
+      }
+
+      await client.session.updateMany({
+        data: {
+          revokedAt: input.now,
+          revocationReason: "LOGOUT_ALL",
+          status: "REVOKED",
+        },
+        where: { status: "ACTIVE", userId: input.userId },
+      });
+
+      return true;
+    });
   }
 
   async createSession(input: CreateSessionInput): Promise<AuthSessionRecord> {

@@ -41,6 +41,10 @@ export interface RegistrationResult {
   readonly accepted: true;
 }
 
+export interface PasswordChangeResult {
+  readonly passwordChanged: true;
+}
+
 function invalidCredentials(): UnauthorizedException {
   return new UnauthorizedException();
 }
@@ -60,6 +64,30 @@ function assertRegistrationInput(password: string, displayName: string): void {
     displayName.length < 1 ||
     displayName.length > MAX_DISPLAY_NAME_LENGTH
   ) {
+    throw new BadRequestException();
+  }
+}
+
+function assertPasswordChangeInput(
+  currentPassword: string,
+  newPassword: string,
+  newPasswordConfirmation: string,
+): void {
+  if (
+    typeof currentPassword !== "string" ||
+    currentPassword.length < 1 ||
+    currentPassword.length > MAX_PASSWORD_LENGTH ||
+    typeof newPassword !== "string" ||
+    newPassword.length < MIN_PASSWORD_LENGTH ||
+    newPassword.length > MAX_PASSWORD_LENGTH ||
+    typeof newPasswordConfirmation !== "string" ||
+    newPasswordConfirmation.length < MIN_PASSWORD_LENGTH ||
+    newPasswordConfirmation.length > MAX_PASSWORD_LENGTH
+  ) {
+    throw new BadRequestException();
+  }
+
+  if (newPassword !== newPasswordConfirmation) {
     throw new BadRequestException();
   }
 }
@@ -232,6 +260,64 @@ export class AuthService {
     }
 
     return safeUser(user);
+  }
+
+  /**
+   * Session policy assumption: a successful password change revokes every
+   * active session, including the session making this request. This reuses the
+   * existing logout-all policy, avoids issuing replacement token material, and
+   * requires the user to authenticate again after a credential change.
+   */
+  async changePassword(
+    context: AuthContext,
+    currentPassword: string,
+    newPassword: string,
+    newPasswordConfirmation: string,
+    now = new Date(),
+  ): Promise<PasswordChangeResult> {
+    assertPasswordChangeInput(currentPassword, newPassword, newPasswordConfirmation);
+
+    const [user, session] = await Promise.all([
+      this.repository.findUserById(context.userId),
+      this.repository.findSessionById(context.sessionId),
+    ]);
+
+    if (
+      !user ||
+      !session ||
+      session.userId !== user.id ||
+      session.status !== "ACTIVE" ||
+      user.status !== "ACTIVE"
+    ) {
+      throw invalidCredentials();
+    }
+
+    const isCurrentPasswordValid = await this.passwordHasher.verifyPassword(
+      currentPassword,
+      user.passwordHash,
+    );
+
+    if (!isCurrentPasswordValid) {
+      throw invalidCredentials();
+    }
+
+    if (currentPassword === newPassword) {
+      throw new BadRequestException();
+    }
+
+    const nextPasswordHash = await this.passwordHasher.hashPassword(newPassword);
+    const changed = await this.repository.changePassword({
+      expectedPasswordHash: user.passwordHash,
+      nextPasswordHash,
+      now,
+      userId: user.id,
+    });
+
+    if (!changed) {
+      throw invalidCredentials();
+    }
+
+    return { passwordChanged: true };
   }
 
   private async issueSession(

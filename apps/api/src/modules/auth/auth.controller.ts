@@ -4,16 +4,27 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   Req,
   Res,
   UnauthorizedException,
   UseGuards,
 } from "@nestjs/common";
+import {
+  ApiBadRequestResponse,
+  ApiBody,
+  ApiExtraModels,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+  getSchemaPath,
+} from "@nestjs/swagger";
 import type { Request, Response } from "express";
 
 import { AuthAccessGuard, type AuthenticatedRequest } from "./auth-access.guard.js";
-import { LoginDto, RegisterDto } from "./auth.dto.js";
+import { ChangePasswordDto, ChangePasswordResponseDto, LoginDto, RegisterDto } from "./auth.dto.js";
 import { authRateLimit, AuthRateLimitGuard } from "./auth-rate-limiter.js";
 import { AuthService, type AuthResult } from "./auth.service.js";
 import { AuthTokenService, REFRESH_COOKIE_NAME } from "./auth-token.service.js";
@@ -38,6 +49,8 @@ function publicResult(result: AuthResult) {
   };
 }
 
+@ApiTags("auth")
+@ApiExtraModels(ChangePasswordResponseDto)
 @Controller("auth")
 export class AuthController {
   constructor(
@@ -113,6 +126,41 @@ export class AuthController {
     }
 
     return this.auth.me(request.auth);
+  }
+
+  @Patch("password")
+  @UseGuards(AuthAccessGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBody({ type: ChangePasswordDto })
+  @ApiOkResponse({
+    description:
+      "The password was changed. All active sessions are revoked and the caller must authenticate again.",
+    schema: {
+      properties: { data: { $ref: getSchemaPath(ChangePasswordResponseDto) } },
+      required: ["data"],
+      type: "object",
+    },
+  })
+  @ApiBadRequestResponse({ description: "The password body or confirmation is invalid." })
+  @ApiUnauthorizedResponse({ description: "Authentication or the current password is invalid." })
+  @ApiOperation({ summary: "Change the authenticated user's password" })
+  async changePassword(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: ChangePasswordDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    if (!request.auth) {
+      throw new UnauthorizedException();
+    }
+
+    const result = await this.auth.changePassword(
+      request.auth,
+      body.currentPassword,
+      body.newPassword,
+      body.newPasswordConfirmation,
+    );
+    this.clearRefreshCookie(response);
+    return result;
   }
 
   private setRefreshCookie(response: Response, refreshToken: string): void {
