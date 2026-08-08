@@ -6,11 +6,12 @@ package publication, or production readiness.
 
 ## Source/evidence baseline
 
-- Current implementation checkpoint: `2b146a5`.
+- Current implementation checkpoint: `953e7da`.
 - The auth password-change slice was integrated as `0813d54`; the review
   metadata contract was integrated as `d955eaf`; the settings slice was
   integrated as `0bc05c7`; and the security transport slice was integrated as
-  `2b146a5` from worker commit `e5d97ad`.
+  `2b146a5` from worker commit `e5d97ad`; review detail, CI gates, and
+  dependency remediation were integrated through `953e7da`.
 - The final plan/report addendum is authored in the bounded documentation
   refresh that follows this checkpoint.
 - This SHA is the exact-head evidence anchor for the local checks recorded in
@@ -142,13 +143,15 @@ checkpoint addendum follows the table.
 
 ## Current checkpoint addendum — 2026-08-08
 
-The current merged code checkpoint `2b146a5` passed API `268/268`, web
-`44/44`, and contracts `7/7`, plus root typecheck, lint, format check,
-production build, package check, Prisma validate/generate, diff-check, and
-credential scan. It includes the authenticated password-change boundary,
+The current merged code checkpoint `953e7da` passed API `268/268`, web
+`46/46`, and contracts `7/7`, plus root typecheck, lint, format check,
+production build, package check, Prisma validate/generate, diff-check,
+credential scan, and `pnpm audit --audit-level=high` with no known
+vulnerabilities. It includes the authenticated password-change boundary,
 persisted review title/context/learner-level metadata with version-2 request
-fingerprints, the authenticated settings route, and explicit CORS/body-limit/
-security-header transport hardening. The
+fingerprints, the authenticated settings and `/reviews/[id]` routes, explicit
+CORS/body-limit/security-header transport hardening, and the deterministic
+application CI workflow. The
 result contract is
 strict and Luna-only, normalizes legacy persisted results with empty education
 fields, and carries improved source, unified diff, generated tests, and
@@ -174,11 +177,21 @@ historical evidence for the earlier `4b2dfb7` checkpoint.
 The validation table above is historical evidence from the earlier docs
 refresh; rerun all release gates on the exact tag commit before publication.
 
-The current `main` and `origin/main` are aligned at `2b146a5`. Completed
+The current `main` and `origin/main` are aligned at `953e7da`. Completed
 settings/security refs were removed only after clean exact-head/equivalence
 checks. The remaining `feature/auth-api` ref is clean but stale and unique;
 `feature/history-filter-api` and `feature/review-process-lock-v2` remain dirty
 and protected. No worktree residue was force-deleted.
+
+The CI worker commits `295335b`, `f45b224`, and `a4b70d6` add the application
+quality-gate workflow, repository-format step, and container-validation path
+coverage. Kongminh accepted the exact worker head. The current GitHub run for
+`953e7da` has not been independently verified here, so local gate evidence is
+not presented as a hosted CI result.
+
+The dependency remediation commit `953e7da` updates Playwright to `1.55.1`
+and pins patched transitive `effect` and `js-yaml` versions in
+`pnpm-workspace.yaml`; the local high-severity audit is now clean.
 
 ## Container workflows and release gates
 
@@ -188,10 +201,10 @@ and protected. No worktree residue was force-deleted.
 workflow. Its static job runs workflow syntax validation, Hadolint, Dockerfile
 contract checks, and `docker compose config --quiet` with safe dummy values.
 Its build job builds the API and web images for `linux/amd64` with
-`push: false`, then smoke-tests API `/health/live` and the web `/` shell. This
-workflow passed for the current code head in run `31234347927`; the run did not
-use registry credentials or publish images. A passing validation run is not a
-registry publication or deployment claim.
+`push: false`, then smoke-tests API `/health/live` and the web `/` shell. Run
+`31234347927` passed against the prior code head `a5f55c6`; it did not use
+registry credentials or publish images. No hosted run for `953e7da` is claimed.
+A passing validation run is not a registry publication or deployment claim.
 
 ### Tagged dual-registry release
 

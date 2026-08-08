@@ -5,10 +5,10 @@ programming practice. It is a production-oriented monorepo, but the current
 repository checkpoint is an application slice, not a production release.
 
 The current code/evidence baseline is the exact implementation checkpoint
-`2b146a5`, which includes the focused settings commit `0bc05c7` and the
-security transport commit `e5d97ad` integrated after the auth, metadata, and
-education slices. These SHAs are exact-head evidence anchors for the local
-checks recorded below; they are not a release, tag, registry, license,
+`953e7da`, which includes the authenticated review-detail route, application CI
+gates, and dependency-audit remediation after the settings and security
+slices. These SHAs are exact-head evidence anchors for the local checks
+recorded below; they are not a release, tag, registry, license,
 package-publication, deployment, or production-readiness claim.
 
 ## Current status
@@ -59,12 +59,18 @@ This checkpoint contains:
   sessions, clears the refresh cookie, and requires re-authentication;
 - an authenticated `/settings` route with a strict password-change form that
   keeps the access token in memory and clears it only after a validated success;
+- an authenticated `/reviews/[id]` detail route that reopens owner-scoped
+  history records, validates detail/result envelopes, and labels demo fixtures;
 - persisted review `title`, `context`, and `learnerLevel` metadata propagated
   through admission, version-2 request fingerprints, Prisma/in-memory
   persistence, bounded Luna prompt framing, and source-free owner responses.
 - explicit HTTP transport hardening for CORS origin allowlists, credentials,
   security headers, JSON/form body limits, request-id error responses, and
   production-safe environment validation.
+- a credential-free application CI workflow covering Prisma, contracts, tests,
+  formatting, lint, typecheck, builds, package payloads, and fail-closed audit;
+- patched dependency resolution for the audited Playwright, Effect, and
+  js-yaml advisories.
 
 The authenticated admission contract requires Bearer authentication and a
 bounded `Idempotency-Key`. It canonicalizes the language (NFC, trim, and
@@ -138,6 +144,7 @@ Useful project notes:
 | `/history`                               | Source-free paginated usage history; guest fixtures expose local filters, while the API path keeps page/limit-only controls.                       |
 | `/usage`                                 | Token, operation, and quota overview through the same authenticated API/demo boundary.                                                             |
 | `/settings`                              | Authenticated password-change form backed by `PATCH /api/v1/auth/password`; successful changes require re-authentication.                          |
+| `/reviews/[id]`                          | Owner-scoped review detail/result view reached from history; unauthenticated saved-review access stays generic and source-safe.                    |
 | Loading, error, and not-found boundaries | Honest shell-preserving states for the current App Router surface.                                                                                 |
 
 The home review preview remains static and does not load repository data. The
@@ -355,21 +362,28 @@ deployment, or production readiness.
 
 ## Current checkpoint evidence — 2026-08-08
 
-The current merged and pushed code checkpoint is `2b146a5` and
+The current merged and pushed code checkpoint is `953e7da` and
 `origin/main` points to the same commit. It passed root `pnpm test`: API
-`268/268`, web `44/44`, and contracts `7/7`. The same checkpoint passed
+`268/268`, web `46/46`, and contracts `7/7`. The same checkpoint passed
 `pnpm typecheck`, `pnpm lint`, `pnpm build`,
 `pnpm format:check`, `pnpm package:check`, Prisma validation/generation with a
 process-local dummy `DATABASE_URL`, `git diff --check`, and a
-credential-shaped scan. The API security suite covers the CORS, body-limit,
-and header/error boundaries; these are deterministic checks, not live
-deployment evidence.
+credential-shaped scan. `pnpm audit --audit-level=high` reports no known
+vulnerabilities after the dependency remediation slice. The API security suite
+covers the CORS, body-limit, and header/error boundaries; these are deterministic
+checks, not live deployment evidence.
 
 The settings slice was implemented as `0bc05c7` from exact base `576a1ab` and
 merged fast-forward. The security slice was implemented as `e5d97ad` from the
 same exact base, cherry-picked onto the settings checkpoint as `2b146a5`,
 then its equivalent branch ref was deleted after a fresh zero-unique-commit
 `git cherry` check. No dirty branch was merged or reset.
+
+The review-detail route was delivered as `ed7aea7` and `32f1378` from exact
+base `30eafab`, then fast-forward merged and pushed. Application CI was added
+as `295335b`, `f45b224`, and `a4b70d6`; Kongminh accepted the exact worker head
+after its path-filter correction. Dependency remediation was merged as
+`953e7da` from exact base `a4b70d6` after Advisor acceptance.
 
 The prior exact implementation checkpoint `a5f55c6` passed `pnpm test` with
 API `251/251`, contracts `7/7`, and web `42/42`. `pnpm typecheck`, `pnpm lint`,
@@ -389,6 +403,11 @@ GitHub Container Validation run `31234347927` passed against the prior code
 head `a5f55c6`: workflow, Dockerfile/Compose validation, and both
 `linux/amd64` no-publish image builds. This is CI validation evidence only; it
 is not a registry publication or deployment.
+
+`.github/workflows/application-gates.yml` now runs the deterministic application
+gate set on pull requests and pushes to `main`. The workflow has not yet been
+claimed as a completed GitHub run for `953e7da`; its local command evidence and
+fail-closed audit behavior are recorded in [docs/ci.md](docs/ci.md).
 
 ## Security and environment boundaries
 

@@ -23,8 +23,9 @@ calls require their respective runtime environments. A passing application
 job therefore proves deterministic repository gates only, not deployment or
 production readiness.
 
-At the `30eafabbf47431fc0ef401c6919b524b0c11d409` baseline, the local
-credential-free audit reports three high advisories in the dependency graph
-(`GHSA-7mvr-c777-76hp`, `GHSA-38f7-945m-qr2g`, and
-`GHSA-pm4m-ph32-ghv5`). The workflow intentionally reports that blocker until
-the dependency owners remediate or explicitly review it.
+At the current `953e7da` baseline, the local credential-free
+`pnpm audit --audit-level=high` reports no known vulnerabilities. The prior
+three high advisories (`playwright`, transitive `effect`, and `js-yaml`) were
+closed by the focused dependency commit `953e7da` through a patched Playwright
+version and documented workspace overrides. Browser execution, live services,
+external Luna, and hosted GitHub-run evidence remain separate and unclaimed.

@@ -1029,3 +1029,47 @@ Docker daemon, registry publication, package publication, release tagging, and
 deployment remain unverified. The remaining refs are intentionally protected:
 clean-but-stale `feature/auth-api`, dirty `feature/history-filter-api`, and
 dirty `feature/review-process-lock-v2`.
+
+## Review detail, CI, and dependency resolution — 2026-08-08
+
+The next bounded web slice started from exact base `30eafab` and stayed
+disjoint from all preserved dirty branches. `feature/web-review-detail` added
+strict owner-scoped detail transport in `ed7aea7` and the `/reviews/[id]`
+route/history reopen flow in `32f1378`. The route validates the detail and
+result envelopes, uses the memory-only Bearer token when authenticated, keeps
+saved-review errors generic, and labels the deterministic `demo-*` fixture
+boundary. Web tests reached `46/46`, typecheck/lint/production build and
+format/diff/credential checks passed, and the two commits were fast-forward
+merged/pushed as-is. The review-detail worktree was unregistered after merge;
+ignored dependency residue was preserved when normal removal could not delete
+the non-empty directory. Its Advisor arbiter returned no independent ACCEPT
+because the worktree had already been removed after merge; merged-main evidence
+remained clean.
+
+The application CI slice started from exact base `30eafab` on
+`ci/application-gates`. Worker commits `e0907f2`, `81bf9fc`, and `e294981`
+were reviewed as a three-commit unit; they add `application-gates.yml`, the
+format gate, and container-validation path coverage. They were cherry-picked
+onto the review-detail main line as `295335b`, `f45b224`, and `a4b70d6`, then
+pushed. Kongminh accepted exact worker head `e294981`. The workflow is
+credential-free, least-privilege, and fail-closed; local actionlint/format/diff
+checks pass. It does not claim hosted GitHub-run, live service, browser, Luna,
+Docker, or deployment evidence.
+
+The dependency-audit slice started from exact base `a4b70d6` on
+`fix/dependency-audit` and merged as `953e7da`. It updates Playwright to the
+patched `1.55.1` release and records `effect: 3.20.0` plus `js-yaml: 5.2.2`
+workspace overrides until upstream manifests stop pinning vulnerable
+versions. The lockfile is consistent; API `268/268`, web `46/46`, contracts
+`7/7`, typecheck, lint, build, format, package, Prisma, diff, and credential
+checks pass, and `pnpm audit --audit-level=high` reports no known
+vulnerabilities. Advisor/Banach accepted the exact head. Browser execution and
+live dependency/provider/runtime publication gates remain open.
+
+The pushed coordinator checkpoint is now
+`953e7da627d75bda394cdcfae2cee3a0199321be`, with `main` and `origin/main`
+aligned and clean. Remaining refs are intentionally protected:
+clean-but-stale `feature/auth-api`, dirty `feature/history-filter-api`, and
+dirty `feature/review-process-lock-v2`. Completed settings, security,
+review-detail, CI, and dependency refs were removed only after exact-head or
+patch-equivalence checks; no broad cleanup or reset was used.
