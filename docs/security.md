@@ -85,7 +85,9 @@ these missing controls.
 ## Secrets and reporting
 
 Keep runtime secrets in approved untracked/deployment secret stores. The
-committed [`.env.example`](../.env.example) contains names and empty
-placeholders only. Never echo, commit, or document a real API key, database
-credential, JWT secret, refresh token, or cookie. The user-provided DeepSeek key
-was not copied into the repository and is not part of the current runtime.
+committed [`.env.example`](../.env.example) keeps secret values empty and uses
+the fixed Luna endpoint as a non-secret default; deployment owners must still
+verify the endpoint policy before use. Never echo, commit, or document a real
+API key, database credential, JWT secret, refresh token, or cookie. The
+user-provided DeepSeek key was not copied into the repository and is not part
+of the current runtime.
