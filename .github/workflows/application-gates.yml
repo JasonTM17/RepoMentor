@@ -80,6 +80,9 @@ jobs:
       - name: Run deterministic web tests
         run: pnpm --filter @repomentor/web test
 
+      - name: Check repository formatting
+        run: pnpm format:check
+
       - name: Lint workspace
         run: pnpm lint
 

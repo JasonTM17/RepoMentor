@@ -8,8 +8,9 @@ toolchain, restores the pnpm store cache, and installs the lockfile with
 The required job is deliberately deterministic and credential-free. It
 validates and generates Prisma artifacts with a local-only dummy
 `DATABASE_URL`, builds the shared contracts before API checks, runs the
-contract/API/web unit and in-memory/static tests, then runs lint, typecheck,
-web/API production builds, package-payload verification, and
+contract/API/web unit and in-memory/static tests, then runs the repository-wide
+`pnpm format:check`, lint, typecheck, web/API production builds,
+package-payload verification, and
 `pnpm audit --audit-level=high`. The audit is fail-closed: findings are not
 hidden by `continue-on-error`, an allowlist, or a secret-backed registry login.
 
