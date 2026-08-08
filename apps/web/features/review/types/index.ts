@@ -128,6 +128,13 @@ export interface ReviewOptionalResultData {
   readonly originalSource?: string;
 }
 
+export interface ReviewEducation {
+  readonly diff: string | null;
+  readonly generatedTests: readonly string[];
+  readonly improvedSource: string | null;
+  readonly learningQuestions: readonly string[];
+}
+
 export interface ReviewFinding {
   readonly severity: ReviewSeverity;
   readonly category: ReviewCategory;
@@ -140,6 +147,7 @@ export interface ReviewFinding {
 }
 
 export interface ReviewResult {
+  readonly education: ReviewEducation;
   readonly schemaVersion: "v1";
   readonly summary: string;
   readonly findings: readonly ReviewFinding[];

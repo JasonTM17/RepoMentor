@@ -124,6 +124,12 @@ export const createDeterministicFixtureResult = (draft: ReviewDraft): ReviewResu
 
   if (/no findings/iu.test(draft.source)) {
     return {
+      education: {
+        diff: null,
+        generatedTests: [],
+        improvedSource: null,
+        learningQuestions: [],
+      },
       schemaVersion: "v1",
       summary: "The deterministic fixture returned no issue signals for this source.",
       findings: [],
@@ -131,6 +137,12 @@ export const createDeterministicFixtureResult = (draft: ReviewDraft): ReviewResu
   }
 
   return {
+    education: {
+      diff: null,
+      generatedTests: [],
+      improvedSource: null,
+      learningQuestions: [],
+    },
     schemaVersion: "v1",
     summary:
       "The deterministic fixture returns two teaching signals so the workspace can exercise summary, issue, and learning sections.",

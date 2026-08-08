@@ -45,6 +45,12 @@ const result = {
   },
   id: reviewId,
   result: {
+    education: {
+      diff: null,
+      generatedTests: [],
+      improvedSource: null,
+      learningQuestions: [],
+    },
     findings: [
       {
         category: "MAINTAINABILITY",

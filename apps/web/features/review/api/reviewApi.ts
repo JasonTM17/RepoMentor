@@ -20,6 +20,12 @@ const maxReviewIdLength = 25;
 const maxReviewEventIdLength = 10;
 const maxReviewEventGeneration = 2_147_483_646;
 const maxReviewEventBufferLength = 16_384;
+const maxImprovedSourceLength = 100_000;
+const maxReviewDiffLength = 64_000;
+const maxGeneratedTests = 3;
+const maxGeneratedTestLength = 8_000;
+const maxLearningQuestions = 5;
+const maxLearningQuestionLength = 500;
 
 export class ReviewApiError extends Error {
   public readonly code: string | undefined;
@@ -53,6 +59,12 @@ const isBoundedString = (value: unknown, maximum: number): value is string =>
   value.length > 0 &&
   value.length <= maximum &&
   value === value.trim();
+
+const isBoundedNonBlankString = (value: unknown, maximum: number): value is string =>
+  typeof value === "string" &&
+  value.length > 0 &&
+  value.length <= maximum &&
+  /\S/u.test(value);
 
 const isNonNegativeInteger = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 0;
@@ -122,13 +134,37 @@ const isReviewFinding = (value: unknown): value is ReviewFinding => {
   );
 };
 
+const isReviewEducation = (value: unknown): value is ReviewResult["education"] => {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ["diff", "generatedTests", "improvedSource", "learningQuestions"])
+  ) {
+    return false;
+  }
+
+  return (
+    (value.diff === null || isBoundedNonBlankString(value.diff, maxReviewDiffLength)) &&
+    Array.isArray(value.generatedTests) &&
+    value.generatedTests.length <= maxGeneratedTests &&
+    value.generatedTests.every((test) => isBoundedNonBlankString(test, maxGeneratedTestLength)) &&
+    (value.improvedSource === null ||
+      isBoundedNonBlankString(value.improvedSource, maxImprovedSourceLength)) &&
+    Array.isArray(value.learningQuestions) &&
+    value.learningQuestions.length <= maxLearningQuestions &&
+    value.learningQuestions.every((question) =>
+      isBoundedString(question, maxLearningQuestionLength),
+    )
+  );
+};
+
 const isReviewResult = (value: unknown): value is ReviewResult =>
   isRecord(value) &&
-  hasExactKeys(value, ["schemaVersion", "summary", "findings"]) &&
+  hasExactKeys(value, ["education", "schemaVersion", "summary", "findings"]) &&
   value.schemaVersion === "v1" &&
   isNonBlankString(value.summary) &&
   Array.isArray(value.findings) &&
-  value.findings.every(isReviewFinding);
+  value.findings.every(isReviewFinding) &&
+  isReviewEducation(value.education);
 
 const isReviewProcessResponse = (value: unknown): value is ReviewProcessResponse => {
   if (!isRecord(value) || typeof value.id !== "string" || typeof value.outcome !== "string") {

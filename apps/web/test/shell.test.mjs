@@ -230,6 +230,12 @@ const createReviewResultResponse = () => ({
   },
   id: "review-1",
   result: {
+    education: {
+      diff: null,
+      generatedTests: [],
+      improvedSource: null,
+      learningQuestions: [],
+    },
     findings: [],
     schemaVersion: "v1",
     summary: "The fixture is valid.",
@@ -1099,6 +1105,17 @@ test("review result runtime validation enforces ISO timestamps, usage invariants
       (() => {
         const response = createReviewResultResponse();
         response.execution.unexpected = true;
+        return response;
+      })(),
+      (() => {
+        const response = createReviewResultResponse();
+        const { education: _education, ...legacyResult } = response.result;
+        response.result = legacyResult;
+        return response;
+      })(),
+      (() => {
+        const response = createReviewResultResponse();
+        response.result.education.unexpected = true;
         return response;
       })(),
     ];
