@@ -6,9 +6,11 @@ package publication, or production readiness.
 
 ## Source/evidence baseline
 
-- Current implementation checkpoint: `d955eaf`.
+- Current implementation checkpoint: `2b146a5`.
 - The auth password-change slice was integrated as `0813d54`; the review
-  metadata contract was integrated as `d955eaf`.
+  metadata contract was integrated as `d955eaf`; the settings slice was
+  integrated as `0bc05c7`; and the security transport slice was integrated as
+  `2b146a5` from worker commit `e5d97ad`.
 - The final plan/report addendum is authored in the bounded documentation
   refresh that follows this checkpoint.
 - This SHA is the exact-head evidence anchor for the local checks recorded in
@@ -78,6 +80,22 @@ token and compare-and-delete Lua release. The processing route is the current
 consumer of that primitive; the deterministic lease/fencing tests do not prove
 a live multi-instance Redis deployment.
 
+### HTTP transport boundary
+
+The current API bootstrap validates a comma-separated CORS allowlist. Production
+requires an explicit non-empty allowlist; development/test defaults are bounded
+to local HTTP origins. Allowed origins are echoed exactly with credentials and
+`Vary: Origin`; denied origins receive a safe request-id error without origin
+reflection. JSON and URL-encoded bodies are limited to `128kb`, malformed or
+oversized bodies use bounded error envelopes, and the transport emits CSP,
+HSTS in production, frame/content/referrer policies, and an explicit disabled
+Express fingerprint header.
+
+This slice does not claim a synchronizer/double-submit CSRF token, structured
+audit logging, or distributed rate-limit enforcement. Cookie SameSite defaults
+remain the current baseline; any future cross-site `SameSite=None` flow needs an
+explicit CSRF design first.
+
 ### Explicit deferred boundaries
 
 - `POST /api/v1/guest/reviews` is implemented as a transient QUICK endpoint
@@ -124,11 +142,13 @@ checkpoint addendum follows the table.
 
 ## Current checkpoint addendum — 2026-08-08
 
-The current merged checkpoint `d955eaf` passed API `261/261`, web
-`43/43`, and contracts `7/7`, plus root typecheck, lint, format check,
-production build, Prisma validate/generate, diff-check, and credential scan.
-It includes the authenticated password-change boundary and persisted review
-title/context/learner-level metadata with version-2 request fingerprints. The
+The current merged code checkpoint `2b146a5` passed API `268/268`, web
+`44/44`, and contracts `7/7`, plus root typecheck, lint, format check,
+production build, package check, Prisma validate/generate, diff-check, and
+credential scan. It includes the authenticated password-change boundary,
+persisted review title/context/learner-level metadata with version-2 request
+fingerprints, the authenticated settings route, and explicit CORS/body-limit/
+security-header transport hardening. The
 result contract is
 strict and Luna-only, normalizes legacy persisted results with empty education
 fields, and carries improved source, unified diff, generated tests, and
@@ -153,6 +173,12 @@ historical evidence for the earlier `4b2dfb7` checkpoint.
 
 The validation table above is historical evidence from the earlier docs
 refresh; rerun all release gates on the exact tag commit before publication.
+
+The current `main` and `origin/main` are aligned at `2b146a5`. Completed
+settings/security refs were removed only after clean exact-head/equivalence
+checks. The remaining `feature/auth-api` ref is clean but stale and unique;
+`feature/history-filter-api` and `feature/review-process-lock-v2` remain dirty
+and protected. No worktree residue was force-deleted.
 
 ## Container workflows and release gates
 

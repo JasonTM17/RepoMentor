@@ -984,3 +984,48 @@ Docker, registry, and deployment evidence remain unverified.
 The branch is complete and no longer active; historical refs and worktrees
 remain frozen and are not eligible for wholesale cleanup. The next bounded
 scope must be selected only after this clean pushed checkpoint.
+
+## Settings and transport-security resolution — 2026-08-08
+
+The next two bounded slices were based exactly on the post-metadata checkpoint
+`576a1ab`, and were kept separate from the dirty history and review-process
+branches. The settings slice was implemented as `0bc05c7` on
+`feature/settings-ui` and fast-forward merged into `main`. It adds the
+authenticated `/settings` route, strict password-change transport and success
+envelope validation, memory-only token handling, re-authentication messaging,
+and deterministic web coverage. The branch was deleted after clean exact-head
+validation; its generated dependency residue is preserved at
+`D:\worktrees\preserved-settings-ui-20260808`.
+
+The transport-security slice was implemented as `e5d97ad` on
+`feature/security-hardening` from the same exact base. It adds validated
+production CORS origin configuration, exact-origin credential handling and
+safe denials, bounded JSON/URL-encoded body parsers, parser error envelopes,
+CSP/HSTS and related headers, Express fingerprint suppression, environment
+tests, and API security coverage. The worker initially exposed a missing direct
+`express` dependency; adding the declared runtime dependency resolved the
+runtime import before the final gates. The clean worker commit was cherry-picked
+onto the settings checkpoint as `2b146a5`, pushed to `origin/main`, and its
+equivalent branch ref was removed only after a fresh zero-unique-commit
+`git cherry` recheck.
+
+Exact-head evidence at `2b146a5`:
+
+- `pnpm test`: API `268/268`, web `44/44`, contracts `7/7`;
+- `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm format:check`, and
+  `pnpm package:check`: pass;
+- Prisma validation/generation with a process-local dummy URL, diff-check, and
+  credential-shaped scan: pass;
+- `main` and `origin/main` resolve to
+  `2b146a5ba9701faf02266055032ec58894da81db`, and the main worktree is clean.
+
+The fresh settings/security arbiter attempts timed out and were closed without
+an independent ACCEPT; the completed Laplace/advisor and Kant/Kongminh
+read-only audits are recorded as advisory findings, not approvals. The HTTP
+slice closes explicit CORS, body-size, and response-header boundaries but does
+not claim CSRF-token coverage, structured audit logging, or distributed rate
+limiting. Chromium, live PostgreSQL/Redis/EVAL, external Luna/HTTP provider,
+Docker daemon, registry publication, package publication, release tagging, and
+deployment remain unverified. The remaining refs are intentionally protected:
+clean-but-stale `feature/auth-api`, dirty `feature/history-filter-api`, and
+dirty `feature/review-process-lock-v2`.

@@ -5,11 +5,11 @@ programming practice. It is a production-oriented monorepo, but the current
 repository checkpoint is an application slice, not a production release.
 
 The current code/evidence baseline is the exact implementation checkpoint
-`d955eaf`, which includes the focused auth password-change commit
-`0813d54` and the review metadata source commit `d76c53e`. These SHAs
-are exact-head evidence anchors for the local checks recorded below; they are
-not a release, tag, registry, license, package-publication, deployment, or
-production-readiness claim.
+`2b146a5`, which includes the focused settings commit `0bc05c7` and the
+security transport commit `e5d97ad` integrated after the auth, metadata, and
+education slices. These SHAs are exact-head evidence anchors for the local
+checks recorded below; they are not a release, tag, registry, license,
+package-publication, deployment, or production-readiness claim.
 
 ## Current status
 
@@ -57,9 +57,14 @@ This checkpoint contains:
 - an authenticated `PATCH /api/v1/auth/password` boundary that verifies the
   current password, atomically updates the Argon2id hash, revokes all active
   sessions, clears the refresh cookie, and requires re-authentication;
+- an authenticated `/settings` route with a strict password-change form that
+  keeps the access token in memory and clears it only after a validated success;
 - persisted review `title`, `context`, and `learnerLevel` metadata propagated
   through admission, version-2 request fingerprints, Prisma/in-memory
   persistence, bounded Luna prompt framing, and source-free owner responses.
+- explicit HTTP transport hardening for CORS origin allowlists, credentials,
+  security headers, JSON/form body limits, request-id error responses, and
+  production-safe environment validation.
 
 The authenticated admission contract requires Bearer authentication and a
 bounded `Idempotency-Key`. It canonicalizes the language (NFC, trim, and
@@ -131,6 +136,7 @@ Useful project notes:
 | `/dashboard`                             | Usage summary, recent source-free history, and quota read through the authenticated API transport when signed in; deterministic fixture otherwise. |
 | `/history`                               | Source-free paginated usage history; guest fixtures expose local filters, while the API path keeps page/limit-only controls.                       |
 | `/usage`                                 | Token, operation, and quota overview through the same authenticated API/demo boundary.                                                             |
+| `/settings`                              | Authenticated password-change form backed by `PATCH /api/v1/auth/password`; successful changes require re-authentication.                          |
 | Loading, error, and not-found boundaries | Honest shell-preserving states for the current App Router surface.                                                                                 |
 
 The home review preview remains static and does not load repository data. The
@@ -348,13 +354,21 @@ deployment, or production readiness.
 
 ## Current checkpoint evidence — 2026-08-08
 
-The current merged and pushed checkpoint is `d955eaf`. It passed root
-`pnpm test`: API `261/261`, web `43/43`, and contracts `7/7`. The same
-checkpoint passed `pnpm typecheck`, `pnpm lint`, `pnpm build`,
-`pnpm format:check`, Prisma validate/generate with a process-local dummy
-`DATABASE_URL`, `git diff --check`, and a credential-shaped scan. The Prisma
-client was regenerated after integration so the new review metadata fields
-are represented by the generated types.
+The current merged and pushed code checkpoint is `2b146a5` and
+`origin/main` points to the same commit. It passed root `pnpm test`: API
+`268/268`, web `44/44`, and contracts `7/7`. The same checkpoint passed
+`pnpm typecheck`, `pnpm lint`, `pnpm build`,
+`pnpm format:check`, `pnpm package:check`, Prisma validation/generation with a
+process-local dummy `DATABASE_URL`, `git diff --check`, and a
+credential-shaped scan. The API security suite covers the CORS, body-limit,
+and header/error boundaries; these are deterministic checks, not live
+deployment evidence.
+
+The settings slice was implemented as `0bc05c7` from exact base `576a1ab` and
+merged fast-forward. The security slice was implemented as `e5d97ad` from the
+same exact base, cherry-picked onto the settings checkpoint as `2b146a5`,
+then its equivalent branch ref was deleted after a fresh zero-unique-commit
+`git cherry` check. No dirty branch was merged or reset.
 
 The prior exact implementation checkpoint `a5f55c6` passed `pnpm test` with
 API `251/251`, contracts `7/7`, and web `42/42`. `pnpm typecheck`, `pnpm lint`,
@@ -392,6 +406,10 @@ that does not log source or secrets. `LUNA_API_KEY` is server-only and
 Optional DeepSeek RAG suggestions remain disabled and deferred by
 [ADR-001](docs/architecture/adr-001-optional-rag-suggestion-provider.md); no
 DeepSeek secret is added, documented, or stored in this checkpoint.
+
+The HTTP hardening slice closes the explicit CORS, body-size, and security
+header boundaries, but it does not claim a synchronizer/double-submit CSRF
+token, structured audit logging, or distributed rate-limit enforcement.
 
 ## Release and media notes
 
@@ -443,3 +461,8 @@ processing, PostgreSQL, Redis, AI output, or a production deployment._
 - No license file or package `license` field is present. Treat licensing as a
   blocker for a public package or public release until the project owner adds
   a license supported by repository evidence.
+- The remaining non-main refs are intentionally protected: `feature/auth-api`
+  is clean but stale and unique, while `feature/history-filter-api` and
+  `feature/review-process-lock-v2` are dirty. Completed settings/security refs
+  were removed only after exact-head/equivalence checks; locked or generated
+  worktree residue is preserved rather than force-deleted.
