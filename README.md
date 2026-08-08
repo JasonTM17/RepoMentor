@@ -32,10 +32,11 @@ current-head value because documentation commits advance the branch.
 
 ### Current runtime evidence
 
-- Hosted Application Gates [run `31272365103`](https://github.com/JasonTM17/RepoMentor/actions/runs/31272365103)
-  and Container validation [run `31272365110`](https://github.com/JasonTM17/RepoMentor/actions/runs/31272365110)
-  passed for `fa6d40d`. These runs are hosted validation evidence for that
-  exact commit, not a publication or deployment claim for current `main`.
+- Hosted Application Gates [run `31272756587`](https://github.com/JasonTM17/RepoMentor/actions/runs/31272756587)
+  and Container validation [run `31272756610`](https://github.com/JasonTM17/RepoMentor/actions/runs/31272756610)
+  passed for exact runtime evidence commit `978e0e3`. They are hosted
+  validation successes for that commit, not a publication or deployment claim
+  for the current unreleased timeline.
 - An isolated local synthetic production Compose smoke on the pre-E2E-origin
   application/Compose sequence (`a0ff519`, `7f06b44`, and `3899b27`) completed
   the migration service and observed API `/health/live` `200`, API
@@ -440,31 +441,33 @@ checkpoint addendum immediately after it. Both use Node `v24.12.0`, pnpm
 needed; neither proves live PostgreSQL, Redis, HTTP provider, Luna,
 deployment, or production readiness.
 
-| Check                                    | Result and evidence                                                                                                                                                                                                                                                                                    |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| API compile and deterministic test suite | Pass: direct TypeScript test compilation plus `node --test` reports `193/193` tests across `39` suites, with `0` failed and `0` cancelled. The suite includes the shared Redis seam and authenticated admission paths; it uses in-memory repositories, deterministic Redis executors, and fake Luna.   |
-| Contracts test suite                     | Pass: direct build/test compilation plus `node --test` reports `5/5` contracts tests.                                                                                                                                                                                                                  |
-| Web shell test suite                     | Pass: `node --test apps/web/test/shell.test.mjs` reports `32/32` tests.                                                                                                                                                                                                                                |
-| TypeScript and API build checks          | Pass: direct `tsc --noEmit` for contracts/API/web and direct API build.                                                                                                                                                                                                                                |
-| Prisma preparation                       | Pass: direct Prisma generate with a syntactically valid local-only `DATABASE_URL`; no PostgreSQL connection was attempted.                                                                                                                                                                             |
-| `docker compose config --quiet`          | Pass with safe dummy values, including the required fingerprint secret; this validates configuration only.                                                                                                                                                                                             |
-| `@repomentor/contracts` pack dry-run     | Pass without publishing: `npm pack --dry-run --json` returned JSON for `@repomentor/contracts@0.1.0` with `33` entries. The local payload included `dist/.test-dist` because test compilation had run; this is not an approved publication payload.                                                    |
-| Frozen workspace install                 | Attempted with `pnpm run deps:install`; pnpm installed the dependency tree but exited with `ERR_PNPM_IGNORED_BUILDS` while requesting build approval. No approval was enabled; direct local binaries were used for the checks above.                                                                   |
-| Docker daemon and live Compose smoke     | Not run locally: `docker compose config` passed, but `docker info` could not connect to the local Docker Desktop Linux engine. Hosted Container Validation and the tagged release workflow provide CI image evidence; no local service startup, live PostgreSQL/Redis check, or HTTP smoke is claimed. |
-| Full root test/build and browser capture | Not run in this docs refresh. The checked-in GIF is documented below only as a narrow running-UI-shell capture, not as current backend or live-review evidence.                                                                                                                                        |
+| Check                                     | Result and evidence                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API compile and deterministic test suite  | Pass: direct TypeScript test compilation plus `node --test` reports `193/193` tests across `39` suites, with `0` failed and `0` cancelled. The suite includes the shared Redis seam and authenticated admission paths; it uses in-memory repositories, deterministic Redis executors, and fake Luna.   |
+| Contracts test suite                      | Pass: direct build/test compilation plus `node --test` reports `5/5` contracts tests.                                                                                                                                                                                                                  |
+| Web shell test suite                      | Pass: `node --test apps/web/test/shell.test.mjs` reports `32/32` tests.                                                                                                                                                                                                                                |
+| TypeScript and API build checks           | Pass: direct `tsc --noEmit` for contracts/API/web and direct API build.                                                                                                                                                                                                                                |
+| Prisma preparation                        | Pass: direct Prisma generate with a syntactically valid local-only `DATABASE_URL`; no PostgreSQL connection was attempted.                                                                                                                                                                             |
+| `docker compose config --quiet`           | Pass with safe dummy values, including the required fingerprint secret; this validates configuration only.                                                                                                                                                                                             |
+| `@repomentor/contracts` pack dry-run      | Pass without publishing: `npm pack --dry-run --json` returned JSON for `@repomentor/contracts@0.1.0` with `33` entries. The local payload included `dist/.test-dist` because test compilation had run; this is not an approved publication payload.                                                    |
+| Frozen workspace install                  | Attempted with `pnpm run deps:install`; pnpm installed the dependency tree but exited with `ERR_PNPM_IGNORED_BUILDS` while requesting build approval. No approval was enabled; direct local binaries were used for the checks above.                                                                   |
+| Docker daemon and live Compose smoke      | Not run locally: `docker compose config` passed, but `docker info` could not connect to the local Docker Desktop Linux engine. Hosted Container Validation and the tagged release workflow provide CI image evidence; no local service startup, live PostgreSQL/Redis check, or HTTP smoke is claimed. |
+| Full root test/build in this docs refresh | Not run in this docs refresh. The browser review journey is separately verified at `978e0e3` with route-mocked API/SSE; the checked-in GIF remains only a narrow running-UI-shell capture, not current backend or live-review evidence.                                                                |
 
 ## Prior application checkpoint evidence — 2026-08-08
 
-The current runtime implementation checkpoint is `5453e8c`. The documentation
-commits are now integrated at repository head `7fd932d`, and `origin/main`
-points to that docs-integrated head. Hosted GitHub Application Gates run
-`31243141059` passed the deterministic API, contracts, and web tests, format,
-lint, typecheck, both application builds, package verification, and the high
-severity dependency audit. The exact-head local evidence at the runtime parent
-`953e7da` recorded API `268/268`, web `46/46`, contracts `7/7`, and the same
-quality gates; the runtime checkpoint adds only the workflow environment fix
-that keeps web smoke tests same-origin. These are deterministic checks, not
-live deployment evidence.
+The runtime implementation checkpoint recorded in this historical 2026-08-08
+note is `5453e8c`. The docs-integrated evidence hash `7fd932d` is historical;
+it is not a current repository or `origin/main` identity. For the current
+checkout identity, run `git rev-parse HEAD`. Hosted GitHub Application Gates
+run `31243141059` was the historical docs-head run and passed the deterministic
+API, contracts, and web tests, format, lint, typecheck, both application
+builds, package verification, and the high-severity dependency audit. The
+exact-head local evidence at the runtime parent `953e7da` recorded API
+`268/268`, web `46/46`, contracts `7/7`, and the same quality gates; the runtime
+checkpoint added only the workflow environment fix that keeps web smoke tests
+same-origin. These are historical deterministic checks, not live deployment
+evidence.
 
 The settings slice was implemented as `0bc05c7` from exact base `576a1ab` and
 merged fast-forward. The security slice was implemented as `e5d97ad` from the
@@ -487,10 +490,11 @@ process lease/fencing, authenticated status-only SSE/replay with polling
 fallback, cancellation/logout boundaries, and the Luna education result
 contract plus text-only UI/export views.
 
-Playwright discovery is `1/1`, but execution remains unverified because
-Chromium revision `chromium-1161` is not installed locally. The runtime release
-evidence is recorded below; it is an artifact publication, not deployment
-evidence.
+At the fixed browser evidence commit `978e0e3`, Playwright passed the review
+journey `1/1` using API route mocks, including the SSE stream. This proves the
+browser/Monaco/streaming seam only; it does not prove live AI/provider,
+PostgreSQL, or Redis behavior. The runtime release evidence is recorded below;
+it is an artifact publication, not deployment evidence.
 
 GitHub Container Validation run `31241219843` passed against the runtime
 implementation head `5453e8c`: workflow, Dockerfile/Compose validation, and both
@@ -499,10 +503,10 @@ is not a registry publication or deployment.
 
 `.github/workflows/application-gates.yml` now runs the deterministic application
 gate set on pull requests and pushes to `main`. The completed hosted run for
-evidence head `7fd932d` is recorded in [docs/ci.md](docs/ci.md);
-its fail-closed audit
-behavior remains separate from live PostgreSQL, Redis, Luna, browser, or
-deployment evidence.
+historical evidence head `7fd932d` is recorded in [docs/ci.md](docs/ci.md);
+current runtime successes for exact commit `978e0e3` are listed above. The
+workflow's fail-closed audit behavior remains separate from live PostgreSQL,
+Redis, Luna, browser, or deployment evidence.
 
 ## Tagged container release evidence — `v0.1.4`
 
@@ -568,9 +572,10 @@ processing, PostgreSQL, Redis, AI output, or a production deployment._
 
 ## Known limitations
 
-- No live PostgreSQL or Redis service was started or verified by the checks
-  above. API tests use in-memory repositories and deterministic Redis
-  executors.
+- The isolated synthetic Compose smoke started the local migration/API/web
+  sequence and observed the health/CORS checks listed above. It does not prove
+  production PostgreSQL/Redis semantics; API tests otherwise use in-memory
+  repositories and deterministic Redis executors.
 - The authenticated quota-admission path and synchronous processing/result
   routes are covered with deterministic Redis executors, fake Luna, and
   in-memory repositories only. There is no live Redis EVAL, PostgreSQL
@@ -588,8 +593,8 @@ processing, PostgreSQL, Redis, AI output, or a production deployment._
 - The captured GIF is not a browser visual-regression baseline and does not
   claim a live browser session or backend integration.
 - The Compose definition covers local API, web, PostgreSQL, and Redis services.
-  Configuration validation passed, but the local Docker daemon was unavailable,
-  so local service startup, HTTP smoke, and PostgreSQL/Redis dependency health
+  Configuration validation and an isolated synthetic HTTP smoke passed, but
+  production PostgreSQL/Redis dependency semantics and multi-instance behavior
   remain unverified. The tagged CI release images are separately verified
   publication artifacts.
 - `NEXT_PUBLIC_API_ORIGIN` is a web build-time value; changing the browser API

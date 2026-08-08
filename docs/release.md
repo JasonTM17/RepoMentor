@@ -40,10 +40,11 @@ this document intentionally avoids a volatile self-referential head value.
 
 ### Current runtime evidence
 
-- Hosted [Application Gates run `31272365103`](https://github.com/JasonTM17/RepoMentor/actions/runs/31272365103)
-  and [Container validation run `31272365110`](https://github.com/JasonTM17/RepoMentor/actions/runs/31272365110)
-  passed for exact commit `fa6d40d`. They are validation evidence for that
-  commit, not publication or deployment evidence for current `main`.
+- Hosted [Application Gates run `31272756587`](https://github.com/JasonTM17/RepoMentor/actions/runs/31272756587)
+  and [Container validation run `31272756610`](https://github.com/JasonTM17/RepoMentor/actions/runs/31272756610)
+  passed for exact runtime evidence commit `978e0e3`. They are hosted
+  validation successes for that commit, not publication or deployment evidence
+  for the current unreleased timeline.
 - An isolated local synthetic production Compose smoke on the pre-E2E-origin
   application/Compose sequence (`a0ff519`, `7f06b44`, and `3899b27`) completed
   migration and observed API `/health/live` `200`, API `/health/ready` `200`,
@@ -300,21 +301,25 @@ learning questions through the authenticated result API into text-only web
 views, copy/download actions, and Markdown/JSON exports. No model output is
 executed in the browser.
 
-Hosted Application Gates run `31243141059` passed the deterministic application
-checks at the docs-integrated repository head `7fd932d`, including web/API
-builds, package verification, and the high-severity dependency audit. The
-earlier run `31241219840` passed the unchanged runtime implementation head
-`5453e8c`; the workflow fix keeps the web smoke tests same-origin and neither
-run adds live database, Redis, browser, or external Luna evidence.
+Hosted Application Gates run `31243141059` is historical evidence for the
+docs-integrated repository head `7fd932d`; it passed the deterministic
+application checks, including web/API builds, package verification, and the
+high-severity dependency audit. The earlier run `31241219840` passed the
+unchanged runtime implementation head `5453e8c`; the workflow fix keeps the
+web smoke tests same-origin and neither historical run adds live database,
+Redis, browser, or external Luna evidence. Current runtime CI successes for
+exact commit `978e0e3` are recorded near the top of this document.
 
 The guest QUICK route, Redis process lock, authenticated status-only SSE with
 replay/polling fallback, logout, and cancellation boundaries are implemented
-and covered by deterministic tests. Playwright discovery is `1/1`, but the
-browser run is not claimed because Chromium revision `chromium-1161` is
-unavailable locally. The later runtime container hardening commit `c3d1fe8`
-was released as `v0.1.4`; its tagged dual-registry evidence is recorded above.
-Live PostgreSQL, Redis, HTTP provider, external Luna, Docker Compose startup,
-and multi-instance runtime evidence remain unverified.
+and covered by deterministic tests. At the fixed browser evidence commit
+`978e0e3`, Playwright passed the review journey `1/1` using API route mocks,
+including the SSE stream. This proves the browser/Monaco/streaming seam only;
+it does not prove live AI/provider, PostgreSQL, or Redis behavior. The later
+runtime container hardening commit `c3d1fe8` was released as `v0.1.4`; its
+tagged dual-registry evidence is recorded above. Live PostgreSQL, Redis, HTTP
+provider, external Luna, Docker Compose startup, and multi-instance runtime
+evidence remain unverified.
 
 GitHub Container Validation run `31241219843` passed against the runtime
 implementation head `5453e8c`: workflow validation, Dockerfile and Compose contracts,
@@ -327,9 +332,10 @@ refresh. That pre-release record required rerunning all release gates on the
 exact tag commit; the requirement was subsequently satisfied by run
 `31247857378`.
 
-The earlier docs evidence head recorded here is `7fd932d`; the runtime release
-checkpoint is `c3d1fe8`. Later docs-only commits do not change the runtime
-inputs. Completed
+The earlier docs evidence head recorded here is historical `7fd932d`; the
+runtime release checkpoint is `c3d1fe8`. Later docs-only commits do not change
+the runtime inputs. Use `git rev-parse HEAD` for the current checkout identity.
+Completed
 settings/security refs were removed only after clean exact-head/equivalence
 checks. The remaining `feature/auth-api` ref is clean but stale and unique;
 `feature/history-filter-api` and `feature/review-process-lock-v2` remain dirty
@@ -338,9 +344,9 @@ and protected. No worktree residue was force-deleted.
 The CI worker commits `295335b`, `f45b224`, and `a4b70d6` add the application
 quality-gate workflow, repository-format step, and container-validation path
 coverage. Kongminh accepted the exact worker head. Hosted Application Gates
-run `31243141059` covers the docs evidence head; the hosted container run
-above covers the unchanged runtime image inputs. Both remain deterministic/no-
-publish evidence, not a deployment claim.
+run `31243141059` covers the historical docs evidence head; current runtime
+successes for exact commit `978e0e3` are listed near the top. Both remain
+deterministic/no-publish evidence, not a deployment claim.
 
 The dependency remediation commit `953e7da` updates Playwright to `1.55.1`
 and pins patched transitive `effect` and `js-yaml` versions in
