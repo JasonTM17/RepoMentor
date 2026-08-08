@@ -3,9 +3,9 @@
 ## Outcome
 
 The deterministic application checkpoint is complete in code at `a5f55c6`;
-the final documentation-only `main` head is `a8d6656`. The repository is clean
-and pushed, and the GitHub Container Validation run for the exact code
-checkpoint is green. This is not a production-ready or
+the documentation-only commits that follow it are merged on `main`. The
+repository is clean and pushed, and the GitHub Container Validation run for
+the exact code checkpoint is green. This is not a production-ready or
 published release: live PostgreSQL/Redis/provider/Luna execution, browser
 execution, local Docker startup, registry credentials, semantic tagging,
 package publication, deployment, and the owner license decision remain open
@@ -13,11 +13,12 @@ gates.
 
 ## Exact source identity and branch discipline
 
-- Local `main` and `origin/main` resolve to
-  `a8d6656a6e07f5a4e525b0c375e525f4bbbb1fde` (`a8d6656`).
 - The exact implementation/code checkpoint validated by the local gates and
-  current CI run is `a5f55c65afec024f9bf6b0cc571fa60b14fbfae8` (`a5f55c6`);
-  `a8d6656` adds documentation only.
+  current CI run is `a5f55c65afec024f9bf6b0cc571fa60b14fbfae8` (`a5f55c6`).
+- Documentation-only commits `f7f5d37`, `a8d6656`, and the subsequent report
+  alignment commit follow the code checkpoint; the final local/remote head is
+  verified by the handoff command `git rev-parse HEAD` against
+  `git rev-parse origin/main`.
 - The main worktree was clean at handoff: `git status --short --branch` showed
   `main...origin/main` with no file changes.
 - Education contract commits: `a751eb5`, `6213bfb`, `4385bc6`, `1e6cddc`,
@@ -148,8 +149,8 @@ worktree deletion as a rollback mechanism without explicit owner approval.
 ## Handoff decision
 
 `main` is ready for the next explicitly bounded implementation or live-gate
-task with a clean exact-head baseline at `a8d6656`. The deterministic
-application work is complete for the `a5f55c6` code checkpoint; the overall
+task with a clean exact-head baseline. The deterministic application work is
+complete for the `a5f55c6` code checkpoint; the overall
 delivery plan remains `in-progress`
 until the live/runtime and publication gates above are either executed with
 evidence or explicitly descoped by the project owner.

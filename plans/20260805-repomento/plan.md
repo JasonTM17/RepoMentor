@@ -818,9 +818,9 @@ scope must be selected only after this clean pushed checkpoint.
 ## Education result and final exact-head audit — 2026-08-08
 
 The education-result follow-up was delivered as two isolated Luna-only slices
-and integrated immediately into `main`. The exact merged implementation head is
-`a5f55c6`, and `origin/main` points to the same commit. The slice is an
-application checkpoint, not a production or release certification.
+and integrated immediately into `main`. The exact merged implementation/code
+head is `a5f55c6`; documentation-only commits follow it on `main`. The slice
+is an application checkpoint, not a production or release certification.
 
 The contract chain was committed as focused units:
 
