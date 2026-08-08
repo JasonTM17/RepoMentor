@@ -373,13 +373,14 @@ deployment, or production readiness.
 
 ## Current checkpoint evidence — 2026-08-08
 
-The current merged and pushed code checkpoint is `5453e8c` and
-`origin/main` points to the same commit. Hosted GitHub Application Gates run
-`31241219840` passed the deterministic API, contracts, and web tests, format,
+The current runtime implementation checkpoint is `5453e8c`. The documentation
+commits are now integrated at repository head `7fd932d`, and `origin/main`
+points to that docs-integrated head. Hosted GitHub Application Gates run
+`31243141059` passed the deterministic API, contracts, and web tests, format,
 lint, typecheck, both application builds, package verification, and the high
-severity dependency audit. The exact-head local evidence at the parent
+severity dependency audit. The exact-head local evidence at the runtime parent
 `953e7da` recorded API `268/268`, web `46/46`, contracts `7/7`, and the same
-quality gates; the current checkpoint adds only the workflow environment fix
+quality gates; the runtime checkpoint adds only the workflow environment fix
 that keeps web smoke tests same-origin. These are deterministic checks, not
 live deployment evidence.
 

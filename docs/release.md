@@ -175,8 +175,8 @@ package, GitHub release, or deployment was created. Live PostgreSQL, Redis,
 HTTP provider, external Luna, Docker daemon, and multi-instance runtime
 evidence remain unverified.
 
-GitHub Container Validation run `31241219843` passed against the current merged
-code head `5453e8c`: workflow validation, Dockerfile and Compose contracts,
+GitHub Container Validation run `31241219843` passed against the runtime
+implementation head `5453e8c`: workflow validation, Dockerfile and Compose contracts,
 and both `linux/amd64` no-publish image builds. It is CI validation evidence
 only; it is not a registry publication or deployment. Run `31204852778` remains
 historical evidence for the earlier `4b2dfb7` checkpoint.
@@ -184,7 +184,8 @@ historical evidence for the earlier `4b2dfb7` checkpoint.
 The validation table above is historical evidence from the earlier docs
 refresh; rerun all release gates on the exact tag commit before publication.
 
-The current `main` and `origin/main` are aligned at `5453e8c`. Completed
+The current `main` and `origin/main` are aligned at `7fd932d`; the runtime
+implementation checkpoint remains `5453e8c`. Completed
 settings/security refs were removed only after clean exact-head/equivalence
 checks. The remaining `feature/auth-api` ref is clean but stale and unique;
 `feature/history-filter-api` and `feature/review-process-lock-v2` remain dirty
@@ -192,8 +193,9 @@ and protected. No worktree residue was force-deleted.
 
 The CI worker commits `295335b`, `f45b224`, and `a4b70d6` add the application
 quality-gate workflow, repository-format step, and container-validation path
-coverage. Kongminh accepted the exact worker head. The hosted runs for
-`5453e8c` are independently recorded above; they remain deterministic/no-
+coverage. Kongminh accepted the exact worker head. Hosted Application Gates
+run `31243141059` covers the docs-integrated head; the hosted container run
+above covers the unchanged runtime image inputs. Both remain deterministic/no-
 publish evidence, not a deployment claim.
 
 The dependency remediation commit `953e7da` updates Playwright to `1.55.1`
