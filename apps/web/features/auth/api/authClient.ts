@@ -1,4 +1,6 @@
 import type {
+  ChangePasswordRequest,
+  ChangePasswordResponse,
   LoginRequest,
   LoginResponse,
   LogoutResponse,
@@ -165,6 +167,9 @@ const isRegisterResponse = (value: unknown): value is RegisterResponse =>
 const isLogoutResponse = (value: unknown): value is LogoutResponse =>
   isRecord(value) && hasExactKeys(value, ["loggedOut"]) && value.loggedOut === true;
 
+const isChangePasswordResponse = (value: unknown): value is ChangePasswordResponse =>
+  isRecord(value) && hasExactKeys(value, ["passwordChanged"]) && value.passwordChanged === true;
+
 const isLoginResponse = (value: unknown): value is LoginResponse =>
   isRecord(value) &&
   hasExactKeys(value, ["accessToken", "tokenType", "expiresInSeconds", "user"]) &&
@@ -258,6 +263,47 @@ const postLogout = async (): Promise<LogoutResponse> => {
   return parsedResponse;
 };
 
+const patchPassword = async (payload: ChangePasswordRequest): Promise<ChangePasswordResponse> => {
+  let response: Response;
+
+  try {
+    response = await fetch(`${apiOrigin}/api/v1/auth/password`, {
+      body: JSON.stringify(payload),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      method: "PATCH",
+    });
+  } catch {
+    throw new AuthClientError(0);
+  }
+
+  let body: unknown;
+
+  try {
+    body = await response.json();
+  } catch {
+    body = undefined;
+  }
+
+  if (!response.ok || response.status !== 200) {
+    throw new AuthClientError(response.status);
+  }
+
+  const parsedResponse = parseSuccessEnvelope(body, isChangePasswordResponse);
+
+  if (!parsedResponse) {
+    throw new AuthClientError(response.status);
+  }
+
+  // The API revokes every active session after this response. Do not leave a
+  // now-invalid bearer token in the in-memory browser session.
+  clearAccessToken();
+  return parsedResponse;
+};
+
 export const refreshAccessToken = (): Promise<void> => {
   if (accessToken !== undefined) {
     return Promise.resolve();
@@ -313,6 +359,7 @@ export const refreshAccessToken = (): Promise<void> => {
  * and never writes access or refresh tokens to browser storage.
  */
 export const authClient = Object.freeze({
+  changePassword: patchPassword,
   login: async (payload: LoginRequest): Promise<LoginResponse> => {
     const response = await postAuth("login", payload, 201, isLoginResponse);
     setAccessToken(response.accessToken);

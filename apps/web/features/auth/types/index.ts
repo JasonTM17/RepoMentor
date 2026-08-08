@@ -24,6 +24,12 @@ export interface RegisterRequest {
   readonly password: string;
 }
 
+export interface ChangePasswordRequest {
+  readonly currentPassword: string;
+  readonly newPassword: string;
+  readonly newPasswordConfirmation: string;
+}
+
 export type AuthUserRole = "USER" | "ADMIN";
 
 export type AuthUserStatus = "ACTIVE" | "DISABLED";
@@ -53,7 +59,12 @@ export interface LogoutResponse {
   readonly loggedOut: true;
 }
 
-export type AuthResponse = LoginResponse | LogoutResponse | RegisterResponse;
+export interface ChangePasswordResponse {
+  readonly passwordChanged: true;
+}
+
+export type AuthResponse =
+  ChangePasswordResponse | LoginResponse | LogoutResponse | RegisterResponse;
 
 export const AUTH_GENERIC_ERROR =
   "We could not complete that request. Check your details and try again.";

@@ -26,7 +26,9 @@ const source = Object.freeze({
   preview: readTrackedSource("components/review-preview.tsx"),
   login: readTrackedSource("app/login/page.tsx"),
   register: readTrackedSource("app/register/page.tsx"),
+  settingsPage: readTrackedSource("app/settings/page.tsx"),
   authPage: readTrackedSource("features/auth/components/AuthPage.tsx"),
+  passwordChangePage: readTrackedSource("features/auth/components/PasswordChangePage.tsx"),
   authSessionAction: readTrackedSource("features/auth/components/AuthSessionAction.tsx"),
   authField: readTrackedSource("features/auth/components/AuthField.tsx"),
   passwordField: readTrackedSource("features/auth/components/PasswordField.tsx"),
@@ -425,6 +427,12 @@ test("visible shell copy contains no em dash", () => {
 test("auth routes expose the intended mode and API endpoint seam", () => {
   assert.match(source.login, /<AuthPage\s+mode="login"\s*\/>/u);
   assert.match(source.register, /<AuthPage\s+mode="register"\s*\/>/u);
+  assert.match(source.settingsPage, /<PasswordChangePage\s*\/>/u);
+  assert.match(source.passwordChangePage, /PATCH \/api\/v1\/auth\/password/u);
+  assert.match(source.passwordChangePage, /status === "success"/u);
+  assert.match(source.passwordChangePage, /status === "error"/u);
+  assert.match(source.passwordChangePage, /aria-busy=\{status === "loading"\}/u);
+  assert.match(source.passwordChangePage, /router\.replace\("\/login\?password=changed"\)/u);
   assert.match(source.authPage, /apiPath:\s*"POST \/api\/v1\/auth\/login"/u);
   assert.match(source.authPage, /apiPath:\s*"POST \/api\/v1\/auth\/register"/u);
   assert.match(source.authPage, /data-api-endpoint=\{copy\.apiPath\}/u);
@@ -474,6 +482,10 @@ test("auth client matches the integrated response envelopes and token boundary",
   assert.match(source.authClient, /hasExactKeys\(value,\s*\[\s*"accessToken"/u);
   assert.match(source.authClient, /hasExactKeys\(value,\s*\["accepted"\]\)/u);
   assert.match(source.authClient, /hasExactKeys\(value,\s*\["loggedOut"\]\)/u);
+  assert.match(source.authTypes, /interface ChangePasswordResponse[\s\S]*passwordChanged:\s*true/u);
+  assert.match(source.authClient, /hasExactKeys\(value,\s*\["passwordChanged"\]\)/u);
+  assert.match(source.authClient, /method:\s*"PATCH"/u);
+  assert.match(source.authClient, /clearAccessToken\(\)/u);
   assert.match(source.authClient, /!parseData\(body\.data\)/u);
   assert.match(source.authClient, /value\.tokenType\s*===\s*"Bearer"/u);
   assert.match(source.authClient, /Number\.isInteger\(value\.expiresInSeconds\)/u);
@@ -586,6 +598,51 @@ test("auth client rejects invalid success metadata at runtime", async () => {
     await assert.rejects(
       () => authClient.login(authRequest),
       (error) => error instanceof AuthClientError && error.status === 201,
+    );
+  } finally {
+    clearAccessToken();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("auth client changes a password through the memory-only bearer boundary", async () => {
+  const { authClient, clearAccessToken, getAccessToken, setAccessToken } = await authClientRuntime;
+  const originalFetch = globalThis.fetch;
+  let request;
+
+  try {
+    setAccessToken("memory-only-access-token");
+    globalThis.fetch = async (url, init) => {
+      request = { init, url };
+      return createJsonResponse(200, { data: { passwordChanged: true } });
+    };
+
+    await assert.doesNotReject(() =>
+      authClient.changePassword({
+        currentPassword: "current-password",
+        newPassword: "new-password-long-enough",
+        newPasswordConfirmation: "new-password-long-enough",
+      }),
+    );
+
+    assert.equal(request.url, "/api/v1/auth/password");
+    assert.equal(request.init.method, "PATCH");
+    assert.equal(request.init.credentials, "include");
+    assert.deepEqual(request.init.headers, {
+      Authorization: "Bearer memory-only-access-token",
+      "Content-Type": "application/json",
+    });
+    assert.equal(getAccessToken(), undefined);
+
+    globalThis.fetch = async () => createJsonResponse(200, { data: { passwordChanged: false } });
+    await assert.rejects(
+      () =>
+        authClient.changePassword({
+          currentPassword: "current-password",
+          newPassword: "new-password-long-enough",
+          newPasswordConfirmation: "new-password-long-enough",
+        }),
+      /Authentication request failed\./u,
     );
   } finally {
     clearAccessToken();
