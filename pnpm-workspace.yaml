@@ -1,6 +1,10 @@
 packages:
   - apps/*
   - packages/*
+# Keep patched transitive versions until upstream manifests stop pinning vulnerable releases.
+overrides:
+  effect: 3.20.0
+  js-yaml: 5.2.2
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true

@@ -19,7 +19,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@playwright/test": "1.51.1",
+    "@playwright/test": "1.55.1",
     "@repomentor/eslint-config": "workspace:*",
     "@repomentor/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "4.3.3",
