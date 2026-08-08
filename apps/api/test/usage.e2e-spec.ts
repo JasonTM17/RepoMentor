@@ -392,6 +392,93 @@ describe("usage API", () => {
     assert.equal(JSON.stringify(history.body).includes("other-secret-review"), false);
   });
 
+  it("preserves history statuses and nullable usage fields", async () => {
+    const owner = await createUser();
+
+    usageRepository.seed(
+      record(owner.id, {
+        createdAt: new Date("2026-08-06T00:01:00.000Z"),
+        language: "TypeScript",
+        mode: "QUICK",
+        result: null,
+        reviewId: "pending-history",
+        status: "PENDING",
+      }),
+      record(owner.id, {
+        createdAt: new Date("2026-08-06T00:02:00.000Z"),
+        language: "Python",
+        mode: "STANDARD",
+        result: { durationMs: 17, usage: null },
+        reviewId: "failed-history",
+        status: "FAILED",
+      }),
+      record(owner.id, {
+        createdAt: new Date("2026-08-06T00:03:00.000Z"),
+        language: "Rust",
+        mode: "DEEP",
+        result: {
+          durationMs: 23,
+          usage: {
+            estimatedCostMicros: 1_234,
+            inputTokens: 40,
+            outputTokens: 10,
+            pricingVersion: "luna-2026-08",
+            totalTokens: 50,
+          },
+        },
+        reviewId: "completed-history",
+        status: "COMPLETED",
+      }),
+    );
+
+    const history = await request(app.getHttpServer())
+      .get("/api/v1/usage/history?page=1&limit=20")
+      .set("authorization", `Bearer ${owner.accessToken}`);
+
+    assert.equal(history.status, 200);
+    assert.deepEqual(history.body.data.items, [
+      {
+        createdAt: "2026-08-06T00:03:00.000Z",
+        durationMs: 23,
+        estimatedCostMicros: 1_234,
+        inputTokens: 40,
+        language: "rust",
+        mode: "DEEP",
+        outputTokens: 10,
+        pricingVersion: "luna-2026-08",
+        reviewId: "completed-history",
+        status: "COMPLETED",
+        totalTokens: 50,
+      },
+      {
+        createdAt: "2026-08-06T00:02:00.000Z",
+        durationMs: 17,
+        estimatedCostMicros: null,
+        inputTokens: null,
+        language: "python",
+        mode: "STANDARD",
+        outputTokens: null,
+        pricingVersion: null,
+        reviewId: "failed-history",
+        status: "FAILED",
+        totalTokens: null,
+      },
+      {
+        createdAt: "2026-08-06T00:01:00.000Z",
+        durationMs: null,
+        estimatedCostMicros: null,
+        inputTokens: null,
+        language: "typescript",
+        mode: "QUICK",
+        outputTokens: null,
+        pricingVersion: null,
+        reviewId: "pending-history",
+        status: "PENDING",
+        totalTokens: null,
+      },
+    ]);
+  });
+
   it("paginates the owner view and rejects invalid or unknown query values", async () => {
     const owner = await createUser();
     const other = await createUser();

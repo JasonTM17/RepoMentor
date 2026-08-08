@@ -7,6 +7,42 @@ import { PrismaUsageRepository } from "../../src/modules/usage/prisma-usage.repo
 const OWNER_ID = "usage-owner";
 const NOW = new Date("2026-08-06T02:00:00.000Z");
 
+interface CostFixture {
+  readonly estimatedCostMicros: bigint | number | null;
+  readonly pricingVersion: string | null;
+}
+
+function createSummaryPrisma(costRows: readonly CostFixture[]): {
+  readonly costWhere: unknown[];
+  readonly prisma: PrismaService;
+} {
+  const costWhere: unknown[] = [];
+  const prisma = {
+    review: {
+      count: async () => 1,
+      groupBy: async () => [],
+    },
+    reviewUsage: {
+      aggregate: async () => ({
+        _sum: { inputTokens: 4, outputTokens: 5, totalTokens: 9 },
+      }),
+      findMany: async (args: { readonly where: unknown }) => {
+        costWhere.push(args.where);
+        return costRows;
+      },
+    },
+  } as unknown as PrismaService;
+
+  return { costWhere, prisma };
+}
+
+async function getSummaryForCostRows(costRows: readonly CostFixture[]) {
+  const { costWhere, prisma } = createSummaryPrisma(costRows);
+  const summary = await new PrismaUsageRepository(prisma).getSummaryForUser(OWNER_ID);
+
+  return { costWhere, summary };
+}
+
 describe("Prisma usage repository", () => {
   it("keeps summary aggregates and usage sums owner-scoped", async () => {
     const summaryWhere: unknown[] = [];
@@ -70,6 +106,65 @@ describe("Prisma usage repository", () => {
       (usageWhere as { readonly reviewResult: { readonly review: unknown } }).reviewResult.review,
       { deletedAt: null, status: "COMPLETED", userId: OWNER_ID },
     );
+  });
+
+  it("reports an AVAILABLE owner aggregate for compatible persisted estimates", async () => {
+    const { costWhere, summary } = await getSummaryForCostRows([
+      { estimatedCostMicros: 12_345, pricingVersion: "luna-2026-08" },
+      { estimatedCostMicros: 6_789n, pricingVersion: "luna-2026-08" },
+    ]);
+
+    assert.deepEqual(summary.cost, {
+      estimatedCostMicros: 19_134,
+      pricingVersion: "luna-2026-08",
+      status: "AVAILABLE",
+    });
+    assert.deepEqual(costWhere, [
+      {
+        reviewResult: {
+          review: { deletedAt: null, status: "COMPLETED", userId: OWNER_ID },
+        },
+      },
+    ]);
+  });
+
+  it("reports MIXED when a completed usage is missing an estimate", async () => {
+    const { summary } = await getSummaryForCostRows([
+      { estimatedCostMicros: 12_345, pricingVersion: "luna-2026-08" },
+      { estimatedCostMicros: null, pricingVersion: null },
+    ]);
+
+    assert.deepEqual(summary.cost, {
+      estimatedCostMicros: null,
+      pricingVersion: null,
+      status: "MIXED",
+    });
+  });
+
+  it("reports MIXED when completed estimates use different pricing versions", async () => {
+    const { summary } = await getSummaryForCostRows([
+      { estimatedCostMicros: 12_345, pricingVersion: "luna-2026-08" },
+      { estimatedCostMicros: 6_789, pricingVersion: "luna-2026-09" },
+    ]);
+
+    assert.deepEqual(summary.cost, {
+      estimatedCostMicros: null,
+      pricingVersion: null,
+      status: "MIXED",
+    });
+  });
+
+  it("returns UNAVAILABLE rather than fabricating an overflowing aggregate", async () => {
+    const { summary } = await getSummaryForCostRows([
+      { estimatedCostMicros: Number.MAX_SAFE_INTEGER, pricingVersion: "luna-2026-08" },
+      { estimatedCostMicros: 1, pricingVersion: "luna-2026-08" },
+    ]);
+
+    assert.deepEqual(summary.cost, {
+      estimatedCostMicros: null,
+      pricingVersion: null,
+      status: "UNAVAILABLE",
+    });
   });
 
   it("selects only source-free history fields and applies stable owner pagination", async () => {
