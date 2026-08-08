@@ -1170,6 +1170,10 @@ run `31254038139` passed at this docs-only head. Container validation remains
 green at the last code head `eeb7327` in run `31253446243`; the two following
 commits are documentation-only and do not change runtime inputs.
 
+The follow-up documentation candidate that records this final alignment is
+`a32af2b02df7d06e0bedf13cd43bee2871fbfb12`; it remains on the isolated docs
+branch until the exact-head arbiter accepts it.
+
 The docs branch was independently Luna-accepted by agent
 `019fe106-14f2-7b02-8b9a-f49d87308471` after the coordinator verified exact
 ancestry, clean status, four-path scope, and `git diff --check`. The protected
