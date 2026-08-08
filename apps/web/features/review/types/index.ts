@@ -121,9 +121,12 @@ export interface ReviewMetrics {
  * The current demo transport does not provide this data.
  */
 export interface ReviewOptionalResultData {
+  readonly diff?: string;
+  readonly generatedTests?: readonly string[];
   readonly generatedTest?: string;
   readonly improvedCode?: string;
   readonly improvedSource?: string;
+  readonly learningQuestions?: readonly string[];
   readonly learningQuestion?: string;
   readonly originalSource?: string;
 }

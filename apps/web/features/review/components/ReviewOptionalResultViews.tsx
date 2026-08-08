@@ -21,17 +21,29 @@ const OptionalUnavailable: FC<{ readonly copy: string }> = ({ copy }): ReactElem
 const optionalText = (value: string | undefined): string | undefined =>
   value?.trim() ? value : undefined;
 
+const optionalTexts = (values: readonly string[] | undefined): string[] =>
+  (values ?? []).map(optionalText).filter((value): value is string => value !== undefined);
+
 const ReviewOptionalResultViews: FC<ReviewOptionalResultViewsProps> = ({
   language,
   optionalData,
   source,
 }): ReactElement => {
   const improvedCode = optionalText(optionalData?.improvedCode);
-  const generatedTest = optionalText(optionalData?.generatedTest);
-  const learningQuestion = optionalText(optionalData?.learningQuestion);
   const improvedSource = optionalText(optionalData?.improvedSource) ?? improvedCode;
+  const legacyGeneratedTest = optionalText(optionalData?.generatedTest);
+  const legacyLearningQuestion = optionalText(optionalData?.learningQuestion);
+  const generatedTests = [
+    ...optionalTexts(optionalData?.generatedTests),
+    ...(legacyGeneratedTest ? [legacyGeneratedTest] : []),
+  ];
+  const learningQuestions = [
+    ...optionalTexts(optionalData?.learningQuestions),
+    ...(legacyLearningQuestion ? [legacyLearningQuestion] : []),
+  ];
+  const diff = optionalText(optionalData?.diff);
   const originalSource = optionalText(optionalData?.originalSource) ?? source;
-  const hasDiff = Boolean(improvedSource);
+  const hasComparison = Boolean(improvedSource);
 
   return (
     <section className="review-optional-views" aria-labelledby="review-optional-heading">
@@ -41,10 +53,10 @@ const ReviewOptionalResultViews: FC<ReviewOptionalResultViewsProps> = ({
             Review extensions
           </h3>
           <p className="review-section-copy">
-            These views render only when the result supplies the corresponding optional data.
+            These views render the validated education payload when the result supplies it.
           </p>
         </div>
-        <span className="status-label">Optional result data</span>
+        <span className="status-label">Education payload</span>
       </div>
 
       <div className="review-optional-grid">
@@ -63,14 +75,20 @@ const ReviewOptionalResultViews: FC<ReviewOptionalResultViewsProps> = ({
 
         <section className="review-optional-panel" aria-labelledby="review-generated-test-heading">
           <h4 id="review-generated-test-heading" className="review-optional-title">
-            Generated test
+            Generated tests
           </h4>
-          {generatedTest ? (
-            <pre className="review-optional-code" aria-label="Generated test case">
-              <code>{generatedTest}</code>
-            </pre>
+          {generatedTests.length > 0 ? (
+            <ol className="review-optional-list">
+              {generatedTests.map((test, index) => (
+                <li key={`${test.slice(0, 32)}-${index}`}>
+                  <pre className="review-optional-code" aria-label={`Generated test ${index + 1}`}>
+                    <code>{test}</code>
+                  </pre>
+                </li>
+              ))}
+            </ol>
           ) : (
-            <OptionalUnavailable copy="No generated test case was included in this result." />
+            <OptionalUnavailable copy="No generated test cases were included in this result." />
           )}
         </section>
 
@@ -79,12 +97,18 @@ const ReviewOptionalResultViews: FC<ReviewOptionalResultViewsProps> = ({
           aria-labelledby="review-learning-question-heading"
         >
           <h4 id="review-learning-question-heading" className="review-optional-title">
-            Learning question
+            Learning questions
           </h4>
-          {learningQuestion ? (
-            <p className="review-learning-question">{learningQuestion}</p>
+          {learningQuestions.length > 0 ? (
+            <ol className="review-learning-list">
+              {learningQuestions.map((question, index) => (
+                <li key={`${question.slice(0, 32)}-${index}`}>
+                  <p className="review-learning-question">{question}</p>
+                </li>
+              ))}
+            </ol>
           ) : (
-            <OptionalUnavailable copy="No learning question was included in this result." />
+            <OptionalUnavailable copy="No learning questions were included in this result." />
           )}
         </section>
       </div>
@@ -96,21 +120,26 @@ const ReviewOptionalResultViews: FC<ReviewOptionalResultViewsProps> = ({
               Original versus improved
             </h4>
             <p id="review-diff-note" className="review-section-copy">
-              The comparison editor is available only when improved source data is supplied.
+              The validated result may include a unified diff and a side-by-side source comparison.
             </p>
           </div>
-          <span className="status-label">Optional diff</span>
+          <span className="status-label">Diff and comparison</span>
         </div>
-        {hasDiff ? (
+        {diff ? (
+          <pre className="review-optional-code review-optional-diff" aria-label="Unified diff">
+            <code>{diff}</code>
+          </pre>
+        ) : null}
+        {hasComparison ? (
           <ReviewDiffEditor
             describedBy="review-diff-note"
             language={language}
             modified={improvedSource ?? ""}
             original={originalSource}
           />
-        ) : (
+        ) : !diff ? (
           <OptionalUnavailable copy="An original and improved source pair is not available." />
-        )}
+        ) : null}
       </section>
     </section>
   );

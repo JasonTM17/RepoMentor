@@ -56,10 +56,17 @@ const ReviewResultActions: FC<ReviewResultActionsProps> = ({
   result,
 }): ReactElement => {
   const [feedback, setFeedback] = useState<ReviewResultFeedback>({ message: "", tone: "idle" });
-  const improvedCode = optionalData?.improvedCode?.trim() ? optionalData.improvedCode : undefined;
-  const generatedTest = optionalData?.generatedTest?.trim()
-    ? optionalData.generatedTest
-    : undefined;
+  const improvedCode = optionalData?.improvedCode?.trim()
+    ? optionalData.improvedCode
+    : optionalData?.improvedSource?.trim()
+      ? optionalData.improvedSource
+      : undefined;
+  const generatedTests = [
+    ...(optionalData?.generatedTests ?? []).filter((value) => value.trim()),
+    ...(optionalData?.generatedTest?.trim() ? [optionalData.generatedTest] : []),
+  ];
+  const generatedTest = generatedTests.length > 0 ? generatedTests.join("\n\n") : undefined;
+  const diff = optionalData?.diff?.trim() ? optionalData.diff : undefined;
 
   const copyText = useCallback(async (label: string, value: string | undefined): Promise<void> => {
     const browser = globalThis as unknown as BrowserGlobalLike;
@@ -132,6 +139,20 @@ const ReviewResultActions: FC<ReviewResultActionsProps> = ({
           }
         >
           Copy test case
+          <LineIcon name="code" />
+        </button>
+        <button
+          className="action-secondary review-result-action"
+          type="button"
+          onClick={() => void copyText("Unified diff", diff)}
+          disabled={!diff}
+          aria-label={
+            diff
+              ? "Copy unified diff"
+              : "Copy unified diff unavailable because no diff was supplied"
+          }
+        >
+          Copy diff
           <LineIcon name="code" />
         </button>
         <button

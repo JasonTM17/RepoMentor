@@ -292,6 +292,26 @@ const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
       : transportMode === "custom"
         ? "Configured transport result"
         : "Demo fixture";
+  const education = result.result.education;
+  const hasEducationPayload =
+    education.diff !== null ||
+    education.improvedSource !== null ||
+    education.generatedTests.length > 0 ||
+    education.learningQuestions.length > 0;
+  const educationOptionalData: ReviewOptionalResultData = {
+    ...(education.diff === null ? {} : { diff: education.diff }),
+    generatedTests: education.generatedTests,
+    ...(education.improvedSource === null
+      ? {}
+      : {
+          improvedCode: education.improvedSource,
+          improvedSource: education.improvedSource,
+        }),
+    learningQuestions: education.learningQuestions,
+  };
+  const effectiveOptionalData = hasEducationPayload
+    ? { ...optionalData, ...educationOptionalData }
+    : optionalData;
 
   return (
     <section
@@ -311,7 +331,7 @@ const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
       </header>
 
       <div className="review-results-body">
-        <ReviewResultActions optionalData={optionalData} result={result} />
+        <ReviewResultActions optionalData={effectiveOptionalData} result={result} />
 
         <div className="review-result-grid">
           <section className="review-score-panel" aria-labelledby="review-score-heading">
@@ -420,7 +440,7 @@ const ReviewResultPanel: FC<ReviewResultPanelProps> = ({
 
         <ReviewOptionalResultViews
           language={language}
-          optionalData={optionalData}
+          optionalData={effectiveOptionalData}
           source={source}
         />
       </div>

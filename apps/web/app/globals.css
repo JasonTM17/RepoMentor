@@ -1928,6 +1928,23 @@ button {
     white-space: pre-wrap;
   }
 
+  .review-optional-list,
+  .review-learning-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: var(--space-4) 0 0;
+    padding-left: var(--space-5);
+  }
+
+  .review-optional-list .review-optional-code {
+    margin-top: 0;
+  }
+
+  .review-optional-diff {
+    border-color: var(--color-accent);
+    background: var(--color-surface);
+  }
+
   .review-optional-state {
     min-height: var(--space-9);
     margin-top: var(--space-4);
@@ -1942,7 +1959,7 @@ button {
   }
 
   .review-learning-question {
-    margin: var(--space-4) 0 0;
+    margin: 0;
     color: var(--color-ink-muted);
     font-size: var(--text-lead);
     line-height: 1.5;
