@@ -43,6 +43,7 @@ services:
         condition: service_healthy
     networks:
       - local-infrastructure
+      - application-edge
     # This is process liveness only; it does not assert PostgreSQL or Redis readiness.
     healthcheck:
       test:
@@ -72,7 +73,7 @@ services:
       api:
         condition: service_healthy
     networks:
-      - local-infrastructure
+      - application-edge
     # The web image has no dedicated health route; this checks its HTTP shell only.
     healthcheck:
       test:
@@ -142,3 +143,5 @@ networks:
   local-infrastructure:
     driver: bridge
     internal: true
+  application-edge:
+    driver: bridge

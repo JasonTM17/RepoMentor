@@ -18,10 +18,12 @@ deployment.
 
 The migration service waits for healthy PostgreSQL and applies the checked-in
 migrations. The API starts only after migration succeeds and PostgreSQL and
-Redis are healthy; the web depends on the API process-liveness check. The
-network is internal and service ports are bound to `127.0.0.1`. The API and web
-health checks prove HTTP process/shell liveness only; API `/health/ready`
-remains application-only.
+Redis are healthy; the web depends on the API process-liveness check. The API
+and web share an `application-edge` bridge network and expose HTTP only through
+loopback host bindings. PostgreSQL, Redis, and the migration service remain on
+the internal `local-infrastructure` network; the API also joins that network to
+reach them. The API and web health checks prove HTTP process/shell liveness
+only; API `/health/ready` remains application-only.
 
 For a local setup, copy `.env.example` to an untracked `.env`, choose unused
 localhost ports, URL-encode credentials in `DATABASE_URL`/`REDIS_URL`, set the
