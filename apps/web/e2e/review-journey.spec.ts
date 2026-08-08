@@ -46,10 +46,10 @@ const result = {
   id: reviewId,
   result: {
     education: {
-      diff: null,
-      generatedTests: [],
-      improvedSource: null,
-      learningQuestions: [],
+      diff: "@@ -1 +1 @@\n-const fallback = value;\n+const fallback = value ?? defaultValue;",
+      generatedTests: ['test("fallback", () => expect(fallback).toBeDefined());'],
+      improvedSource: "const fallback = value ?? defaultValue;",
+      learningQuestions: ["Which boundary should keep the fallback invariant visible?"],
     },
     findings: [
       {
@@ -247,6 +247,12 @@ test("registers, signs in, and completes one authenticated review through the br
   ).toBeVisible();
   await expect(page.getByText("Authenticated API result")).toBeVisible();
   await expect(page.getByText("Name the fallback path")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Improved code" })).toBeVisible();
+  await expect(page.getByText("Generated tests")).toBeVisible();
+  await expect(
+    page.getByText("Which boundary should keep the fallback invariant visible?"),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Diff and comparison" })).toBeVisible();
   await expect(page.getByText("provider-secret-fixture")).toHaveCount(0);
 
   await expect.poll(() => registerRequests.length).toBe(1);
