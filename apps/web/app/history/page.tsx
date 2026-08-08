@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactElement } from "react";
 
-import UsageHistory from "@/features/usage/components/UsageHistory";
+import HistoryWorkspace from "@/features/history/components/HistoryWorkspace";
 
 export const metadata: Metadata = {
   title: "History",
 };
 
-const HistoryPage = (): ReactElement => <UsageHistory />;
+const HistoryPage = (): ReactElement => <HistoryWorkspace />;
 
 export default HistoryPage;
