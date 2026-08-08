@@ -122,6 +122,7 @@ Useful project notes:
 - [Optional RAG suggestion provider ADR](docs/architecture/adr-001-optional-rag-suggestion-provider.md)
 - [Prisma migration ownership](docs/architecture/database-migration-ownership.md)
 - [Release, tag, and package boundaries](docs/release.md)
+- [Application CI gates and evidence boundaries](docs/ci.md)
 - [UI media capture script](docs/media/capture-ui-media.ps1)
 
 ## Implemented routes

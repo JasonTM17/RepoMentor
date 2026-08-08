@@ -1,0 +1,102 @@
+name: Application gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: application-gates-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  application:
+    name: Deterministic application checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CI: true
+      NODE_ENV: test
+      NEXT_PUBLIC_API_ORIGIN: http://127.0.0.1:3000
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm 11
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.9
+          run_install: false
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Verify toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version | grep --extended-regexp --quiet '^v24\.'
+          test "$(pnpm --version)" = "11.0.9"
+
+      - name: Install frozen dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Validate Prisma schema
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/repomentor_ci
+        run: pnpm db:validate
+
+      - name: Generate Prisma client without connecting to a database
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/repomentor_ci
+        run: pnpm db:generate
+
+      # Keep this before every API check: the API consumes the built workspace
+      # contract, while this workflow intentionally does not start services.
+      - name: Build shared contracts first
+        run: pnpm --filter @repomentor/contracts build
+
+      - name: Run shared contract tests
+        run: pnpm --filter @repomentor/contracts test
+
+      - name: Typecheck API after contract build
+        run: pnpm --filter @repomentor/api typecheck
+
+      - name: Run deterministic API unit and in-memory integration tests
+        run: pnpm --filter @repomentor/api test
+
+      - name: Typecheck web
+        run: pnpm --filter @repomentor/web typecheck
+
+      - name: Run deterministic web tests
+        run: pnpm --filter @repomentor/web test
+
+      - name: Lint workspace
+        run: pnpm lint
+
+      - name: Typecheck workspace
+        run: pnpm typecheck
+
+      - name: Build web application
+        run: pnpm --filter @repomentor/web build
+
+      - name: Build API application
+        run: pnpm --filter @repomentor/api build
+
+      - name: Verify package payloads without publishing
+        run: pnpm package:check
+
+      # This is a required, credential-free registry audit. A finding fails
+      # the job; service, external Luna, browser, and live Docker evidence is
+      # intentionally owned by separate workflows or runtime environments.
+      - name: Audit dependencies for high or critical vulnerabilities
+        run: pnpm audit --audit-level=high
