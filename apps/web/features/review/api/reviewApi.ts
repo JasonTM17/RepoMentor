@@ -61,10 +61,7 @@ const isBoundedString = (value: unknown, maximum: number): value is string =>
   value === value.trim();
 
 const isBoundedNonBlankString = (value: unknown, maximum: number): value is string =>
-  typeof value === "string" &&
-  value.length > 0 &&
-  value.length <= maximum &&
-  /\S/u.test(value);
+  typeof value === "string" && value.length > 0 && value.length <= maximum && /\S/u.test(value);
 
 const isNonNegativeInteger = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 0;

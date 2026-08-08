@@ -22,7 +22,11 @@ export const REVIEW_RESULT_SCHEMA_NAME = "repomentor_code_review";
 
 const nonBlankText = (maxLength: number) => z.string().trim().min(1).max(maxLength);
 const nonBlankPreservedText = (maxLength: number) =>
-  z.string().min(1).max(maxLength).refine((value) => /\S/u.test(value));
+  z
+    .string()
+    .min(1)
+    .max(maxLength)
+    .refine((value) => /\S/u.test(value));
 
 const EMPTY_REVIEW_EDUCATION: ReviewEducationDefault = {
   diff: null,
