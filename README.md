@@ -5,7 +5,7 @@ programming practice. It is a production-oriented monorepo, but the current
 repository checkpoint is an application slice, not a production release.
 
 The current code/evidence baseline is the exact implementation checkpoint
-`4b2dfb7`, and the latest plan evidence checkpoint is `34a9610`. These SHAs
+`a5f55c6`. This SHA
 are exact-head evidence anchors for the local checks recorded below; they are
 not a release, tag, registry, license, package-publication, deployment, or
 production-readiness claim.
@@ -35,12 +35,23 @@ This checkpoint contains:
   accessible sign-in/sign-out header action and retry-safe failure state;
 - authenticated review cancellation through the API-owned cancel boundary,
   with strict `CANCELLED` response validation and reset/unmount cleanup;
+- a public `POST /api/v1/guest/reviews` QUICK path with server-controlled
+  pinned Luna metadata, source-free transient responses, and bounded
+  per-identity Redis quota admission;
 - an authenticated quota-admission path for `POST /api/v1/reviews` with a
   bounded `Idempotency-Key`, atomic Redis admission markers, durable Prisma
   `QuotaAdmission` state, versioned keyed request fingerprints, and a
   Prisma-backed review finalizer;
 - one shared server-side Redis executor/configuration seam used by the
   authenticated admission boundary and the Redis quota/lock primitives;
+- a Redis-backed review process lock wired into processing with bounded lease
+  renewal, lease-loss fencing, and safe release;
+- authenticated status-only SSE lifecycle events with exclusive replay,
+  bounded heartbeats, polling fallback, explicit cancellation, and owner
+  isolation;
+- a strict Luna education result payload for improved source, unified diff,
+  generated tests, and learning questions, rendered as text-only web views
+  with copy/download actions;
 - focused unit and in-memory controller tests for the implemented boundaries.
 
 The authenticated admission contract requires Bearer authentication and a
@@ -63,15 +74,16 @@ states rather than being blindly retried or compensated.
 the fingerprint or its version metadata. The shared `REDIS_COMMAND_EXECUTOR`
 and `USAGE_REDIS_CONFIG` seam feeds the lazy node-redis adapter, which disables
 the offline queue and reconnects, applies bounded command/connect deadlines,
-and preserves operation-specific redacted errors. The review lock primitive is
-`SET NX PX` with an opaque token and compare-and-delete Lua release, but no
-processing route currently acquires it. Guest QUICK quota is only a Redis
-primitive/configuration boundary; there is no guest HTTP route. There is no
-queue, SSE/reconnect result stream, or live PostgreSQL, Redis/EVAL, HTTP
-provider, or external Luna evidence. Processing remains a bounded synchronous
-transport seam. Authenticated web review and usage pages use the API transport
-when a memory-only session exists; guest usage remains explicitly
-deterministic/demo-labelled.
+and preserves operation-specific redacted errors. The review process uses
+`SET NX PX` with an opaque token, bounded renewal, compare-and-delete Lua
+release, and conditional generation fencing when a lease is lost. The guest
+route is transient and does not create history records. Authenticated review
+processing remains synchronous, but exposes a status-only SSE/reconnect
+transport with bounded polling fallback; no durable background queue is
+claimed. None of this local evidence proves live PostgreSQL, Redis/EVAL, HTTP
+provider, or external Luna behavior. Authenticated web review and usage pages
+use the API transport when a memory-only session exists; guest usage remains
+explicitly deterministic/demo-labelled.
 
 ## Architecture
 
@@ -321,21 +333,24 @@ deployment, or production readiness.
 
 ## Current checkpoint evidence — 2026-08-08
 
-The implementation checkpoint `4b2dfb7` passed `pnpm test` with API `250/250`,
-contracts `7/7`, and web `42/42`. `pnpm typecheck`, `pnpm lint`,
-`pnpm format:check`, `pnpm build`, and `pnpm package:check` also passed.
-The authenticated usage and review transports send a memory-only Bearer token
-when present and keep guest fixtures explicit. The review workspace now
-requests server cancellation when an authenticated run is reset, superseded,
-or unmounted, and rejects a non-`CANCELLED` success payload. Playwright
-discovery is `1/1`, but execution remains blocked because Chromium revision
-`chromium-1161` is not installed locally. No Docker image, registry artifact,
-tag, public package, GitHub release, or deployment was created or claimed.
+The exact merged implementation checkpoint `a5f55c6` passed `pnpm test` with
+API `251/251`, contracts `7/7`, and web `42/42`. `pnpm typecheck`, `pnpm lint`,
+`pnpm format:check`, `pnpm build`, `pnpm package:check`, Prisma validation and
+generation with a process-local dummy URL, and a credential-shaped repository
+scan also passed. The checkpoint includes the guest QUICK route, Redis review
+process lease/fencing, authenticated status-only SSE/replay with polling
+fallback, cancellation/logout boundaries, and the Luna education result
+contract plus text-only UI/export views.
 
-GitHub Container Validation run `31204852778` passed against code head
-`4b2dfb7`: workflow syntax, Hadolint, Dockerfile and Compose contracts, both
-`linux/amd64` no-publish image builds, API liveness, and web shell smoke. This
-is CI validation evidence only; it is not a registry publication or deployment.
+Playwright discovery is `1/1`, but execution remains unverified because
+Chromium revision `chromium-1161` is not installed locally. No Docker image,
+registry artifact, tag, public package, GitHub release, or deployment was
+created or claimed.
+
+GitHub Container Validation run `31234347927` passed against the exact code
+head `a5f55c6`: workflow, Dockerfile/Compose validation, and both
+`linux/amd64` no-publish image builds. This is CI validation evidence only; it
+is not a registry publication or deployment.
 
 ## Security and environment boundaries
 
@@ -379,10 +394,13 @@ processing, PostgreSQL, Redis, AI output, or a production deployment._
   routes are covered with deterministic Redis executors, fake Luna, and
   in-memory repositories only. There is no live Redis EVAL, PostgreSQL
   transaction/isolation, HTTP provider, or external Luna call.
-- Guest quota is not exposed through an HTTP route, and the Redis process-lock
-  primitive is not wired into the processing route.
-- There is no queue or SSE/reconnect result stream; processing is a bounded
-  synchronous transport seam.
+- Guest QUICK review is exposed through `POST /api/v1/guest/reviews`, but live
+  Redis quota admission and external Luna execution were not run locally.
+- The Redis process lock is wired into the synchronous processing route and
+  has deterministic lease/fencing tests; multi-instance live runtime proof is
+  not available.
+- Authenticated status-only SSE/replay and polling fallback are implemented;
+  there is no durable background queue or live multi-instance stream evidence.
 - The home shell is static; authenticated review and usage routes use API
   seams, but live backend dependencies and repository data are not verified
   by these local checks.

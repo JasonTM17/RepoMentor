@@ -6,9 +6,10 @@ package publication, or production readiness.
 
 ## Source/evidence baseline
 
-- Current implementation checkpoint: `4b2dfb7`.
-- Latest plan evidence checkpoint: `34a9610`.
-- These SHAs are exact-head evidence anchors for the local checks recorded in
+- Current implementation checkpoint: `a5f55c6`.
+- The final plan/report addendum is authored in the bounded documentation
+  refresh that follows this checkpoint.
+- This SHA is the exact-head evidence anchor for the local checks recorded in
   the current checkpoint addendum; they do not establish a tag, release,
   registry artifact, license, deployment, or production certification.
 
@@ -65,18 +66,28 @@ operation-specific redacted unavailable errors. The authenticated admission
 path uses the shared seam for its atomic quota-admission reservation and
 marker/compensation scripts.
 
+The review processing route also acquires a per-review `SET NX PX` lease,
+renews it with an owner token, fences terminal writes after lease loss, and
+releases it best-effort. This is deterministic multi-worker coordination
+logic; no live multi-instance Redis run was performed.
+
 The reusable review lock primitive uses `SET NX PX` with an opaque bounded
-token and compare-and-delete Lua release. It is a primitive only: the current
-review processing route does not acquire or release this lock, and the lock
-TTL is not process-lock or multi-worker evidence.
+token and compare-and-delete Lua release. The processing route is the current
+consumer of that primitive; the deterministic lease/fencing tests do not prove
+a live multi-instance Redis deployment.
 
 ### Explicit deferred boundaries
 
-- Guest QUICK quota exists as a Redis primitive/configuration boundary with a
-  default of `3`, but no guest HTTP route or guest admission integration is
-  implemented.
-- Processing is a bounded synchronous transport seam. There is no queue, SSE
-  or reconnect result stream, and no claim of streaming implementation.
+- `POST /api/v1/guest/reviews` is implemented as a transient QUICK endpoint
+  with server-controlled Luna metadata and bounded Redis quota admission;
+  live Redis and external Luna execution were not run locally.
+- Authenticated processing is synchronous and exposes status-only SSE with
+  exclusive replay, bounded heartbeat/lifetime, polling fallback, cancellation,
+  and owner isolation. There is no durable background queue claim.
+- The validated Luna result now includes bounded `education` data for improved
+  source, unified diff, generated tests, and learning questions. The web UI
+  renders these as text/code views and export actions; it never executes model
+  output.
 - Deterministic tests use fake Luna, in-memory repositories, and deterministic
   Redis executors. No live PostgreSQL migration/transaction isolation, Redis
   `EVAL`, HTTP provider, or external Luna call was run for this refresh.
@@ -111,25 +122,29 @@ checkpoint addendum follows the table.
 
 ## Current checkpoint addendum — 2026-08-08
 
-The merged implementation checkpoint `4b2dfb7` passed API `250/250`, web
-`42/42`, and contracts `7/7`; root typecheck, lint, format check, production
-build, and package payload verification also passed. The authenticated usage
-and review transports emit a Bearer header only for a current memory-only
-access token; guest usage remains an explicit fixture boundary. Web logout
-validates the API-owned refresh-cookie response before clearing its memory-only
-access token. The review workspace requests the API cancel boundary when an
-authenticated run is reset, superseded, or unmounted, and accepts only a
-strict `CANCELLED` response. Playwright discovery is
-`1/1`, but the browser run is not claimed because Chromium revision
-`chromium-1161` is unavailable locally. No Docker image, registry artifact,
-semantic tag, public package, GitHub release, or deployment was created.
-Live PostgreSQL, Redis, HTTP provider, external Luna, and Docker daemon
+The merged implementation checkpoint `a5f55c6` passed API `251/251`, web
+`42/42`, and contracts `7/7`; the focused UI branch also passed web
+typecheck, lint, format check, and production build. The result contract is
+strict and Luna-only, normalizes legacy persisted results with empty education
+fields, and carries improved source, unified diff, generated tests, and
+learning questions through the authenticated result API into text-only web
+views, copy/download actions, and Markdown/JSON exports. No model output is
+executed in the browser.
+
+The guest QUICK route, Redis process lock, authenticated status-only SSE with
+replay/polling fallback, logout, and cancellation boundaries are implemented
+and covered by deterministic tests. Playwright discovery is `1/1`, but the
+browser run is not claimed because Chromium revision `chromium-1161` is
+unavailable locally. No Docker image, registry artifact, semantic tag, public
+package, GitHub release, or deployment was created. Live PostgreSQL, Redis,
+HTTP provider, external Luna, Docker daemon, and multi-instance runtime
 evidence remain unverified.
 
-GitHub Container Validation run `31204852778` passed against code head
-`4b2dfb7`: workflow syntax, Hadolint, Dockerfile and Compose contracts, both
-`linux/amd64` no-publish image builds, API liveness, and web shell smoke. This
-is CI validation evidence only; it is not a registry publication or deployment.
+GitHub Container Validation run `31234347927` passed against the exact merged
+code head `a5f55c6`: workflow validation, Dockerfile and Compose contracts,
+and both `linux/amd64` no-publish image builds. It is CI validation evidence
+only; it is not a registry publication or deployment. Run `31204852778` remains
+historical evidence for the earlier `4b2dfb7` checkpoint.
 
 The validation table above is historical evidence from the earlier docs
 refresh; rerun all release gates on the exact tag commit before publication.
@@ -143,7 +158,7 @@ workflow. Its static job runs workflow syntax validation, Hadolint, Dockerfile
 contract checks, and `docker compose config --quiet` with safe dummy values.
 Its build job builds the API and web images for `linux/amd64` with
 `push: false`, then smoke-tests API `/health/live` and the web `/` shell. This
-workflow passed for the current code head in run `31204852778`; the run did not
+workflow passed for the current code head in run `31234347927`; the run did not
 use registry credentials or publish images. A passing validation run is not a
 registry publication or deployment claim.
 
