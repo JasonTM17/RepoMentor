@@ -373,16 +373,15 @@ deployment, or production readiness.
 
 ## Current checkpoint evidence — 2026-08-08
 
-The current merged and pushed code checkpoint is `953e7da` and
-`origin/main` points to the same commit. It passed root `pnpm test`: API
-`268/268`, web `46/46`, and contracts `7/7`. The same checkpoint passed
-`pnpm typecheck`, `pnpm lint`, `pnpm build`,
-`pnpm format:check`, `pnpm package:check`, Prisma validation/generation with a
-process-local dummy `DATABASE_URL`, `git diff --check`, and a
-credential-shaped scan. `pnpm audit --audit-level=high` reports no known
-vulnerabilities after the dependency remediation slice. The API security suite
-covers the CORS, body-limit, and header/error boundaries; these are deterministic
-checks, not live deployment evidence.
+The current merged and pushed code checkpoint is `5453e8c` and
+`origin/main` points to the same commit. Hosted GitHub Application Gates run
+`31241219840` passed the deterministic API, contracts, and web tests, format,
+lint, typecheck, both application builds, package verification, and the high
+severity dependency audit. The exact-head local evidence at the parent
+`953e7da` recorded API `268/268`, web `46/46`, contracts `7/7`, and the same
+quality gates; the current checkpoint adds only the workflow environment fix
+that keeps web smoke tests same-origin. These are deterministic checks, not
+live deployment evidence.
 
 The settings slice was implemented as `0bc05c7` from exact base `576a1ab` and
 merged fast-forward. The security slice was implemented as `e5d97ad` from the
@@ -410,15 +409,16 @@ Chromium revision `chromium-1161` is not installed locally. No Docker image,
 registry artifact, tag, public package, GitHub release, or deployment was
 created or claimed.
 
-GitHub Container Validation run `31234347927` passed against the prior code
-head `a5f55c6`: workflow, Dockerfile/Compose validation, and both
+GitHub Container Validation run `31241219843` passed against the current code
+head `5453e8c`: workflow, Dockerfile/Compose validation, and both
 `linux/amd64` no-publish image builds. This is CI validation evidence only; it
 is not a registry publication or deployment.
 
 `.github/workflows/application-gates.yml` now runs the deterministic application
-gate set on pull requests and pushes to `main`. The workflow has not yet been
-claimed as a completed GitHub run for `953e7da`; its local command evidence and
-fail-closed audit behavior are recorded in [docs/ci.md](docs/ci.md).
+gate set on pull requests and pushes to `main`. The completed hosted run for
+`5453e8c` is recorded in [docs/ci.md](docs/ci.md); its fail-closed audit
+behavior remains separate from live PostgreSQL, Redis, Luna, browser, or
+deployment evidence.
 
 ## Security and environment boundaries
 
