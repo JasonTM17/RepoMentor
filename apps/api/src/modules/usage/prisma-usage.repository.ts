@@ -2,10 +2,12 @@ import { Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 
 import { PrismaService } from "../auth/prisma.service.js";
+import { toPersistedAiUsageRecordFromStorage } from "../review/review-result.persistence.js";
 import type {
   UsageCountByLanguage,
   UsageCountByMode,
   UsageCountByStatus,
+  UsageCostAggregate,
   UsageHistoryListInput,
   UsageHistoryListResult,
   UsageHistoryRecord,
@@ -24,8 +26,11 @@ const historySelect = {
       durationMs: true,
       usage: {
         select: {
+          cachedInputTokens: true,
+          estimatedCostMicros: true,
           inputTokens: true,
           outputTokens: true,
+          pricingVersion: true,
           totalTokens: true,
         },
       },
@@ -35,6 +40,18 @@ const historySelect = {
 } satisfies Prisma.ReviewSelect;
 
 type HistoryRow = Prisma.ReviewGetPayload<{ select: typeof historySelect }>;
+type StoredUsageRow = {
+  readonly cachedInputTokens: number | null;
+  readonly estimatedCostMicros: bigint | number | null;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly pricingVersion: string | null;
+  readonly totalTokens: number;
+};
+type StoredCostRow = Pick<StoredUsageRow, "estimatedCostMicros" | "pricingVersion">;
+
+const PRICING_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u;
+const MAX_SAFE_COST_MICROS = BigInt(Number.MAX_SAFE_INTEGER);
 
 function escapePrismaLikeSearch(value: string): string {
   return value.replaceAll("_", "\\_");
@@ -76,14 +93,7 @@ function mapHistoryRow(row: HistoryRow): UsageHistoryRecord {
         ? null
         : {
             durationMs: row.result.durationMs,
-            usage:
-              row.result.usage === null
-                ? null
-                : {
-                    inputTokens: row.result.usage.inputTokens,
-                    outputTokens: row.result.usage.outputTokens,
-                    totalTokens: row.result.usage.totalTokens,
-                  },
+            usage: row.result.usage === null ? null : mapStoredUsage(row.result.usage),
           },
     reviewId: row.id,
     status: row.status,
@@ -97,6 +107,18 @@ function mapStatusCounts(
     count: row._count._all,
     status: row.status as UsageCountByStatus["status"],
   }));
+}
+
+function mapStoredUsage(row: StoredUsageRow): UsageTokenRecord {
+  const persisted = toPersistedAiUsageRecordFromStorage(row);
+
+  return {
+    estimatedCostMicros: persisted.estimatedCostMicros,
+    inputTokens: persisted.inputTokens,
+    outputTokens: persisted.outputTokens,
+    pricingVersion: persisted.pricingVersion,
+    totalTokens: persisted.totalTokens,
+  };
 }
 
 function mapLanguageCounts(
@@ -120,9 +142,66 @@ function mapTokenTotals(totals: {
   readonly totalTokens: number | null;
 }): UsageTokenRecord {
   return {
+    estimatedCostMicros: null,
     inputTokens: totals.inputTokens ?? 0,
     outputTokens: totals.outputTokens ?? 0,
+    pricingVersion: null,
     totalTokens: totals.totalTokens ?? 0,
+  };
+}
+
+function toSafeCostMicros(value: bigint | number | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value === "bigint") {
+    return value >= 0n && value <= MAX_SAFE_COST_MICROS ? Number(value) : null;
+  }
+
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function mapCostAggregate(rows: readonly StoredCostRow[]): UsageCostAggregate {
+  let knownCostRows = 0;
+  let unknownCostRows = 0;
+  let totalCostMicros = 0n;
+  const pricingVersions = new Set<string>();
+
+  for (const row of rows) {
+    const estimatedCostMicros = toSafeCostMicros(row.estimatedCostMicros);
+    const pricingVersion =
+      typeof row.pricingVersion === "string" && PRICING_VERSION_PATTERN.test(row.pricingVersion)
+        ? row.pricingVersion
+        : null;
+
+    if (estimatedCostMicros === null || pricingVersion === null) {
+      unknownCostRows += 1;
+      continue;
+    }
+
+    knownCostRows += 1;
+    pricingVersions.add(pricingVersion);
+    totalCostMicros += BigInt(estimatedCostMicros);
+  }
+
+  if (knownCostRows === 0) {
+    return { estimatedCostMicros: null, pricingVersion: null, status: "UNAVAILABLE" };
+  }
+
+  if (unknownCostRows > 0 || pricingVersions.size !== 1) {
+    return { estimatedCostMicros: null, pricingVersion: null, status: "MIXED" };
+  }
+
+  const pricingVersion = [...pricingVersions][0];
+  if (pricingVersion === undefined || totalCostMicros > MAX_SAFE_COST_MICROS) {
+    return { estimatedCostMicros: null, pricingVersion: null, status: "UNAVAILABLE" };
+  }
+
+  return {
+    estimatedCostMicros: Number(totalCostMicros),
+    pricingVersion,
+    status: "AVAILABLE",
   };
 }
 
@@ -145,33 +224,45 @@ export class PrismaUsageRepository implements UsageRepository {
       },
     };
 
-    const [totalReviews, statusCounts, languageCounts, completedReviews, deepReviews, tokenTotals] =
-      await Promise.all([
-        this.prisma.review.count({ where: ownedReviewWhere }),
-        this.prisma.review.groupBy({
-          _count: { _all: true },
-          by: ["status"],
-          where: ownedReviewWhere,
-        }),
-        this.prisma.review.groupBy({
-          _count: { _all: true },
-          by: ["language"],
-          where: ownedReviewWhere,
-        }),
-        this.prisma.review.count({ where: completedReviewWhere }),
-        this.prisma.review.count({ where: { ...ownedReviewWhere, mode: "DEEP" } }),
-        this.prisma.reviewUsage.aggregate({
-          _sum: {
-            inputTokens: true,
-            outputTokens: true,
-            totalTokens: true,
-          },
-          where: usageWhere,
-        }),
-      ]);
+    const [
+      totalReviews,
+      statusCounts,
+      languageCounts,
+      completedReviews,
+      deepReviews,
+      tokenTotals,
+      costRows,
+    ] = await Promise.all([
+      this.prisma.review.count({ where: ownedReviewWhere }),
+      this.prisma.review.groupBy({
+        _count: { _all: true },
+        by: ["status"],
+        where: ownedReviewWhere,
+      }),
+      this.prisma.review.groupBy({
+        _count: { _all: true },
+        by: ["language"],
+        where: ownedReviewWhere,
+      }),
+      this.prisma.review.count({ where: completedReviewWhere }),
+      this.prisma.review.count({ where: { ...ownedReviewWhere, mode: "DEEP" } }),
+      this.prisma.reviewUsage.aggregate({
+        _sum: {
+          inputTokens: true,
+          outputTokens: true,
+          totalTokens: true,
+        },
+        where: usageWhere,
+      }),
+      this.prisma.reviewUsage.findMany({
+        select: { estimatedCostMicros: true, pricingVersion: true },
+        where: usageWhere,
+      }),
+    ]);
 
     return {
       completedReviews,
+      cost: mapCostAggregate(costRows),
       deepReviews,
       languageCounts: mapLanguageCounts(languageCounts),
       statusCounts: mapStatusCounts(statusCounts),

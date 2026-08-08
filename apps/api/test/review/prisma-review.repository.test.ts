@@ -105,7 +105,13 @@ function createRepository(options: { readonly failResultInsert?: Error } = {}) {
 
         assert.equal(args.data.reviewId, REVIEW_ID);
         assert.deepEqual(args.data.usage, {
-          create: { inputTokens: 12, outputTokens: 8, totalTokens: 20 },
+          create: {
+            estimatedCostMicros: null,
+            inputTokens: 12,
+            outputTokens: 8,
+            pricingVersion: null,
+            totalTokens: 20,
+          },
         });
         resultInserted = true;
         return {};

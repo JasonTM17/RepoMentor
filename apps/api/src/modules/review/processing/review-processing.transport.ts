@@ -11,7 +11,7 @@ import {
 } from "@nestjs/common";
 import { ApiProperty } from "@nestjs/swagger";
 
-import { AI_MODEL, AI_PROVIDER, type AiUsage } from "../../ai/ai.types.js";
+import { AI_MODEL, AI_PROVIDER, type PersistedAiUsage } from "../../ai/ai.types.js";
 import {
   validatePersistedAiReviewExecution,
   type ReviewResultRecord,
@@ -49,7 +49,7 @@ export interface ReviewResultExecutionResponse {
   readonly model: typeof AI_MODEL;
   readonly provider: typeof AI_PROVIDER;
   readonly reasoningEffort: "low" | "medium" | "max";
-  readonly usage: AiUsage | null;
+  readonly usage: PersistedAiUsage | null;
 }
 
 export interface ReviewResultResponse {
@@ -127,7 +127,7 @@ export class ReviewResultExecutionResponseDto {
   reasoningEffort!: "low" | "medium" | "max";
 
   @ApiProperty({ nullable: true, type: Object })
-  usage!: AiUsage | null;
+  usage!: PersistedAiUsage | null;
 }
 
 export class ReviewResultResponseDto {
@@ -210,6 +210,7 @@ export function toReviewProcessingResponse(
 }
 
 export function toReviewResultResponse(record: ReviewResultRecord): ReviewResultResponse {
+  const rawUsage = record.usage;
   const execution = validatePersistedAiReviewExecution({
     attempts: record.attempts,
     durationMs: record.durationMs,
@@ -217,7 +218,18 @@ export function toReviewResultResponse(record: ReviewResultRecord): ReviewResult
     provider: record.provider,
     reasoningEffort: record.reasoningEffort,
     result: record.result,
-    ...(record.usage === null ? {} : { usage: record.usage }),
+    ...(rawUsage === null
+      ? {}
+      : {
+          usage: {
+            ...(rawUsage.cachedInputTokens === undefined
+              ? {}
+              : { cachedInputTokens: rawUsage.cachedInputTokens }),
+            inputTokens: rawUsage.inputTokens,
+            outputTokens: rawUsage.outputTokens,
+            totalTokens: rawUsage.totalTokens,
+          },
+        }),
   });
 
   return {
@@ -228,7 +240,7 @@ export function toReviewResultResponse(record: ReviewResultRecord): ReviewResult
       model: execution.model,
       provider: execution.provider,
       reasoningEffort: execution.reasoningEffort,
-      usage: record.usage,
+      usage: rawUsage,
     },
     id: record.reviewId,
     result: execution.result,

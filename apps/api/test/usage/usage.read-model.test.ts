@@ -88,10 +88,17 @@ describe("usage UTC read model", () => {
     const summary = toUsageSummary(
       {
         completedReviews: 0,
+        cost: { estimatedCostMicros: null, pricingVersion: null, status: "UNAVAILABLE" },
         deepReviews: 0,
         languageCounts: [],
         statusCounts: [],
-        tokenTotals: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        tokenTotals: {
+          estimatedCostMicros: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          pricingVersion: null,
+          totalTokens: 0,
+        },
         totalReviews: 0,
       },
       AS_OF,
@@ -100,10 +107,13 @@ describe("usage UTC read model", () => {
     assert.deepEqual(summary, {
       asOf: AS_OF.toISOString(),
       completedReviews: 0,
+      costStatus: "UNAVAILABLE",
       deepReviews: 0,
+      estimatedCostMicros: null,
       inputTokens: 0,
       languageDistribution: [],
       outputTokens: 0,
+      pricingVersion: null,
       reviewsByStatus: {
         CANCELLED: 0,
         COMPLETED: 0,
@@ -119,6 +129,7 @@ describe("usage UTC read model", () => {
   it("bounds summary integers and merges normalized language buckets", () => {
     const aggregate: UsageSummaryAggregate = {
       completedReviews: Number.MAX_SAFE_INTEGER + 10,
+      cost: { estimatedCostMicros: null, pricingVersion: null, status: "UNAVAILABLE" },
       deepReviews: -1,
       languageCounts: [
         { count: 2, language: "TypeScript" },
@@ -129,8 +140,10 @@ describe("usage UTC read model", () => {
         { count: 2, status: "COMPLETED" },
       ],
       tokenTotals: {
+        estimatedCostMicros: null,
         inputTokens: 12,
         outputTokens: 8,
+        pricingVersion: null,
         totalTokens: 20,
       },
       totalReviews: 3,
@@ -165,7 +178,13 @@ describe("usage UTC read model", () => {
       mode: "DEEP",
       result: {
         durationMs: 0,
-        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        usage: {
+          estimatedCostMicros: null,
+          inputTokens: 0,
+          outputTokens: 0,
+          pricingVersion: null,
+          totalTokens: 0,
+        },
       },
       reviewId: "completed-review",
       status: "COMPLETED",
@@ -174,10 +193,12 @@ describe("usage UTC read model", () => {
     assert.deepEqual(toUsageHistoryItem(withoutResult), {
       createdAt: AS_OF.toISOString(),
       durationMs: null,
+      estimatedCostMicros: null,
       inputTokens: null,
       language: "javascript",
       mode: "QUICK",
       outputTokens: null,
+      pricingVersion: null,
       reviewId: "pending-review",
       status: "PENDING",
       totalTokens: null,
@@ -185,10 +206,12 @@ describe("usage UTC read model", () => {
     assert.deepEqual(toUsageHistoryItem(withZeroUsage), {
       createdAt: AS_OF.toISOString(),
       durationMs: 0,
+      estimatedCostMicros: null,
       inputTokens: 0,
       language: "typescript",
       mode: "DEEP",
       outputTokens: 0,
+      pricingVersion: null,
       reviewId: "completed-review",
       status: "COMPLETED",
       totalTokens: 0,

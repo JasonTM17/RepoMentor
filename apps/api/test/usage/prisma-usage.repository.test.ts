@@ -41,6 +41,7 @@ describe("Prisma usage repository", () => {
             _sum: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
           };
         },
+        findMany: async () => [{ estimatedCostMicros: null, pricingVersion: null }],
       },
     } as unknown as PrismaService;
     const repository = new PrismaUsageRepository(prisma);
@@ -50,7 +51,18 @@ describe("Prisma usage repository", () => {
     assert.equal(summary.totalReviews, 3);
     assert.equal(summary.completedReviews, 1);
     assert.equal(summary.deepReviews, 2);
-    assert.deepEqual(summary.tokenTotals, { inputTokens: 10, outputTokens: 20, totalTokens: 30 });
+    assert.deepEqual(summary.cost, {
+      estimatedCostMicros: null,
+      pricingVersion: null,
+      status: "UNAVAILABLE",
+    });
+    assert.deepEqual(summary.tokenTotals, {
+      estimatedCostMicros: null,
+      inputTokens: 10,
+      outputTokens: 20,
+      pricingVersion: null,
+      totalTokens: 30,
+    });
     for (const where of summaryWhere) {
       assert.equal((where as { readonly userId?: string }).userId, OWNER_ID);
     }
@@ -79,7 +91,14 @@ describe("Prisma usage repository", () => {
               mode: "STANDARD",
               result: {
                 durationMs: 42,
-                usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+                usage: {
+                  cachedInputTokens: null,
+                  estimatedCostMicros: null,
+                  inputTokens: 10,
+                  outputTokens: 20,
+                  pricingVersion: null,
+                  totalTokens: 30,
+                },
               },
               source: "must never be selected",
               status: "COMPLETED",
@@ -105,7 +124,13 @@ describe("Prisma usage repository", () => {
         mode: "STANDARD",
         result: {
           durationMs: 42,
-          usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+          usage: {
+            estimatedCostMicros: null,
+            inputTokens: 10,
+            outputTokens: 20,
+            pricingVersion: null,
+            totalTokens: 30,
+          },
         },
         reviewId: "owned-review",
         status: "COMPLETED",

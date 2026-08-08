@@ -631,7 +631,13 @@ describe("review processing orchestration", () => {
     assert.equal(persisted.attempts, 1);
     assert.ok(persisted.durationMs >= 0);
     assert.deepEqual(persisted.result, VALID_RESULT);
-    assert.deepEqual(persisted.usage, { inputTokens: 10, outputTokens: 8, totalTokens: 18 });
+    assert.deepEqual(persisted.usage, {
+      estimatedCostMicros: null,
+      inputTokens: 10,
+      outputTokens: 8,
+      pricingVersion: null,
+      totalTokens: 18,
+    });
     const acquisition = redisExecutor.setCalls[0];
     const release = redisExecutor.evalCalls[0];
     assert.ok(acquisition);

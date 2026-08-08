@@ -42,6 +42,15 @@ export interface AiUsage {
   readonly cachedInputTokens?: number;
 }
 
+/**
+ * Usage after the server has persisted an optional, versioned pricing estimate.
+ * Provider responses never supply these fields; the review persistence boundary derives them.
+ */
+export interface PersistedAiUsage extends AiUsage {
+  readonly estimatedCostMicros: number | null;
+  readonly pricingVersion: string | null;
+}
+
 export interface AiProviderResult {
   readonly output: unknown;
   readonly usage?: AiUsage;

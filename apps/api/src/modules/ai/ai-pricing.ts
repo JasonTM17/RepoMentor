@@ -1,5 +1,7 @@
 import type { AiUsage } from "./ai.types.js";
 
+export const AI_PRICING_CONFIG = Symbol("AI_PRICING_CONFIG");
+
 export const AI_PRICING_ENV_NAMES = {
   VERSION: "AI_PRICING_VERSION",
   INPUT_RATE: "AI_INPUT_USD_MICROS_PER_MILLION_TOKENS",
@@ -141,10 +143,7 @@ function toNonNegativeBigInt(value: number): bigint {
   return bigintValue < 0n ? 0n : bigintValue;
 }
 
-export function estimateAiUsageCostMicros(
-  usage: AiPricingUsage,
-  config: AiPricingConfig,
-): number {
+export function estimateAiUsageCostMicros(usage: AiPricingUsage, config: AiPricingConfig): number {
   const inputTokens = toNonNegativeBigInt(usage.inputTokens);
   const cachedInputTokens = toNonNegativeBigInt(usage.cachedInputTokens ?? 0);
   const outputTokens = toNonNegativeBigInt(usage.outputTokens);

@@ -1,3 +1,4 @@
+import type { AiPricingConfig } from "../ai/ai-pricing.js";
 import type { AiReviewExecution } from "../ai/ai.types.js";
 import type { ReviewResult } from "../ai/review-result.schema.js";
 import { toReviewResultRecord, type ReviewResultRecord } from "./review-result.persistence.js";
@@ -57,6 +58,8 @@ export class InMemoryReviewRepository implements ReviewRepository {
   private readonly events = new Map<string, ReviewEventRecord[]>();
   private readonly eventSequences = new Map<string, number>();
   private sequence = 0;
+
+  constructor(private readonly pricingConfig?: AiPricingConfig) {}
 
   async create(input: CreateReviewInput): Promise<ReviewRecord> {
     const now = new Date();
@@ -223,7 +226,7 @@ export class InMemoryReviewRepository implements ReviewRepository {
       return null;
     }
 
-    const result = toReviewResultRecord(id, execution, now);
+    const result = toReviewResultRecord(id, execution, now, this.pricingConfig);
     const completed: ReviewRecord = {
       ...review,
       status: "COMPLETED",

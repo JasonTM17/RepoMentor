@@ -28,7 +28,12 @@ import {
   USAGE_MAX_HISTORY_PAGE_SIZE,
   USAGE_MAX_HISTORY_SEARCH_LENGTH,
 } from "./usage.read-model.js";
-import { USAGE_HISTORY_SORT_ORDERS, type UsageHistorySortOrder } from "./usage.types.js";
+import {
+  USAGE_COST_STATUSES,
+  USAGE_HISTORY_SORT_ORDERS,
+  type UsageCostStatus,
+  type UsageHistorySortOrder,
+} from "./usage.types.js";
 
 function toStrictInteger({ value }: { readonly value: unknown }): unknown {
   if (typeof value !== "string") {
@@ -200,6 +205,19 @@ export class UsageSummaryResponseDto {
   @ApiProperty({ example: "2026-08-06T02:00:00.000Z", format: "date-time" })
   asOf!: string;
 
+  @ApiProperty({ enum: USAGE_COST_STATUSES, example: "UNAVAILABLE" })
+  costStatus!: UsageCostStatus;
+
+  @ApiProperty({
+    description:
+      "Null unless all owned completed usage rows have a compatible configured estimate.",
+    example: 840000,
+    minimum: 0,
+    nullable: true,
+    type: Number,
+  })
+  estimatedCostMicros!: number | null;
+
   @ApiProperty({
     description: "Owned non-deleted reviews with COMPLETED status.",
     example: 2,
@@ -226,6 +244,9 @@ export class UsageSummaryResponseDto {
 
   @ApiProperty({ type: [UsageLanguageDistributionDto] })
   languageDistribution!: readonly UsageLanguageDistributionDto[];
+
+  @ApiProperty({ example: "luna-2026-08", maxLength: 80, nullable: true })
+  pricingVersion!: string | null;
 
   @ApiProperty({
     description: "Sum of outputTokens from owned completed ReviewUsage rows.",
@@ -263,6 +284,15 @@ export class UsageHistoryItemDto {
   durationMs!: number | null;
 
   @ApiProperty({
+    description: "Null when no compatible configured estimate was persisted.",
+    example: 840000,
+    minimum: 0,
+    nullable: true,
+    type: Number,
+  })
+  estimatedCostMicros!: number | null;
+
+  @ApiProperty({
     description: "Null when no persisted ReviewUsage row exists.",
     example: 120,
     nullable: true,
@@ -283,6 +313,9 @@ export class UsageHistoryItemDto {
     type: Number,
   })
   outputTokens!: number | null;
+
+  @ApiProperty({ example: "luna-2026-08", maxLength: 80, nullable: true })
+  pricingVersion!: string | null;
 
   @ApiProperty({ example: "clreview123456789012345678", minLength: 1 })
   reviewId!: string;

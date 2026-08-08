@@ -999,7 +999,11 @@ describe("review API", () => {
     assert.equal(result.body.data.id, created.id);
     assert.equal(result.body.data.status, "COMPLETED");
     assert.deepEqual(result.body.data.result, validExecution.result);
-    assert.deepEqual(result.body.data.execution.usage, validExecution.usage);
+    assert.deepEqual(result.body.data.execution.usage, {
+      ...validExecution.usage,
+      estimatedCostMicros: null,
+      pricingVersion: null,
+    });
     assert.equal(result.body.data.execution.provider, "luna");
     assert.equal(result.body.data.execution.model, "gpt-5.6-luna");
     assert.equal(result.body.data.execution.reasoningEffort, "medium");

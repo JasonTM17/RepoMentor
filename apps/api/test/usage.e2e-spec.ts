@@ -93,9 +93,12 @@ class InMemoryUsageRepository implements UsageRepository {
         language,
       })),
       statusCounts: [...statusCounts.entries()].map(([status, count]) => ({ count, status })),
+      cost: { estimatedCostMicros: null, pricingVersion: null, status: "UNAVAILABLE" },
       tokenTotals: {
+        estimatedCostMicros: null,
         inputTokens: sum(tokenRecords.map((usage) => usage.inputTokens)),
         outputTokens: sum(tokenRecords.map((usage) => usage.outputTokens)),
+        pricingVersion: null,
         totalTokens: sum(tokenRecords.map((usage) => usage.totalTokens)),
       },
       totalReviews: records.length,
@@ -241,7 +244,13 @@ describe("usage API", () => {
         mode: "STANDARD",
         result: {
           durationMs: 42,
-          usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+          usage: {
+            estimatedCostMicros: null,
+            inputTokens: 10,
+            outputTokens: 20,
+            pricingVersion: null,
+            totalTokens: 30,
+          },
         },
         reviewId: "owner-standard",
         status: "COMPLETED",
@@ -252,7 +261,13 @@ describe("usage API", () => {
         mode: "DEEP",
         result: {
           durationMs: 0,
-          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          usage: {
+            estimatedCostMicros: null,
+            inputTokens: 0,
+            outputTokens: 0,
+            pricingVersion: null,
+            totalTokens: 0,
+          },
         },
         reviewId: "owner-deep",
         status: "COMPLETED",
@@ -263,7 +278,13 @@ describe("usage API", () => {
         mode: "DEEP",
         result: {
           durationMs: 999,
-          usage: { inputTokens: 900, outputTokens: 800, totalTokens: 1_700 },
+          usage: {
+            estimatedCostMicros: null,
+            inputTokens: 900,
+            outputTokens: 800,
+            pricingVersion: null,
+            totalTokens: 1_700,
+          },
         },
         reviewId: "other-secret-review",
         status: "COMPLETED",
@@ -281,10 +302,13 @@ describe("usage API", () => {
     assert.deepEqual(Object.keys(summary.body.data).sort(), [
       "asOf",
       "completedReviews",
+      "costStatus",
       "deepReviews",
+      "estimatedCostMicros",
       "inputTokens",
       "languageDistribution",
       "outputTokens",
+      "pricingVersion",
       "reviewsByStatus",
       "totalReviews",
       "totalTokens",
@@ -299,8 +323,11 @@ describe("usage API", () => {
     assert.equal(summary.body.data.totalReviews, 4);
     assert.equal(summary.body.data.completedReviews, 2);
     assert.equal(summary.body.data.deepReviews, 1);
+    assert.equal(summary.body.data.costStatus, "UNAVAILABLE");
+    assert.equal(summary.body.data.estimatedCostMicros, null);
     assert.equal(summary.body.data.inputTokens, 10);
     assert.equal(summary.body.data.outputTokens, 20);
+    assert.equal(summary.body.data.pricingVersion, null);
     assert.equal(summary.body.data.totalTokens, 30);
     assert.deepEqual(summary.body.data.languageDistribution, [
       { count: 1, language: "javascript" },
@@ -323,10 +350,12 @@ describe("usage API", () => {
     assert.deepEqual(Object.keys(history.body.data.items[0]).sort(), [
       "createdAt",
       "durationMs",
+      "estimatedCostMicros",
       "inputTokens",
       "language",
       "mode",
       "outputTokens",
+      "pricingVersion",
       "reviewId",
       "status",
       "totalTokens",
@@ -335,10 +364,12 @@ describe("usage API", () => {
       {
         createdAt: "2026-08-06T00:04:00.000Z",
         durationMs: 0,
+        estimatedCostMicros: null,
         inputTokens: 0,
         language: "python",
         mode: "DEEP",
         outputTokens: 0,
+        pricingVersion: null,
         reviewId: "owner-deep",
         status: "COMPLETED",
         totalTokens: 0,
@@ -346,10 +377,12 @@ describe("usage API", () => {
       {
         createdAt: "2026-08-06T00:03:00.000Z",
         durationMs: 42,
+        estimatedCostMicros: null,
         inputTokens: 10,
         language: "typescript",
         mode: "STANDARD",
         outputTokens: 20,
+        pricingVersion: null,
         reviewId: "owner-standard",
         status: "COMPLETED",
         totalTokens: 30,

@@ -5,10 +5,21 @@ export const USAGE_REPOSITORY = Symbol("USAGE_REPOSITORY");
 export const USAGE_HISTORY_SORT_ORDERS = ["asc", "desc"] as const;
 export type UsageHistorySortOrder = (typeof USAGE_HISTORY_SORT_ORDERS)[number];
 
+export const USAGE_COST_STATUSES = ["AVAILABLE", "MIXED", "UNAVAILABLE"] as const;
+export type UsageCostStatus = (typeof USAGE_COST_STATUSES)[number];
+
 export interface UsageTokenRecord {
+  readonly estimatedCostMicros: number | null;
   readonly inputTokens: number;
   readonly outputTokens: number;
+  readonly pricingVersion: string | null;
   readonly totalTokens: number;
+}
+
+export interface UsageCostAggregate {
+  readonly estimatedCostMicros: number | null;
+  readonly pricingVersion: string | null;
+  readonly status: UsageCostStatus;
 }
 
 export interface UsageHistoryResultRecord {
@@ -69,6 +80,7 @@ export interface UsageSummaryAggregate {
   readonly statusCounts: readonly UsageCountByStatus[];
   readonly completedReviews: number;
   readonly deepReviews: number;
+  readonly cost: UsageCostAggregate;
   readonly tokenTotals: UsageTokenRecord;
   readonly languageCounts: readonly UsageCountByLanguage[];
 }

@@ -6,12 +6,14 @@ import {
 } from "../review/review.types.js";
 import type { UsageQuotaConfig } from "./usage.config.js";
 import type { UtcDayWindow } from "./usage.date.js";
-import type {
-  UsageCountByLanguage,
-  UsageCountByMode,
-  UsageHistoryListResult,
-  UsageHistoryRecord,
-  UsageSummaryAggregate,
+import {
+  USAGE_COST_STATUSES,
+  type UsageCountByLanguage,
+  type UsageCountByMode,
+  type UsageCostStatus,
+  type UsageHistoryListResult,
+  type UsageHistoryRecord,
+  type UsageSummaryAggregate,
 } from "./usage.types.js";
 
 export const USAGE_MAX_HISTORY_PAGE_SIZE = 50;
@@ -36,12 +38,15 @@ export interface UsageLanguageDistribution {
 }
 
 export interface UsageSummaryResponse {
+  readonly costStatus: UsageCostStatus;
+  readonly estimatedCostMicros: number | null;
   readonly totalReviews: number;
   readonly reviewsByStatus: UsageStatusCounts;
   readonly completedReviews: number;
   readonly deepReviews: number;
   readonly inputTokens: number;
   readonly outputTokens: number;
+  readonly pricingVersion: string | null;
   readonly totalTokens: number;
   readonly languageDistribution: readonly UsageLanguageDistribution[];
   readonly asOf: string;
@@ -52,8 +57,10 @@ export interface UsageHistoryItem {
   readonly language: string;
   readonly mode: ReviewMode;
   readonly status: ReviewStatus;
+  readonly estimatedCostMicros: number | null;
   readonly inputTokens: number | null;
   readonly outputTokens: number | null;
+  readonly pricingVersion: string | null;
   readonly totalTokens: number | null;
   readonly durationMs: number | null;
   readonly createdAt: string;
@@ -101,6 +108,20 @@ export function toBoundedNonNegativeInteger(value: unknown): number {
   }
 
   return Math.min(Math.floor(value), MAX_USAGE_INTEGER);
+}
+
+function toNullableBoundedNonNegativeInteger(value: unknown): number | null {
+  return value === null || value === undefined ? null : toBoundedNonNegativeInteger(value);
+}
+
+function isUsageCostStatus(value: string): value is UsageCostStatus {
+  return (USAGE_COST_STATUSES as readonly string[]).includes(value);
+}
+
+function normalizePricingVersion(value: unknown): string | null {
+  return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u.test(value)
+    ? value
+    : null;
 }
 
 export function addBoundedNonNegativeIntegers(left: unknown, right: unknown): number {
@@ -160,11 +181,20 @@ export function toUsageSummary(aggregate: UsageSummaryAggregate, asOf: Date): Us
   return {
     asOf: asOf.toISOString(),
     completedReviews: toBoundedNonNegativeInteger(aggregate.completedReviews),
+    costStatus: isUsageCostStatus(aggregate.cost.status) ? aggregate.cost.status : "UNAVAILABLE",
     deepReviews: toBoundedNonNegativeInteger(aggregate.deepReviews),
+    estimatedCostMicros:
+      aggregate.cost.status === "AVAILABLE"
+        ? toNullableBoundedNonNegativeInteger(aggregate.cost.estimatedCostMicros)
+        : null,
     inputTokens: toBoundedNonNegativeInteger(aggregate.tokenTotals.inputTokens),
     languageDistribution: mapLanguageCounts(aggregate.languageCounts),
     outputTokens: toBoundedNonNegativeInteger(aggregate.tokenTotals.outputTokens),
     reviewsByStatus,
+    pricingVersion:
+      aggregate.cost.status === "AVAILABLE"
+        ? normalizePricingVersion(aggregate.cost.pricingVersion)
+        : null,
     totalReviews: toBoundedNonNegativeInteger(aggregate.totalReviews),
     totalTokens: toBoundedNonNegativeInteger(aggregate.tokenTotals.totalTokens),
   };
@@ -185,6 +215,12 @@ export function toUsageHistoryItem(record: UsageHistoryRecord): UsageHistoryItem
       usage === null || usage === undefined
         ? null
         : toBoundedNonNegativeInteger(usage.outputTokens),
+    estimatedCostMicros:
+      usage === null || usage === undefined
+        ? null
+        : toNullableBoundedNonNegativeInteger(usage.estimatedCostMicros),
+    pricingVersion:
+      usage === null || usage === undefined ? null : normalizePricingVersion(usage.pricingVersion),
     reviewId: record.reviewId,
     status: record.status,
     totalTokens:

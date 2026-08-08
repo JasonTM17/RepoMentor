@@ -119,6 +119,12 @@ describe("persisted AI review execution contract", () => {
     );
     assert.equal(duplicate, null);
     assert.equal((await repository.findResultForUser(OWNER_ID, REVIEW_ID))?.durationMs, 42);
-    assert.deepEqual(persisted.usage, { inputTokens: 12, outputTokens: 8, totalTokens: 20 });
+    assert.deepEqual(persisted.usage, {
+      estimatedCostMicros: null,
+      inputTokens: 12,
+      outputTokens: 8,
+      pricingVersion: null,
+      totalTokens: 20,
+    });
   });
 });

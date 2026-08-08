@@ -160,15 +160,15 @@ model Review {
 }
 
 model ReviewEvent {
-  reviewId             String         @map("review_id") @db.VarChar(25)
+  reviewId             String          @map("review_id") @db.VarChar(25)
   sequence             Int
   type                 ReviewEventType
   status               ReviewStatus
-  processingGeneration Int            @map("processing_generation")
-  resultAvailable      Boolean        @map("result_available")
+  processingGeneration Int             @map("processing_generation")
+  resultAvailable      Boolean         @map("result_available")
   retryable            Boolean?
-  createdAt            DateTime       @default(now()) @map("created_at")
-  review               Review         @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  createdAt            DateTime        @default(now()) @map("created_at")
+  review               Review          @relation(fields: [reviewId], references: [id], onDelete: Cascade)
 
   @@id([reviewId, sequence])
   @@index([reviewId, sequence])
@@ -176,18 +176,18 @@ model ReviewEvent {
 }
 
 model QuotaAdmission {
-  id                 String               @id @default(cuid()) @db.VarChar(25)
-  userId             String               @map("user_id") @db.VarChar(25)
-  idempotencyKeyHash String               @map("idempotency_key_hash") @db.Char(64)
-  requestFingerprintHash String?          @map("request_fingerprint_hash") @db.Char(64)
-  fingerprintVersion     Int?             @map("fingerprint_version")
-  reviewId           String               @unique @map("review_id") @db.VarChar(25)
-  mode               ReviewMode
-  utcDay             DateTime             @map("utc_day") @db.Date
-  status             QuotaAdmissionStatus @default(PENDING)
-  createdAt          DateTime             @default(now()) @map("created_at")
-  updatedAt          DateTime             @updatedAt @map("updated_at")
-  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                     String               @id @default(cuid()) @db.VarChar(25)
+  userId                 String               @map("user_id") @db.VarChar(25)
+  idempotencyKeyHash     String               @map("idempotency_key_hash") @db.Char(64)
+  requestFingerprintHash String?              @map("request_fingerprint_hash") @db.Char(64)
+  fingerprintVersion     Int?                 @map("fingerprint_version")
+  reviewId               String               @unique @map("review_id") @db.VarChar(25)
+  mode                   ReviewMode
+  utcDay                 DateTime             @map("utc_day") @db.Date
+  status                 QuotaAdmissionStatus @default(PENDING)
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+  user                   User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, idempotencyKeyHash])
   @@index([userId, utcDay, mode, status])
@@ -212,31 +212,33 @@ model ReviewResult {
 }
 
 model ReviewUsage {
-  id                String       @id @default(cuid()) @db.VarChar(25)
-  reviewResultId    String       @unique @map("review_result_id") @db.VarChar(25)
-  inputTokens       Int          @map("input_tokens")
-  outputTokens      Int          @map("output_tokens")
-  totalTokens       Int          @map("total_tokens")
-  cachedInputTokens Int?         @map("cached_input_tokens")
-  createdAt         DateTime     @default(now()) @map("created_at")
-  reviewResult      ReviewResult @relation(fields: [reviewResultId], references: [id], onDelete: Cascade)
+  id                  String       @id @default(cuid()) @db.VarChar(25)
+  reviewResultId      String       @unique @map("review_result_id") @db.VarChar(25)
+  inputTokens         Int          @map("input_tokens")
+  outputTokens        Int          @map("output_tokens")
+  totalTokens         Int          @map("total_tokens")
+  cachedInputTokens   Int?         @map("cached_input_tokens")
+  estimatedCostMicros BigInt?      @map("estimated_cost_micros")
+  pricingVersion      String?      @map("pricing_version") @db.VarChar(80)
+  createdAt           DateTime     @default(now()) @map("created_at")
+  reviewResult        ReviewResult @relation(fields: [reviewResultId], references: [id], onDelete: Cascade)
 
   @@map("review_usages")
 }
 
 model AuditLog {
-  id         String          @id @default(cuid()) @db.VarChar(25)
+  id         String         @id @default(cuid()) @db.VarChar(25)
   action     AuditAction
   outcome    AuditOutcome
-  actorType  AuditActorType  @map("actor_type")
-  userId     String?         @map("user_id") @db.VarChar(64)
-  sessionId  String?         @map("session_id") @db.VarChar(64)
-  requestId  String          @map("request_id") @db.VarChar(128)
-  route      String          @db.VarChar(128)
-  method     String          @db.VarChar(8)
-  statusCode Int             @map("status_code")
-  targetId   String?         @map("target_id") @db.VarChar(64)
-  occurredAt DateTime        @default(now()) @map("occurred_at")
+  actorType  AuditActorType @map("actor_type")
+  userId     String?        @map("user_id") @db.VarChar(64)
+  sessionId  String?        @map("session_id") @db.VarChar(64)
+  requestId  String         @map("request_id") @db.VarChar(128)
+  route      String         @db.VarChar(128)
+  method     String         @db.VarChar(8)
+  statusCode Int            @map("status_code")
+  targetId   String?        @map("target_id") @db.VarChar(64)
+  occurredAt DateTime       @default(now()) @map("occurred_at")
 
   @@index([userId, occurredAt])
   @@index([sessionId, occurredAt])

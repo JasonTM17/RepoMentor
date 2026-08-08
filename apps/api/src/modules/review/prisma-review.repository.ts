@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import type {
   Prisma,
   ReviewEvent as PrismaReviewEvent,
@@ -7,11 +7,14 @@ import type {
   ReviewUsage as PrismaReviewUsage,
 } from "@prisma/client";
 
+import { AI_PRICING_CONFIG, type AiPricingConfig } from "../ai/ai-pricing.js";
 import type { AiReviewExecution } from "../ai/ai.types.js";
 import type { ReviewResult } from "../ai/review-result.schema.js";
 import { PrismaService } from "../auth/prisma.service.js";
 import {
   parsePersistedReviewResult,
+  toPersistedAiUsageRecordFromStorage,
+  toPersistedAiUsageRecord,
   validatePersistedAiReviewExecution,
   type ReviewResultRecord,
 } from "./review-result.persistence.js";
@@ -113,20 +116,25 @@ function mapReviewResult(row: PrismaReviewResultWithUsage): ReviewResultRecord {
     usage:
       row.usage === null
         ? null
-        : {
-            ...(row.usage.cachedInputTokens === null
-              ? {}
-              : { cachedInputTokens: row.usage.cachedInputTokens }),
+        : toPersistedAiUsageRecordFromStorage({
+            cachedInputTokens: row.usage.cachedInputTokens,
+            estimatedCostMicros: row.usage.estimatedCostMicros,
             inputTokens: row.usage.inputTokens,
             outputTokens: row.usage.outputTokens,
+            pricingVersion: row.usage.pricingVersion,
             totalTokens: row.usage.totalTokens,
-          },
+          }),
   };
 }
 
 @Injectable()
 export class PrismaReviewRepository implements ReviewRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional()
+    @Inject(AI_PRICING_CONFIG)
+    private readonly pricingConfig?: AiPricingConfig,
+  ) {}
 
   async create(input: CreateReviewInput): Promise<ReviewRecord> {
     return this.prisma.transaction(async (transaction) => {
@@ -289,6 +297,7 @@ export class PrismaReviewRepository implements ReviewRepository {
     expectedProcessingGeneration: number,
   ): Promise<ReviewRecord | null> {
     const persisted = validatePersistedAiReviewExecution(execution);
+    const persistedUsage = toPersistedAiUsageRecord(persisted.usage, this.pricingConfig);
 
     return this.prisma.transaction(async (transaction) => {
       const transitioned = await transaction.review.updateMany({
@@ -320,17 +329,22 @@ export class PrismaReviewRepository implements ReviewRepository {
           reasoningEffort: persisted.reasoningEffort,
           result: persisted.result as Prisma.InputJsonValue,
           reviewId: id,
-          ...(persisted.usage === undefined
+          ...(persistedUsage === null
             ? {}
             : {
                 usage: {
                   create: {
-                    ...(persisted.usage.cachedInputTokens === undefined
+                    ...(persistedUsage.cachedInputTokens === undefined
                       ? {}
-                      : { cachedInputTokens: persisted.usage.cachedInputTokens }),
-                    inputTokens: persisted.usage.inputTokens,
-                    outputTokens: persisted.usage.outputTokens,
-                    totalTokens: persisted.usage.totalTokens,
+                      : { cachedInputTokens: persistedUsage.cachedInputTokens }),
+                    estimatedCostMicros:
+                      persistedUsage.estimatedCostMicros === null
+                        ? null
+                        : BigInt(persistedUsage.estimatedCostMicros),
+                    inputTokens: persistedUsage.inputTokens,
+                    outputTokens: persistedUsage.outputTokens,
+                    pricingVersion: persistedUsage.pricingVersion,
+                    totalTokens: persistedUsage.totalTokens,
                   },
                 },
               }),
