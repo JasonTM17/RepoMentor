@@ -19,11 +19,12 @@ commits do not change the runtime inputs.
 The tagged `v0.1.4` artifact remains pinned to
 `c3d1fe81928062929009e58d47c911ee8d5625ec`. The current `main` and
 `origin/main` heads are aligned at
-`eeb7327452f0286f8ea512f1bf579bef31db0d92`, which is **not** a new release
-tag. Thirteen focused commits and 27 paths follow the release tag, including
+`2ec543b060a56f43b24026e8a69bb51af0c7228c`, which is **not** a new release
+tag. Fifteen focused commits and 29 paths follow the release tag, including
 safe database migration/seed commands, offline Prisma migration-image
-hardening, owner-scoped history filters and bulk delete, and the authenticated
-responsive `/history` workspace. The exact evidence and remaining live/runtime
+hardening, owner-scoped history filters and bulk delete, the authenticated
+responsive `/history` workspace, and the continuation documentation itself.
+The exact evidence and remaining live/runtime
 limits are recorded in [the 2026-08-08 continuation report](plans/reports/20260808-repomento-continuation.md).
 
 ## Current status

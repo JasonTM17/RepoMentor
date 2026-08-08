@@ -13,7 +13,7 @@ unreleased `main` head.
 - The `v0.1.4` GitHub Release and dual-registry container artifact are
   accepted as a release artifact, not as a deployment or production-readiness
   claim.
-- `main` and `origin/main` are currently aligned at `eeb7327452f0286f8ea512f1bf579bef31db0d92`.
+- `main` and `origin/main` are currently aligned at `2ec543b060a56f43b24026e8a69bb51af0c7228c`.
   This is an unreleased post-`v0.1.4` head.
 - The current web history slice is integrated. It has deterministic evidence,
   hosted application/container validation, and a Luna exact-head ACCEPT. It
@@ -30,9 +30,9 @@ unreleased `main` head.
 | --- | --- | --- |
 | Historical deterministic checkpoint | `953e7da627d75bda394cdcfae2cee3a0199321be` | Historical evidence only |
 | Released runtime tag | `v0.1.4` resolves to `c3d1fe81928062929009e58d47c911ee8d5625ec` | Released container/GitHub artifact |
-| Current `main` and `origin/main` | `eeb7327452f0286f8ea512f1bf579bef31db0d92` | Current unreleased head |
+| Current `main` and `origin/main` | `2ec543b060a56f43b24026e8a69bb51af0c7228c` | Current unreleased head |
 
-There are 13 commits and 27 changed paths from `c3d1fe8` to the current
+There are 15 commits and 29 changed paths from `c3d1fe8` to the current
 `main`. They are not silently treated as part of `v0.1.4`. The post-release
 commits are:
 
@@ -50,6 +50,8 @@ fb756ae feat(web): add review history transport
 239d047 feat(web): build authenticated review history workspace
 3619bed test(web): cover review history boundary
 eeb7327 fix(web): reject untrusted history envelope metadata
+6b0873d docs: add current-head release continuation
+2ec543b docs: record full current-head gates
 ```
 
 The master-prompt attachment supplied for this project was live-hashed during
@@ -118,8 +120,8 @@ The final `eeb7327` fix strictly validates the outer API metadata keys
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Hosted Application gates | Pass | [run 31253446241](https://github.com/JasonTM17/RepoMentor/actions/runs/31253446241), head `eeb7327` |
-| Hosted Container validation | Pass | [run 31253446243](https://github.com/JasonTM17/RepoMentor/actions/runs/31253446243), head `eeb7327` |
+| Hosted Application gates | Pass | [run 31254038139](https://github.com/JasonTM17/RepoMentor/actions/runs/31254038139), head `2ec543b` |
+| Hosted Container validation | Pass | [run 31253446243](https://github.com/JasonTM17/RepoMentor/actions/runs/31253446243), last code head `eeb7327`; docs-only commits followed |
 | Full workspace deterministic gates | Pass, API 271 / web 48 / contracts 7 | Local `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm format:check`, and `pnpm package:check` |
 | Web shell/runtime tests | Pass, 48/48 | Local `pnpm --filter @repomentor/web test` |
 | Web TypeScript | Pass | Local `pnpm --filter @repomentor/web typecheck` |
@@ -128,6 +130,7 @@ The final `eeb7327` fix strictly validates the outer API metadata keys
 | Targeted formatting/diff | Pass | Prettier check and `git diff --check` |
 | Credential-shaped scan | Pass | No real key was added; DeepSeek key was not copied or used |
 | Luna exact-head arbiter | Accept | Base `62e7b52` to final `eeb7327`; prior HOLD fixed by strict `meta` validation |
+| Luna docs-head arbiter | Accept | Final docs delta from `2ec543b` after exact ancestry, clean status, four-path scope, and `git diff --check` evidence |
 
 The web evidence is deterministic/static and does not certify live
 PostgreSQL, Redis, external Luna, browser automation, multi-instance SSE, or
@@ -177,7 +180,7 @@ decision.
 | --- | --- |
 | Deterministic auth/review/history UI contracts | Pass for tested static/runtime boundaries |
 | `v0.1.4` GitHub Release and dual-registry images | Pass as immutable release artifact |
-| Current `main` hosted CI | Pass at `eeb7327` |
+| Current `main` hosted CI | Pass at `2ec543b` for Application gates; Container validation remains pass at the last code head `eeb7327` |
 | Prompt provenance | Recorded externally by path/hash; repository traceability remains derived-only |
 | License/legal publication policy | Open owner decision |
 | Live PostgreSQL transactions/isolation | Not certified by these checks |
@@ -228,6 +231,7 @@ review and did not modify code or approve the Luna implementation.
 | Kongminh / Terra High advisor | `019fe0e2-13e1-7a60-89da-f54a35a71f21` | HOLD for docs until release/current-head boundaries, provenance, license, and ledger were recorded; release artifact itself accepted |
 | Luna web arbiter | `019fe0f1-963c-70e1-a18f-aacbc38de181` | HOLD on permissive outer `meta` validation |
 | Luna re-arbiter | `019fe0f6-e7de-7f11-8a3c-6a14c867b27e` | ACCEPT after `eeb7327` strict metadata fix |
+| Luna docs-head arbiter | `019fe106-14f2-7b02-8b9a-f49d87308471` | ACCEPT after coordinator supplied exact final-head ancestry, clean status, four-path scope, and diff-check evidence |
 
 Earlier Terra counsel in historical documents remains archival design input.
 It does not authorize a model exception for current code implementation.

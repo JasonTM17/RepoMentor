@@ -1077,17 +1077,21 @@ patch-equivalence checks; no broad cleanup or reset was used.
 ## Continuation: release truth, history workspace, and current head — 2026-08-08
 
 This append-only continuation supersedes stale status statements only for the
-current evidence boundary. It does not rewrite the historical checkpoint
-sections above.
+current evidence boundary. The first capture below records the implementation
+head before the two documentation-only commits; the final docs-head alignment
+section at the end of this file is authoritative for the current repository
+state. It does not rewrite the historical checkpoint sections above.
 
 ### Exact source boundaries
 
 - Historical deterministic checkpoint: `953e7da627d75bda394cdcfae2cee3a0199321be`.
 - Released tag: `v0.1.4` resolves to
   `c3d1fe81928062929009e58d47c911ee8d5625ec`.
-- Current `main` and `origin/main`: `eeb7327452f0286f8ea512f1bf579bef31db0d92`.
-- The current head is unreleased and contains 13 commits across 27 paths
-  after the release tag.
+- Initial continuation capture: `main` and `origin/main` were aligned at
+  `eeb7327452f0286f8ea512f1bf579bef31db0d92`.
+- That initial capture contained 13 commits across 27 paths after the release
+  tag. The authoritative final current head is recorded in the final docs-head
+  alignment section below.
 - Master-prompt attachment provenance was recorded from
   `C:\Users\Admin\.codex\attachments\f57409b9-7413-4b5c-b370-278a6a490c2e\pasted-text.txt`;
   SHA-256 is
@@ -1107,14 +1111,14 @@ sections above.
 
 ### Current validation evidence
 
-- Hosted Application gates pass at current head in run `31253446241`.
-- Hosted Container validation passes at current head in run `31253446243`.
-- Full local workspace gates pass at current head: API `271/271`, web
+- Initial continuation hosted Application gates passed in run `31253446241`.
+- Initial continuation hosted Container validation passed in run `31253446243`.
+- Full local workspace gates passed at the initial code head: API `271/271`, web
   `48/48`, contracts `7/7`, recursive typecheck/lint/build, format check, and
   package payload check.
 - Web local evidence: 48/48 shell tests, typecheck, lint, production build,
   Prettier check, diff check, and credential-shaped scan pass.
-- Current web Luna arbiter sequence: agent
+- Web Luna arbiter sequence: agent
   `019fe0f1-963c-70e1-a18f-aacbc38de181` held on permissive `meta`; agent
   `019fe0f6-e7de-7f11-8a3c-6a14c867b27e` accepted after `eeb7327`.
 - Kongminh/Terra High advisor `019fe0e2-13e1-7a60-89da-f54a35a71f21` held
@@ -1155,3 +1159,18 @@ independent attestation/SBOM verification, and license ownership remain open.
 The next release must choose whether the post-tag current-head slices are in
 scope, then publish a new exact semantic tag. `eeb7327` must not be described
 as `v0.1.4`.
+
+## Final docs-head alignment — 2026-08-08
+
+The continuation documentation was then integrated as `6b0873d` and
+`2ec543b`. Therefore the final current `main` and `origin/main` are aligned
+at `2ec543b060a56f43b24026e8a69bb51af0c7228c`, with 15 commits and 29 paths
+after the released `v0.1.4` commit `c3d1fe8`. The hosted Application gates
+run `31254038139` passed at this docs-only head. Container validation remains
+green at the last code head `eeb7327` in run `31253446243`; the two following
+commits are documentation-only and do not change runtime inputs.
+
+The docs branch was independently Luna-accepted by agent
+`019fe106-14f2-7b02-8b9a-f49d87308471` after the coordinator verified exact
+ancestry, clean status, four-path scope, and `git diff --check`. The protected
+dirty/stale worktrees remain inventory-only, and no force cleanup was performed.
