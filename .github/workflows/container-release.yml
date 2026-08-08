@@ -159,16 +159,40 @@ jobs:
           resolve_digest() {
             local ref="$1"
             local digest=""
+            local inspect_output=""
+            local inspect_status=0
+            local digest_found=false
+            local delay=5
+            local max_attempts=15
 
-            for attempt in {1..12}; do
-              if digest="$(docker buildx imagetools inspect "$ref" 2>/dev/null | awk '$1 == "Digest:" { print $2; exit }')"; then
-                if [[ "$digest" == sha256:* ]]; then
-                  printf '%s\n' "$digest"
-                  return 0
+            for attempt in $(seq 1 "$max_attempts"); do
+              inspect_output=""
+              inspect_status=0
+              digest=""
+              if inspect_output="$(docker buildx imagetools inspect "$ref" 2>/dev/null)"; then
+                digest="$(awk '$1 == "Digest:" { print $2; exit }' <<< "$inspect_output")"
+              else
+                inspect_status=$?
+              fi
+              if [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+                printf '%s\n' "$digest"
+                return 0
+              fi
+              if [[ -n "$digest" ]]; then
+                digest_found=true
+              else
+                digest_found=false
+              fi
+              echo "::debug::Waiting for registry propagation (registry=${ref%%/*} attempt=${attempt}/${max_attempts} exit=${inspect_status} digest_found=${digest_found})" >&2
+              if (( attempt < max_attempts )); then
+                sleep "$delay"
+                if (( delay < 30 )); then
+                  delay=$((delay * 2))
+                  if (( delay > 30 )); then
+                    delay=30
+                  fi
                 fi
               fi
-              echo "::debug::Waiting for registry propagation (attempt ${attempt}/12) for ${ref}" >&2
-              sleep 10
             done
 
             echo "::error::A staging registry digest could not be resolved for ${ref} after bounded retries" >&2
@@ -237,16 +261,40 @@ jobs:
           resolve_digest() {
             local ref="$1"
             local digest=""
+            local inspect_output=""
+            local inspect_status=0
+            local digest_found=false
+            local delay=5
+            local max_attempts=15
 
-            for attempt in {1..12}; do
-              if digest="$(docker buildx imagetools inspect "$ref" 2>/dev/null | awk '$1 == "Digest:" { print $2; exit }')"; then
-                if [[ "$digest" == sha256:* ]]; then
-                  printf '%s\n' "$digest"
-                  return 0
+            for attempt in $(seq 1 "$max_attempts"); do
+              inspect_output=""
+              inspect_status=0
+              digest=""
+              if inspect_output="$(docker buildx imagetools inspect "$ref" 2>/dev/null)"; then
+                digest="$(awk '$1 == "Digest:" { print $2; exit }' <<< "$inspect_output")"
+              else
+                inspect_status=$?
+              fi
+              if [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+                printf '%s\n' "$digest"
+                return 0
+              fi
+              if [[ -n "$digest" ]]; then
+                digest_found=true
+              else
+                digest_found=false
+              fi
+              echo "::debug::Waiting for registry propagation (registry=${ref%%/*} attempt=${attempt}/${max_attempts} exit=${inspect_status} digest_found=${digest_found})" >&2
+              if (( attempt < max_attempts )); then
+                sleep "$delay"
+                if (( delay < 30 )); then
+                  delay=$((delay * 2))
+                  if (( delay > 30 )); then
+                    delay=30
+                  fi
                 fi
               fi
-              echo "::debug::Waiting for registry propagation (attempt ${attempt}/12) for ${ref}" >&2
-              sleep 10
             done
 
             echo "::error::A promoted registry digest could not be resolved for ${ref} after bounded retries" >&2
