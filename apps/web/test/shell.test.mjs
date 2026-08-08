@@ -56,6 +56,9 @@ const source = Object.freeze({
   reviewTypes: readTrackedSource("features/review/types/index.ts"),
   dashboardPage: readTrackedSource("app/dashboard/page.tsx"),
   historyPage: readTrackedSource("app/history/page.tsx"),
+  historyWorkspace: readTrackedSource("features/history/components/HistoryWorkspace.tsx"),
+  historyApi: readTrackedSource("features/history/api/reviewHistoryApi.ts"),
+  historyTypes: readTrackedSource("features/history/types/index.ts"),
   usagePage: readTrackedSource("app/usage/page.tsx"),
   usageDashboard: readTrackedSource("features/usage/components/UsageDashboard.tsx"),
   usageHistory: readTrackedSource("features/usage/components/UsageHistory.tsx"),
@@ -128,6 +131,17 @@ const reviewExportsRuntime = import(
 const usageApiRuntime = import(
   `data:text/javascript,${encodeURIComponent(
     typescript.transpileModule(source.usageApi, {
+      compilerOptions: {
+        module: typescript.ModuleKind.ESNext,
+        target: typescript.ScriptTarget.ES2022,
+      },
+    }).outputText,
+  )}`
+);
+
+const historyApiRuntime = import(
+  `data:text/javascript,${encodeURIComponent(
+    typescript.transpileModule(source.historyApi, {
       compilerOptions: {
         module: typescript.ModuleKind.ESNext,
         target: typescript.ScriptTarget.ES2022,
@@ -1540,13 +1554,15 @@ test("usage routes are linked from the shell and keep the existing review and au
   }
 
   assert.match(source.dashboardPage, /<UsageDashboard\s*\/>/u);
-  assert.match(source.historyPage, /<UsageHistory\s*\/>/u);
+  assert.match(source.historyPage, /<HistoryWorkspace\s*\/>/u);
   assert.match(source.usagePage, /<UsageOverview\s*\/>/u);
   assert.match(source.usageDashboard, /id="main-content"/u);
   assert.match(source.usageHistory, /id="main-content"/u);
   assert.match(source.usageOverview, /id="main-content"/u);
   assert.match(source.usageDashboard, /useUsageTransport/u);
-  assert.match(source.usageHistory, /useUsageTransport/u);
+  assert.match(source.historyPage, /features\/history\/components\/HistoryWorkspace/u);
+  assert.match(source.historyWorkspace, /useInitializeAuthSession/u);
+  assert.match(source.historyWorkspace, /createReviewHistoryApiTransport\(\{ getAccessToken \}\)/u);
   assert.match(source.usageOverview, /useUsageTransport/u);
   assert.match(source.usageTransport, /useInitializeAuthSession/u);
   assert.match(source.usageTransport, /createUsageApiTransport\(\{ getAccessToken \}\)/u);
@@ -1704,6 +1720,85 @@ test("usage API validates strict summary, history, quota, and envelope shapes", 
   }
 });
 
+test("review history API validates filters, bearer auth, and bulk-delete envelopes", async () => {
+  const { ReviewHistoryApiError, createReviewHistoryApiTransport } = await historyApiRuntime;
+  const originalFetch = globalThis.fetch;
+  const seenRequests = [];
+  const validHistory = {
+    items: [
+      {
+        createdAt: "2026-08-06T00:00:00.000Z",
+        id: "review-1",
+        language: "typescript",
+        learnerLevel: "BEGINNER",
+        mode: "STANDARD",
+        status: "COMPLETED",
+        title: "Fix the answer",
+        updatedAt: "2026-08-06T00:01:00.000Z",
+      },
+    ],
+    meta: { hasNext: false, hasPrevious: false, limit: 20, page: 1, total: 1, totalPages: 1 },
+  };
+  let accessToken;
+
+  try {
+    globalThis.fetch = async (input, init) => {
+      seenRequests.push({ init, input });
+
+      if (init.method === "DELETE") {
+        return createJsonResponse(200, { data: { deletedCount: 1 } });
+      }
+
+      return createJsonResponse(200, { data: validHistory });
+    };
+
+    const transport = createReviewHistoryApiTransport({ getAccessToken: () => accessToken });
+    await assert.doesNotReject(() =>
+      transport.list({
+        language: "typescript",
+        limit: 20,
+        mode: "STANDARD",
+        page: 1,
+        sort: "desc",
+        status: "COMPLETED",
+        title: "Fix the answer",
+      }),
+    );
+    assert.match(
+      String(seenRequests[0].input),
+      /\/api\/v1\/reviews\?limit=20&page=1&sort=desc&title=Fix\+the\+answer&language=typescript&mode=STANDARD&status=COMPLETED/u,
+    );
+    assert.equal(seenRequests[0].init.credentials, "include");
+    assert.equal(seenRequests[0].init.headers, undefined);
+
+    accessToken = "memory-only-history-token";
+    await assert.doesNotReject(() => transport.list({ limit: 20, page: 1, sort: "asc" }));
+    assert.deepEqual(seenRequests[1].init.headers, {
+      Authorization: "Bearer memory-only-history-token",
+    });
+
+    const deleted = await transport.deleteMany(["review-1", "review-1"]);
+    assert.deepEqual(deleted, { deletedCount: 1 });
+    assert.equal(seenRequests[2].init.credentials, "include");
+    assert.deepEqual(JSON.parse(seenRequests[2].init.body), { ids: ["review-1"] });
+    assert.equal(seenRequests[2].init.headers.Authorization, "Bearer memory-only-history-token");
+
+    assert.throws(
+      () => transport.list({ limit: 51, page: 1, sort: "desc" }),
+      (error) => error instanceof ReviewHistoryApiError && error.status === 0,
+    );
+
+    globalThis.fetch = async () =>
+      createJsonResponse(200, { data: validHistory, source: "forbidden" });
+    await assert.rejects(
+      () => transport.list({ limit: 20, page: 1, sort: "desc" }),
+      (error) => error instanceof ReviewHistoryApiError && error.status === 200,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("usage fixture reconciles summary, history pagination, quota, and owner-safe row shape", async () => {
   const { createDemoUsageTransport, DEMO_USAGE_HISTORY } = await demoUsageRuntime;
   const transport = createDemoUsageTransport();
@@ -1760,6 +1855,34 @@ test("usage demo filters and pagination are explicit client-only semantics", asy
   assert.doesNotMatch(source.usageApi, /status=.*[?&]|mode=.*[?&]|language=.*[?&]/u);
 });
 
+test("authenticated history UI exposes strict filters, responsive selection, and honest states", () => {
+  assert.match(source.historyWorkspace, /Sign in to view your review history/u);
+  assert.match(source.historyWorkspace, /aria-live="polite"/u);
+  assert.match(source.historyWorkspace, /role="alertdialog"/u);
+  assert.match(source.historyWorkspace, /Delete selected/u);
+  assert.match(source.historyWorkspace, /type="checkbox"/u);
+  assert.match(source.historyWorkspace, /source is\s+never returned/u);
+  assert.match(source.historyApi, /credentials: "include"/u);
+  assert.match(source.historyApi, /Authorization: `Bearer/u);
+  assert.match(source.historyApi, /method: "DELETE"/u);
+  assert.doesNotMatch(source.historyWorkspace, /localStorage|sessionStorage/u);
+  assert.doesNotMatch(source.historyApi, /localStorage|sessionStorage/u);
+  assert.doesNotMatch(source.historyWorkspace, /item\.source|<th[^>]*>\s*Source\s*</u);
+  assert.match(
+    source.styles,
+    /@media\s*\(max-width:\s*50rem\)[\s\S]*\.history-table-shell\s*\{[\s\S]*display:\s*none/u,
+  );
+  assert.match(
+    source.styles,
+    /@media\s*\(max-width:\s*50rem\)[\s\S]*\.history-mobile-list\s*\{[\s\S]*display:\s*grid/u,
+  );
+  assert.match(
+    source.styles,
+    /@media\s*\(max-width:\s*30rem\)[\s\S]*\.history-pagination\s*\{[\s\S]*flex-direction:\s*column/u,
+  );
+  assert.match(source.styles, /@media\s*\(prefers-reduced-motion\s*:\s*reduce\s*\)/u);
+});
+
 test("usage quota progress semantics clamp assistive values and preserve overage truth", () => {
   assert.match(source.usageQuotaGrid, /const overage = Math\.max\(0, used - limit\)/u);
   assert.match(source.usageQuotaGrid, /aria-valuenow=\{Math\.min\(used, limit\)\}/u);
@@ -1809,6 +1932,9 @@ test("usage UI is source-free, secret-free, and avoids banned visible copy", () 
   const usageSources = [
     source.dashboardPage,
     source.historyPage,
+    source.historyWorkspace,
+    source.historyApi,
+    source.historyTypes,
     source.usagePage,
     source.usageDashboard,
     source.usageHistory,
