@@ -4,11 +4,11 @@ RepoMentor is a developer-first workspace for AI-assisted code review and
 programming practice. It is a production-oriented monorepo, but the current
 repository checkpoint is an application slice, not a production release.
 
-The current code/evidence baseline is the exact implementation checkpoint
-`953e7da`, which includes the authenticated review-detail route, application CI
-gates, and dependency-audit remediation after the settings and security
-slices. These SHAs are exact-head evidence anchors for the local checks
-recorded below; they are not a release, tag, registry, license,
+The current runtime/evidence baseline is the exact implementation checkpoint
+`5453e8c`, which includes the authenticated review-detail route, application CI
+gates, dependency-audit remediation, and the same-origin workflow fix. The
+documentation-integrated repository head is `7fd932d`; these SHAs are
+exact-head evidence anchors, not a release, tag, registry, license,
 package-publication, deployment, or production-readiness claim.
 
 ## Current status
@@ -410,14 +410,15 @@ Chromium revision `chromium-1161` is not installed locally. No Docker image,
 registry artifact, tag, public package, GitHub release, or deployment was
 created or claimed.
 
-GitHub Container Validation run `31241219843` passed against the current code
-head `5453e8c`: workflow, Dockerfile/Compose validation, and both
+GitHub Container Validation run `31241219843` passed against the runtime
+implementation head `5453e8c`: workflow, Dockerfile/Compose validation, and both
 `linux/amd64` no-publish image builds. This is CI validation evidence only; it
 is not a registry publication or deployment.
 
 `.github/workflows/application-gates.yml` now runs the deterministic application
 gate set on pull requests and pushes to `main`. The completed hosted run for
-`5453e8c` is recorded in [docs/ci.md](docs/ci.md); its fail-closed audit
+the docs-integrated head `7fd932d` is recorded in [docs/ci.md](docs/ci.md);
+its fail-closed audit
 behavior remains separate from live PostgreSQL, Redis, Luna, browser, or
 deployment evidence.
 

@@ -160,11 +160,12 @@ learning questions through the authenticated result API into text-only web
 views, copy/download actions, and Markdown/JSON exports. No model output is
 executed in the browser.
 
-Hosted Application Gates run `31241219840` passed the deterministic application
-checks at this exact head, including web/API builds, package verification, and
-the high-severity dependency audit. The workflow fix keeps the web smoke tests
-same-origin; it does not add live database, Redis, browser, or external Luna
-evidence.
+Hosted Application Gates run `31243141059` passed the deterministic application
+checks at the docs-integrated repository head `7fd932d`, including web/API
+builds, package verification, and the high-severity dependency audit. The
+earlier run `31241219840` passed the unchanged runtime implementation head
+`5453e8c`; the workflow fix keeps the web smoke tests same-origin and neither
+run adds live database, Redis, browser, or external Luna evidence.
 
 The guest QUICK route, Redis process lock, authenticated status-only SSE with
 replay/polling fallback, logout, and cancellation boundaries are implemented
@@ -211,7 +212,7 @@ workflow. Its static job runs workflow syntax validation, Hadolint, Dockerfile
 contract checks, and `docker compose config --quiet` with safe dummy values.
 Its build job builds the API and web images for `linux/amd64` with
 `push: false`, then smoke-tests API `/health/live` and the web `/` shell. Run
-`31241219843` passed against the current code head `5453e8c`; it did not use
+`31241219843` passed against the runtime implementation head `5453e8c`; it did not use
 registry credentials or publish images.
 A passing validation run is not a registry publication or deployment claim.
 
