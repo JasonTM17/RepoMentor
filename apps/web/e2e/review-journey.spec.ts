@@ -23,6 +23,7 @@ const admission = {
   createdAt: "2026-08-07T00:00:00.000Z",
   id: reviewId,
   language: "typescript",
+  learnerLevel: "INTERMEDIATE",
   mode: "STANDARD",
   status: "PENDING",
   updatedAt: "2026-08-07T00:00:00.000Z",
@@ -139,7 +140,7 @@ test("registers, signs in, and completes one authenticated review through the br
     });
   });
 
-  await page.route("**/api/v1/reviews**", async (route) => {
+  await page.route(/\/api\/v1\/reviews(?:\/|$)/u, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const headers = request.headers();
@@ -159,9 +160,10 @@ test("registers, signs in, and completes one authenticated review through the br
       await route.fulfill({
         body: envelope({
           id: reviewId,
-          outcome: "COMPLETED",
-          resultAvailable: true,
-          status: "COMPLETED",
+          outcome: "SKIPPED",
+          reason: "ALREADY_PROCESSING",
+          resultAvailable: false,
+          status: "PROCESSING",
         }),
         contentType: "application/json",
         status: 200,
@@ -238,7 +240,9 @@ test("registers, signs in, and completes one authenticated review through the br
 
   const sourceEditor = page.getByRole("textbox", { name: "Source code to review" });
   await expect(sourceEditor).toBeVisible();
-  await sourceEditor.fill("const fallback = value ?? defaultValue;");
+  await page.locator('[data-editor-engine="monaco"] .view-line').first().click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.insertText("const fallback = value ?? defaultValue;");
   await page.getByRole("button", { name: "Start API review" }).click();
 
   await expect(page.locator('.review-results-panel[data-transport-mode="api"]')).toBeVisible();
@@ -252,7 +256,9 @@ test("registers, signs in, and completes one authenticated review through the br
   await expect(
     page.getByText("Which boundary should keep the fallback invariant visible?"),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Diff and comparison" })).toBeVisible();
+  const diffSection = page.getByRole("region", { name: "Original versus improved" });
+  await expect(diffSection).toBeVisible();
+  await expect(diffSection.getByText("Diff and comparison", { exact: true })).toBeVisible();
   await expect(page.getByText("provider-secret-fixture")).toHaveCount(0);
 
   await expect.poll(() => registerRequests.length).toBe(1);
@@ -282,9 +288,12 @@ test("registers, signs in, and completes one authenticated review through the br
     method: "POST",
   });
   expect(admissionRequest.body).toEqual({
+    context: "Focus on keeping the changed line easy to explain to the next reviewer.",
     language: "typescript",
+    learnerLevel: "INTERMEDIATE",
     mode: "STANDARD",
     source: "const fallback = value ?? defaultValue;",
+    title: "Guard clause lesson",
   });
   expect(admissionRequest.headers).toMatchObject({
     authorization: "Bearer browser-access-token",
