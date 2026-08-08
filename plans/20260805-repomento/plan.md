@@ -1109,6 +1109,9 @@ sections above.
 
 - Hosted Application gates pass at current head in run `31253446241`.
 - Hosted Container validation passes at current head in run `31253446243`.
+- Full local workspace gates pass at current head: API `271/271`, web
+  `48/48`, contracts `7/7`, recursive typecheck/lint/build, format check, and
+  package payload check.
 - Web local evidence: 48/48 shell tests, typecheck, lint, production build,
   Prettier check, diff check, and credential-shaped scan pass.
 - Current web Luna arbiter sequence: agent

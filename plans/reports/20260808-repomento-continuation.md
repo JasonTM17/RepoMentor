@@ -120,6 +120,7 @@ The final `eeb7327` fix strictly validates the outer API metadata keys
 | --- | --- | --- |
 | Hosted Application gates | Pass | [run 31253446241](https://github.com/JasonTM17/RepoMentor/actions/runs/31253446241), head `eeb7327` |
 | Hosted Container validation | Pass | [run 31253446243](https://github.com/JasonTM17/RepoMentor/actions/runs/31253446243), head `eeb7327` |
+| Full workspace deterministic gates | Pass, API 271 / web 48 / contracts 7 | Local `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm format:check`, and `pnpm package:check` |
 | Web shell/runtime tests | Pass, 48/48 | Local `pnpm --filter @repomentor/web test` |
 | Web TypeScript | Pass | Local `pnpm --filter @repomentor/web typecheck` |
 | Web lint | Pass | Local `pnpm --filter @repomentor/web lint` |
