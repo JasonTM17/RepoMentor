@@ -24,19 +24,37 @@ not evidence of a live deployment or production readiness.
   the current checkpoint addendum; they do not establish a tag, release,
   registry artifact, license, deployment, or production certification.
 
-## Current unreleased `main` boundary — 2026-08-09
+## Current unreleased `main` timeline — 2026-08-09
 
 The release checkpoint above remains `c3d1fe81928062929009e58d47c911ee8d5625ec`.
-The current `main` and `origin/main` heads are aligned at
-`2e061c88815aada6f46069d65de498cb623da4ea`. This current head is unreleased:
-26 post-tag commits and 53 changed paths are not folded into `v0.1.4`. They
-include migration/seed commands, offline Prisma migration-image hardening,
-owner-scoped review-history API controls, the authenticated web history
-workspace, sensitive-action audit logging, and persisted admin-role
-enforcement. See the [current-head continuation report](../plans/reports/20260808-repomento-continuation.md)
-for the earlier audit-slice CI, arbiter, branch, provenance, and open-gate
-evidence; that report is historical evidence and does not replace the current
-head identity.
+The current `main` timeline is unreleased and includes the AI cost-estimation
+sequence (`000f642` through `e20e96b`), production Compose CORS and edge/internal
+network hardening (`f4a1d7f`, `7f06b44`, and `3899b27`), and the browser
+review-journey fixes (`0117274`, `fa6d40d`, and `978e0e3`). These changes are
+integrated into `main`; cost estimation is not an unmerged feature branch.
+
+The `v0.1.4` tag and its GHCR/Docker Hub images remain the older release
+artifacts. No current-main image, package, or release publication is claimed.
+Operators needing the exact checkout identity must run `git rev-parse HEAD`;
+this document intentionally avoids a volatile self-referential head value.
+
+### Current runtime evidence
+
+- Hosted [Application Gates run `31272365103`](https://github.com/JasonTM17/RepoMentor/actions/runs/31272365103)
+  and [Container validation run `31272365110`](https://github.com/JasonTM17/RepoMentor/actions/runs/31272365110)
+  passed for exact commit `fa6d40d`. They are validation evidence for that
+  commit, not publication or deployment evidence for current `main`.
+- An isolated local synthetic production Compose smoke on the pre-E2E-origin
+  application/Compose sequence (`a0ff519`, `7f06b44`, and `3899b27`) completed
+  migration and observed API `/health/live` `200`, API `/health/ready` `200`,
+  anonymous `/health/metrics` `401`, an allowed-origin CORS preflight `204`,
+  and web `/` `200` through the selected host-published API/web ports. It is
+  synthetic local runtime evidence, not proof of live AI/provider behavior or
+  production PostgreSQL/Redis semantics.
+- At fixed browser evidence commit `978e0e3`, Playwright passed the review
+  journey `1/1` with API route mocks, including SSE. This proves the browser
+  and streaming seam only; it is not live AI/provider, PostgreSQL, or Redis
+  behavioral evidence.
 
 ## Sensitive-action audit logging slice — preserved evidence
 
@@ -63,17 +81,13 @@ passed at this evidence head. Node 20 deprecation annotations in hosted logs
 are non-failing warnings only. No live PostgreSQL, Redis, Luna/provider,
 deployment, or browser claim is made.
 
-## Unreleased AI cost-estimation slice — feature branch
+## AI cost estimation on unreleased `main`
 
-The cost-estimation slice is currently present only on
-`feature/usage-cost-estimation`. At document-authoring time, its evidence head
-was `e20e96b`, based on `main` and `origin/main` at `2e061c8`. The bounded
-sequence through that head is `000f642` (`feat(ai)`), `8f0e6dc` (`feat(usage)`),
-`8525600` (`feat(web)`), `92db485` (`docs`), `931eef5` (`fix(review)`), and
-`e20e96b` (`test(usage)`). A later docs-only commit naturally advances the
-branch; run `git rev-parse HEAD` for the exact current head. This corrective
-slice does not merge or publish the feature branch, and the `v0.1.4` images do
-not include it.
+The cost-estimation sequence is integrated into the current `main` timeline:
+`000f642` (`feat(ai)`), `8f0e6dc` (`feat(usage)`), `8525600` (`feat(web)`),
+`92db485` (`docs`), `931eef5` (`fix(review)`), and `e20e96b` (`test(usage)`).
+It remains unreleased and is not included in the `v0.1.4` images. Run
+`git rev-parse HEAD` when an exact checkout identity is required.
 
 The optional API pricing configuration consists of `AI_PRICING_VERSION`,
 `AI_INPUT_USD_MICROS_PER_MILLION_TOKENS`,

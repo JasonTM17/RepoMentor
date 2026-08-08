@@ -14,30 +14,39 @@ GitHub Release was published after those tagged gates passed. Earlier SHAs in
 this document remain exact-head evidence anchors for their own checks; docs-only
 commits do not change the runtime inputs.
 
-## Current unreleased `main` boundary — 2026-08-09
+## Current unreleased `main` timeline — 2026-08-09
 
 The tagged `v0.1.4` artifact remains pinned to
-`c3d1fe81928062929009e58d47c911ee8d5625ec`. The current `main` and
-`origin/main` heads are aligned at
-`2e061c88815aada6f46069d65de498cb623da4ea`, which is **not** a new release
-tag. Twenty-six commits and 53 paths follow the release tag, including safe
-database migration/seed commands, offline Prisma migration-image hardening,
-owner-scoped history filters and bulk delete, the authenticated responsive
-`/history` workspace, sensitive-action audit logging, and persisted admin-role
-enforcement. The exact audit-slice evidence and remaining live/runtime limits
-are recorded in [the 2026-08-08 continuation report](plans/reports/20260808-repomento-continuation.md);
-its head references are historical rather than a replacement for the current
-`main` identity.
+`c3d1fe81928062929009e58d47c911ee8d5625ec`. The current `main` timeline is
+unreleased and includes the AI cost-estimation commits (`000f642` through
+`e20e96b`), production Compose CORS and topology hardening (`f4a1d7f`,
+`7f06b44`, and `3899b27`), and the browser review-journey fixes (`0117274`,
+`fa6d40d`, and `978e0e3`). The cost implementation is integrated into `main`,
+not stranded on an unmerged feature branch.
 
-The unreleased AI cost-estimation slice is isolated on
-`feature/usage-cost-estimation`. At document-authoring time, its evidence head
-was `e20e96b`, based on `main`/`origin/main` at `2e061c8`; the bounded sequence
-through that head is `000f642`, `8f0e6dc`, `8525600`, `92db485`, `931eef5`, and
-`e20e96b`. A later docs-only commit naturally advances the branch, so operators
-must run `git rev-parse HEAD` when an exact current head is required. The slice
-is not in `main`, `origin/main`, `v0.1.4`, or either published image. The
-implementation and operator rules are recorded in [the release boundary](docs/release.md)
-and [deployment notes](docs/deployment.md).
+The `v0.1.4` tag and its published GHCR/Docker Hub images remain the older
+release artifacts. No image or release publication for this current `main`
+timeline is claimed. For an exact checkout identity, operators must run
+`git rev-parse HEAD`; this document deliberately avoids a self-referential
+current-head value because documentation commits advance the branch.
+
+### Current runtime evidence
+
+- Hosted Application Gates [run `31272365103`](https://github.com/JasonTM17/RepoMentor/actions/runs/31272365103)
+  and Container validation [run `31272365110`](https://github.com/JasonTM17/RepoMentor/actions/runs/31272365110)
+  passed for `fa6d40d`. These runs are hosted validation evidence for that
+  exact commit, not a publication or deployment claim for current `main`.
+- An isolated local synthetic production Compose smoke on the pre-E2E-origin
+  application/Compose sequence (`a0ff519`, `7f06b44`, and `3899b27`) completed
+  the migration service and observed API `/health/live` `200`, API
+  `/health/ready` `200`, anonymous `/health/metrics` `401`, an allowed-origin
+  CORS preflight `204`, and web `/` `200` through the selected host-published
+  API and web ports. This is local synthetic runtime evidence, not proof of
+  live AI/provider behavior or production database/Redis semantics.
+- At the fixed browser evidence commit `978e0e3`, Playwright passed the review
+  journey `1/1` using API route mocks, including the SSE stream. It proves the
+  browser/Monaco/streaming seam, not a live AI/provider, PostgreSQL, or Redis
+  behavioral path.
 
 ### Sensitive-action audit logging — preserved evidence
 
