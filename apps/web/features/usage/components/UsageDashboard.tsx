@@ -3,6 +3,7 @@
 import type { FC, ReactElement } from "react";
 
 import LineIcon from "@/components/line-icon";
+import UsageCostPanel from "@/features/usage/components/UsageCostPanel";
 import UsagePageHeader from "@/features/usage/components/UsagePageHeader";
 import UsageQuotaGrid from "@/features/usage/components/UsageQuotaGrid";
 import UsageStatePanel from "@/features/usage/components/UsageStatePanel";
@@ -78,9 +79,10 @@ const EmptyPanel: FC<{ readonly copy: string; readonly title: string }> = ({ cop
 
 interface DashboardContentProps {
   readonly data: UsageDashboardData;
+  readonly source: UsageTransport["source"];
 }
 
-const DashboardContent: FC<DashboardContentProps> = ({ data }): ReactElement => {
+const DashboardContent: FC<DashboardContentProps> = ({ data, source }): ReactElement => {
   const { history, quota, summary } = data;
   const maxLanguageCount = Math.max(
     1,
@@ -112,6 +114,8 @@ const DashboardContent: FC<DashboardContentProps> = ({ data }): ReactElement => 
         />
       </section>
 
+      <UsageCostPanel source={source} summary={summary} />
+
       <section className="usage-ledger-panel surface-panel" aria-labelledby="usage-ledger-heading">
         <header className="usage-section-header">
           <div>
@@ -137,8 +141,8 @@ const DashboardContent: FC<DashboardContentProps> = ({ data }): ReactElement => 
           </div>
         </dl>
         <p className="usage-panel-note">
-          The accepted summary contract reports token totals and review counts. It does not report
-          cost, model spend, or reasoning measurements.
+          The separate estimate panel shows only server-persisted configured cost fields. It never
+          derives a price from tokens in the browser.
         </p>
       </section>
 
@@ -272,13 +276,13 @@ const UsageDashboard: FC<UsageDashboardProps> = ({
         tone="error"
       />
     ) : (
-      <DashboardContent data={data} />
+      <DashboardContent data={data} source={transport.source} />
     );
 
   return (
     <main id="main-content" className="usage-main shell-container">
       <UsagePageHeader
-        description="A bounded review ledger for activity, tokens, language mix, and daily run limits."
+        description="A bounded review ledger for activity, tokens, configured cost estimates, language mix, and daily run limits."
         kicker="Dashboard"
         source={transport.source}
         title="Keep the review ledger honest."

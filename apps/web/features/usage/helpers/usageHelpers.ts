@@ -6,6 +6,8 @@ import type {
   UsageReviewStatus,
 } from "@/features/usage/types";
 
+const microUsdPerUsd = 1_000_000;
+
 const languageLabels: Readonly<Record<string, string>> = Object.freeze({
   cpp: "C++",
   csharp: "C#",
@@ -54,6 +56,25 @@ export const formatDuration = (durationMs: number | null): string => {
 
 export const formatTokens = (tokens: number | null): string =>
   tokens === null ? "Not recorded" : formatCount(tokens);
+
+export const formatEstimatedCost = (estimatedCostMicros: number | null): string => {
+  if (
+    estimatedCostMicros === null ||
+    !Number.isSafeInteger(estimatedCostMicros) ||
+    estimatedCostMicros < 0
+  ) {
+    return "Unavailable";
+  }
+
+  const wholeUsd = Math.floor(estimatedCostMicros / microUsdPerUsd);
+  const fractionalMicros = estimatedCostMicros % microUsdPerUsd;
+  const fractionalUsd = String(fractionalMicros).padStart(6, "0").replace(/0+$/u, "");
+
+  return fractionalUsd === "" ? `USD ${wholeUsd}` : `USD ${wholeUsd}.${fractionalUsd}`;
+};
+
+export const formatPricingVersion = (pricingVersion: string | null): string =>
+  pricingVersion === null ? "No compatible pricing version" : `Pricing version ${pricingVersion}`;
 
 export const filterUsageHistory = (
   items: readonly UsageHistoryItem[],

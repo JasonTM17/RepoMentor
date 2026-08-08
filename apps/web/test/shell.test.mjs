@@ -1576,10 +1576,13 @@ test("usage API validates strict summary, history, quota, and envelope shapes", 
   const validSummary = {
     asOf: "2026-08-06T00:00:00.000Z",
     completedReviews: 1,
+    costStatus: "AVAILABLE",
+    estimatedCostMicros: 123_000,
     deepReviews: 0,
     inputTokens: 10,
     languageDistribution: [{ count: 1, language: "typescript" }],
     outputTokens: 5,
+    pricingVersion: "test-pricing-2026-08",
     reviewsByStatus: { CANCELLED: 0, COMPLETED: 1, FAILED: 0, PENDING: 0, PROCESSING: 0 },
     totalReviews: 1,
     totalTokens: 15,
@@ -1589,10 +1592,12 @@ test("usage API validates strict summary, history, quota, and envelope shapes", 
       {
         createdAt: "2026-08-06T00:00:00.000Z",
         durationMs: 42,
+        estimatedCostMicros: 123_000,
         inputTokens: 10,
         language: "typescript",
         mode: "STANDARD",
         outputTokens: 5,
+        pricingVersion: "test-pricing-2026-08",
         reviewId: "review-1",
         status: "COMPLETED",
         totalTokens: 15,
@@ -1667,6 +1672,27 @@ test("usage API validates strict summary, history, quota, and envelope shapes", 
       createJsonResponse(200, { data: { ...validSummary, totalTokens: 99 } });
     await assert.rejects(
       () => usageApi.getSummary(),
+      (error) => error instanceof UsageApiError && error.status === 200,
+    );
+
+    globalThis.fetch = async () =>
+      createJsonResponse(200, {
+        data: { ...validSummary, estimatedCostMicros: null },
+      });
+    await assert.rejects(
+      () => usageApi.getSummary(),
+      (error) => error instanceof UsageApiError && error.status === 200,
+    );
+
+    globalThis.fetch = async () =>
+      createJsonResponse(200, {
+        data: {
+          ...validHistory,
+          items: [{ ...validHistory.items[0], pricingVersion: null }],
+        },
+      });
+    await assert.rejects(
+      () => usageApi.getHistory({ limit: 20, page: 1 }),
       (error) => error instanceof UsageApiError && error.status === 200,
     );
 

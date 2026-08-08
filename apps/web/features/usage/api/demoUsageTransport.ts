@@ -9,15 +9,18 @@ import type {
 
 export const DEMO_USAGE_AS_OF = "2026-08-06T00:00:00.000Z";
 export const DEMO_USAGE_UTC_DAY = "2026-08-06";
+export const DEMO_USAGE_PRICING_VERSION = "demo-fixed-2026-08";
 
 export const DEMO_USAGE_HISTORY: readonly UsageHistoryItem[] = Object.freeze([
   {
     createdAt: "2026-08-05T15:40:00.000Z",
     durationMs: 840,
+    estimatedCostMicros: 840_000,
     inputTokens: 140,
     language: "typescript",
     mode: "STANDARD",
     outputTokens: 82,
+    pricingVersion: DEMO_USAGE_PRICING_VERSION,
     reviewId: "demo-review-2026-08-05-01",
     status: "COMPLETED",
     totalTokens: 222,
@@ -25,10 +28,12 @@ export const DEMO_USAGE_HISTORY: readonly UsageHistoryItem[] = Object.freeze([
   {
     createdAt: "2026-08-05T11:10:00.000Z",
     durationMs: 1_220,
+    estimatedCostMicros: 2_100_000,
     inputTokens: 260,
     language: "python",
     mode: "DEEP",
     outputTokens: 160,
+    pricingVersion: DEMO_USAGE_PRICING_VERSION,
     reviewId: "demo-review-2026-08-05-02",
     status: "COMPLETED",
     totalTokens: 420,
@@ -36,10 +41,12 @@ export const DEMO_USAGE_HISTORY: readonly UsageHistoryItem[] = Object.freeze([
   {
     createdAt: "2026-08-04T16:25:00.000Z",
     durationMs: 460,
+    estimatedCostMicros: 396_000,
     inputTokens: 88,
     language: "javascript",
     mode: "QUICK",
     outputTokens: 44,
+    pricingVersion: DEMO_USAGE_PRICING_VERSION,
     reviewId: "demo-review-2026-08-04-01",
     status: "COMPLETED",
     totalTokens: 132,
@@ -47,10 +54,12 @@ export const DEMO_USAGE_HISTORY: readonly UsageHistoryItem[] = Object.freeze([
   {
     createdAt: "2026-08-03T09:20:00.000Z",
     durationMs: null,
+    estimatedCostMicros: null,
     inputTokens: null,
     language: "go",
     mode: "DEEP",
     outputTokens: null,
+    pricingVersion: null,
     reviewId: "demo-review-2026-08-03-01",
     status: "FAILED",
     totalTokens: null,
@@ -58,10 +67,12 @@ export const DEMO_USAGE_HISTORY: readonly UsageHistoryItem[] = Object.freeze([
   {
     createdAt: "2026-08-02T14:05:00.000Z",
     durationMs: 910,
+    estimatedCostMicros: 1_500_000,
     inputTokens: 190,
     language: "sql",
     mode: "STANDARD",
     outputTokens: 110,
+    pricingVersion: DEMO_USAGE_PRICING_VERSION,
     reviewId: "demo-review-2026-08-02-01",
     status: "COMPLETED",
     totalTokens: 300,
@@ -69,10 +80,12 @@ export const DEMO_USAGE_HISTORY: readonly UsageHistoryItem[] = Object.freeze([
   {
     createdAt: "2026-08-01T17:45:00.000Z",
     durationMs: null,
+    estimatedCostMicros: null,
     inputTokens: null,
     language: "rust",
     mode: "QUICK",
     outputTokens: null,
+    pricingVersion: null,
     reviewId: "demo-review-2026-08-01-01",
     status: "PROCESSING",
     totalTokens: null,
@@ -80,10 +93,12 @@ export const DEMO_USAGE_HISTORY: readonly UsageHistoryItem[] = Object.freeze([
   {
     createdAt: "2026-07-31T12:15:00.000Z",
     durationMs: 720,
+    estimatedCostMicros: 720_000,
     inputTokens: 110,
     language: "typescript",
     mode: "STANDARD",
     outputTokens: 70,
+    pricingVersion: DEMO_USAGE_PRICING_VERSION,
     reviewId: "demo-review-2026-07-31-01",
     status: "COMPLETED",
     totalTokens: 180,
@@ -91,10 +106,12 @@ export const DEMO_USAGE_HISTORY: readonly UsageHistoryItem[] = Object.freeze([
   {
     createdAt: "2026-07-30T08:50:00.000Z",
     durationMs: null,
+    estimatedCostMicros: null,
     inputTokens: null,
     language: "csharp",
     mode: "QUICK",
     outputTokens: null,
+    pricingVersion: null,
     reviewId: "demo-review-2026-07-30-01",
     status: "PENDING",
     totalTokens: null,
@@ -104,6 +121,8 @@ export const DEMO_USAGE_HISTORY: readonly UsageHistoryItem[] = Object.freeze([
 const demoSummary: UsageSummaryData = Object.freeze({
   asOf: DEMO_USAGE_AS_OF,
   completedReviews: 5,
+  costStatus: "AVAILABLE",
+  estimatedCostMicros: 5_556_000,
   deepReviews: 2,
   inputTokens: 788,
   languageDistribution: Object.freeze([
@@ -116,6 +135,7 @@ const demoSummary: UsageSummaryData = Object.freeze({
     { count: 2, language: "typescript" },
   ]),
   outputTokens: 466,
+  pricingVersion: DEMO_USAGE_PRICING_VERSION,
   reviewsByStatus: Object.freeze({
     CANCELLED: 0,
     COMPLETED: 5,

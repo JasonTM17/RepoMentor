@@ -2,6 +2,8 @@ export type UsageReviewStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED
 
 export type UsageReviewMode = "QUICK" | "STANDARD" | "DEEP";
 
+export type UsageCostStatus = "AVAILABLE" | "MIXED" | "UNAVAILABLE";
+
 export interface UsageStatusCounts {
   readonly PENDING: number;
   readonly PROCESSING: number;
@@ -16,12 +18,15 @@ export interface UsageLanguageDistribution {
 }
 
 export interface UsageSummaryData {
+  readonly costStatus: UsageCostStatus;
+  readonly estimatedCostMicros: number | null;
   readonly totalReviews: number;
   readonly reviewsByStatus: UsageStatusCounts;
   readonly completedReviews: number;
   readonly deepReviews: number;
   readonly inputTokens: number;
   readonly outputTokens: number;
+  readonly pricingVersion: string | null;
   readonly totalTokens: number;
   readonly languageDistribution: readonly UsageLanguageDistribution[];
   readonly asOf: string;
@@ -32,8 +37,10 @@ export interface UsageHistoryItem {
   readonly language: string;
   readonly mode: UsageReviewMode;
   readonly status: UsageReviewStatus;
+  readonly estimatedCostMicros: number | null;
   readonly inputTokens: number | null;
   readonly outputTokens: number | null;
+  readonly pricingVersion: string | null;
   readonly totalTokens: number | null;
   readonly durationMs: number | null;
   readonly createdAt: string;

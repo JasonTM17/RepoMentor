@@ -3,6 +3,7 @@
 import type { FC, ReactElement } from "react";
 
 import LineIcon from "@/components/line-icon";
+import UsageCostPanel from "@/features/usage/components/UsageCostPanel";
 import UsagePageHeader from "@/features/usage/components/UsagePageHeader";
 import UsageQuotaGrid from "@/features/usage/components/UsageQuotaGrid";
 import UsageStatePanel from "@/features/usage/components/UsageStatePanel";
@@ -39,9 +40,10 @@ const MetricCard: FC<MetricCardProps> = ({ label, note, value }): ReactElement =
 
 interface OverviewContentProps {
   readonly data: UsageOverviewData;
+  readonly source: UsageTransport["source"];
 }
 
-const OverviewContent: FC<OverviewContentProps> = ({ data }): ReactElement => {
+const OverviewContent: FC<OverviewContentProps> = ({ data, source }): ReactElement => {
   const { quota, summary } = data;
 
   return (
@@ -68,6 +70,8 @@ const OverviewContent: FC<OverviewContentProps> = ({ data }): ReactElement => {
           value={formatCount(summary.completedReviews)}
         />
       </section>
+
+      <UsageCostPanel source={source} summary={summary} />
 
       <div className="usage-dashboard-columns usage-overview-columns">
         <section className="usage-ledger-panel surface-panel" aria-labelledby="usage-input-heading">
@@ -102,7 +106,8 @@ const OverviewContent: FC<OverviewContentProps> = ({ data }): ReactElement => {
             </div>
           )}
           <p className="usage-panel-note">
-            No cost conversion is applied. The response contains token counts, not a price model.
+            Cost is shown in the separate estimate panel only when the server returns a complete
+            persisted estimate and pricing version.
           </p>
         </section>
 
@@ -155,7 +160,7 @@ const OverviewContent: FC<OverviewContentProps> = ({ data }): ReactElement => {
         <ul className="usage-deferred-list">
           <li>
             <strong>Cost and spend</strong>
-            <span>Deferred. No currency or price field is returned.</span>
+            <span>Shown above only when a compatible configured estimate is available.</span>
           </li>
           <li>
             <strong>Model identity</strong>
@@ -219,13 +224,13 @@ const UsageOverview: FC<UsageOverviewProps> = ({ transport: transportOverride })
         tone="error"
       />
     ) : (
-      <OverviewContent data={data} />
+      <OverviewContent data={data} source={transport.source} />
     );
 
   return (
     <main id="main-content" className="usage-main shell-container">
       <UsagePageHeader
-        description="Token and operation counts are visible where the accepted response supports them. Deferred fields stay named instead of guessed."
+        description="Token and operation counts stay paired with a server-provided cost estimate when available. Deferred fields stay named instead of guessed."
         kicker="Usage"
         source={transport.source}
         title="Read the usage ledger."

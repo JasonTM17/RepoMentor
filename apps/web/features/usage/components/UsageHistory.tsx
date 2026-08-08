@@ -15,8 +15,10 @@ import {
   formatCount,
   formatDateTime,
   formatDuration,
+  formatEstimatedCost,
   formatLanguage,
   formatMode,
+  formatPricingVersion,
   formatStatus,
   formatTokens,
 } from "@/features/usage/helpers/usageHelpers";
@@ -74,6 +76,17 @@ const ReviewReopenLink: FC<{ readonly reviewId: string }> = ({ reviewId }): Reac
   </a>
 );
 
+const CostValue: FC<{ readonly item: UsageHistoryItem }> = ({ item }): ReactElement => (
+  <span className="usage-history-cost">
+    <strong>{formatEstimatedCost(item.estimatedCostMicros)}</strong>
+    <small>
+      {item.pricingVersion === null
+        ? "No persisted estimate"
+        : formatPricingVersion(item.pricingVersion)}
+    </small>
+  </span>
+);
+
 const HistoryRow: FC<{ readonly item: UsageHistoryItem }> = ({ item }): ReactElement => (
   <tr>
     <th scope="row" className="usage-history-review-id">
@@ -85,6 +98,9 @@ const HistoryRow: FC<{ readonly item: UsageHistoryItem }> = ({ item }): ReactEle
       <span className={statusClassName(item.status)}>{formatStatus(item.status)}</span>
     </td>
     <td className="usage-history-number">{formatTokens(item.totalTokens)}</td>
+    <td className="usage-history-number">
+      <CostValue item={item} />
+    </td>
     <td>{formatDuration(item.durationMs)}</td>
     <td>{formatDateTime(item.createdAt)}</td>
   </tr>
@@ -110,6 +126,12 @@ const HistoryMobileItem: FC<{ readonly item: UsageHistoryItem }> = ({ item }): R
       <div>
         <dt>Tokens</dt>
         <dd>{formatTokens(item.totalTokens)}</dd>
+      </div>
+      <div>
+        <dt>Estimated cost</dt>
+        <dd>
+          <CostValue item={item} />
+        </dd>
       </div>
       <div>
         <dt>Duration</dt>
@@ -139,6 +161,7 @@ const HistoryResults: FC<HistoryResultsProps> = ({ items }): ReactElement => (
             <th scope="col">Mode</th>
             <th scope="col">Status</th>
             <th scope="col">Tokens</th>
+            <th scope="col">Estimated cost</th>
             <th scope="col">Duration</th>
             <th scope="col">Created</th>
           </tr>
@@ -417,7 +440,7 @@ const UsageHistory: FC<UsageHistoryProps> = ({ transport: transportOverride }): 
   return (
     <main id="main-content" className="usage-main shell-container">
       <UsagePageHeader
-        description="Review records stay readable at a glance, with usage fields shown only when the accepted response contains them."
+        description="Review records stay readable at a glance, with token and configured cost fields shown only when the accepted response contains them."
         kicker="History"
         source={transport.source}
         title="Trace the review desk, row by row."

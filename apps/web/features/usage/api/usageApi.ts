@@ -4,6 +4,7 @@ import type {
   UsageHistoryRequest,
   UsageQuotaData,
   UsageQuotaMode,
+  UsageCostStatus,
   UsageReviewMode,
   UsageReviewStatus,
   UsageStatusCounts,
@@ -18,6 +19,7 @@ const maxPageSize = 100;
 const maxLanguageLength = 32;
 const maxReviewIdLength = 256;
 const maxRequestIdLength = 128;
+const maxPricingVersionLength = 80;
 
 export class UsageApiError extends Error {
   public readonly code: string | undefined;
@@ -70,12 +72,20 @@ const usageStatuses: readonly UsageReviewStatus[] = [
   "FAILED",
   "CANCELLED",
 ];
+const usageCostStatuses: readonly UsageCostStatus[] = ["AVAILABLE", "MIXED", "UNAVAILABLE"];
 
 const isUsageMode = (value: unknown): value is UsageReviewMode =>
   typeof value === "string" && usageModes.includes(value as UsageReviewMode);
 
 const isUsageStatus = (value: unknown): value is UsageReviewStatus =>
   typeof value === "string" && usageStatuses.includes(value as UsageReviewStatus);
+
+const isUsageCostStatus = (value: unknown): value is UsageCostStatus =>
+  typeof value === "string" && usageCostStatuses.includes(value as UsageCostStatus);
+
+const isPricingVersion = (value: unknown): value is string =>
+  isBoundedString(value, maxPricingVersionLength) &&
+  /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u.test(value);
 
 const isUsageStatusCounts = (value: unknown): value is UsageStatusCounts => {
   if (
@@ -98,19 +108,35 @@ const isLanguageDistribution = (value: unknown): boolean =>
       isNonNegativeInteger(item.count),
   );
 
+const isCompleteCostPair = (estimatedCostMicros: unknown, pricingVersion: unknown): boolean =>
+  isNonNegativeInteger(estimatedCostMicros) && isPricingVersion(pricingVersion);
+
+const isNullableCostPair = (estimatedCostMicros: unknown, pricingVersion: unknown): boolean =>
+  (estimatedCostMicros === null && pricingVersion === null) ||
+  isCompleteCostPair(estimatedCostMicros, pricingVersion);
+
 const isUsageSummaryData = (value: unknown): value is UsageSummaryData =>
   isRecord(value) &&
   hasExactKeys(value, [
+    "costStatus",
+    "estimatedCostMicros",
     "totalReviews",
     "reviewsByStatus",
     "completedReviews",
     "deepReviews",
     "inputTokens",
     "outputTokens",
+    "pricingVersion",
     "totalTokens",
     "languageDistribution",
     "asOf",
   ]) &&
+  isUsageCostStatus(value.costStatus) &&
+  ((value.costStatus === "AVAILABLE" &&
+    isCompleteCostPair(value.estimatedCostMicros, value.pricingVersion)) ||
+    (value.costStatus !== "AVAILABLE" &&
+      value.estimatedCostMicros === null &&
+      value.pricingVersion === null)) &&
   isNonNegativeInteger(value.totalReviews) &&
   isUsageStatusCounts(value.reviewsByStatus) &&
   isNonNegativeInteger(value.completedReviews) &&
@@ -133,8 +159,10 @@ const isUsageHistoryItem = (value: unknown): value is UsageHistoryItem => {
       "language",
       "mode",
       "status",
+      "estimatedCostMicros",
       "inputTokens",
       "outputTokens",
+      "pricingVersion",
       "totalTokens",
       "durationMs",
       "createdAt",
@@ -150,16 +178,20 @@ const isUsageHistoryItem = (value: unknown): value is UsageHistoryItem => {
     isNonNegativeInteger(value.outputTokens) &&
     isNonNegativeInteger(value.totalTokens) &&
     value.totalTokens === value.inputTokens + value.outputTokens;
+  const costFieldsAreAllNull = value.estimatedCostMicros === null && value.pricingVersion === null;
+  const costFieldsAreComplete = isCompleteCostPair(value.estimatedCostMicros, value.pricingVersion);
 
   return (
     isBoundedString(value.reviewId, maxReviewIdLength) &&
     isBoundedString(value.language, maxLanguageLength) &&
     isUsageMode(value.mode) &&
     isUsageStatus(value.status) &&
+    isNullableCostPair(value.estimatedCostMicros, value.pricingVersion) &&
     isNullableNonNegativeInteger(value.inputTokens) &&
     isNullableNonNegativeInteger(value.outputTokens) &&
     isNullableNonNegativeInteger(value.totalTokens) &&
     (usageFieldsAreAllNull || usageFieldsAreComplete) &&
+    (costFieldsAreAllNull || (costFieldsAreComplete && !usageFieldsAreAllNull)) &&
     isNullableNonNegativeInteger(value.durationMs) &&
     isIsoDateTime(value.createdAt)
   );
