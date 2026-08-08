@@ -15,6 +15,7 @@ on:
       - prisma/schema.prisma
       - .github/workflows/container-release.yml
       - .github/workflows/container-validation.yml
+      - .github/workflows/application-gates.yml
   push:
     branches:
       - main
@@ -31,6 +32,7 @@ on:
       - prisma/schema.prisma
       - .github/workflows/container-release.yml
       - .github/workflows/container-validation.yml
+      - .github/workflows/application-gates.yml
 
 permissions:
   contents: read
