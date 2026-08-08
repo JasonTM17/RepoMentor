@@ -30,3 +30,9 @@ dependency audit. The prior three high advisories (`playwright`, transitive
 `effect`, and `js-yaml`) were closed by dependency commit `953e7da` through a
 patched Playwright version and documented workspace overrides. Browser
 execution, live services, and external Luna remain separate and unclaimed.
+
+`main` and `origin/main` are aligned at `5453e8c`. Container Validation run
+`31241219843` passed workflow syntax, Dockerfile/Compose contracts, and the
+`linux/amd64` no-publish API and web image builds. It used no registry
+credentials and did not publish an image; registry publication remains a
+separate tagged-release gate.
