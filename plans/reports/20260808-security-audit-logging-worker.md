@@ -95,7 +95,7 @@ older copy of the enum already exists; no second migration was added.
 
 All commands were run in `D:\RepoMentor` on the corrected feature ref.
 
-- Focused audit tests: **10/10 passed**.
+- Focused audit tests: **11/11 passed**.
 - Coordinator full-workspace verification after the guest-review follow-up on
   candidate `075a2673fad786d9634ebd32479f397188c690f`: `pnpm test` passed;
   API **282/282**, web **48/48**, contracts **7/7**.
@@ -134,5 +134,6 @@ Follow-up verification:
 - RBAC, pricing, UI, provider behavior, and unrelated security refactors were
   not changed.
 - The follow-up is ready for independent exact-head arbitration: exact base
-  ancestry, five-path follow-up scope, and passing deterministic gates.
+  ancestry, 12-file cumulative candidate scope, and passing deterministic
+  gates.
   Coordinator merge/push remains outstanding.
