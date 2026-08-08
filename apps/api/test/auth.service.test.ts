@@ -186,7 +186,7 @@ describe("authentication service", () => {
 
     assert.deepEqual(
       await service.changePassword(
-        { sessionId: context.sessionId, userId: context.subject },
+        { role: "USER", sessionId: context.sessionId, userId: context.subject },
         "correct horse battery staple",
         "new correct horse battery staple",
         "new correct horse battery staple",
@@ -262,7 +262,7 @@ describe("authentication service", () => {
 
     await assert.rejects(
       service.changePassword(
-        { sessionId: context.sessionId, userId: context.subject },
+        { role: "USER", sessionId: context.sessionId, userId: context.subject },
         "current password",
         "new valid password",
         "different valid password",
@@ -272,7 +272,7 @@ describe("authentication service", () => {
     );
     await assert.rejects(
       service.changePassword(
-        { sessionId: context.sessionId, userId: context.subject },
+        { role: "USER", sessionId: context.sessionId, userId: context.subject },
         "current password",
         "current password",
         "current password",

@@ -3,7 +3,7 @@ import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import type { Request } from "express";
 
 import { AuthTokenService } from "./auth-token.service.js";
-import { AUTH_REPOSITORY } from "./auth.types.js";
+import { AUTH_REPOSITORY, isAuthUserRole } from "./auth.types.js";
 import type { AuthRepository, AuthContext } from "./auth.types.js";
 
 export type AuthenticatedRequest = Request & { auth?: AuthContext };
@@ -46,12 +46,14 @@ export class AuthAccessGuard implements CanActivate {
       !user ||
       session.userId !== user.id ||
       session.status !== "ACTIVE" ||
-      user.status !== "ACTIVE"
+      user.status !== "ACTIVE" ||
+      !isAuthUserRole(user.role)
     ) {
       throw unauthorized();
     }
 
     request.auth = {
+      role: user.role,
       sessionId: session.id,
       userId: user.id,
     };

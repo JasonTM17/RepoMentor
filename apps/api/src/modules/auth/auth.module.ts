@@ -9,6 +9,7 @@ import { AUTH_REPOSITORY } from "./auth.types.js";
 import { PasswordHasherService } from "./password-hasher.service.js";
 import { PrismaAuthRepository } from "./prisma-auth.repository.js";
 import { PrismaService } from "./prisma.service.js";
+import { RolesGuard } from "./roles.guard.js";
 
 @Module({
   controllers: [AuthController],
@@ -21,6 +22,7 @@ import { PrismaService } from "./prisma.service.js";
     PasswordHasherService,
     PrismaAuthRepository,
     PrismaService,
+    RolesGuard,
     {
       provide: AUTH_REPOSITORY,
       useExisting: PrismaAuthRepository,
@@ -34,6 +36,7 @@ import { PrismaService } from "./prisma.service.js";
     AuthTokenService,
     AUTH_REPOSITORY,
     PrismaService,
+    RolesGuard,
   ],
 })
 export class AuthModule {}

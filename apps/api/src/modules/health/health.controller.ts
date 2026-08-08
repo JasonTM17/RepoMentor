@@ -1,11 +1,20 @@
-import { Controller, Get } from "@nestjs/common";
-import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Controller, Get, UseGuards } from "@nestjs/common";
+import {
+  ApiForbiddenResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from "@nestjs/swagger";
 import type {
   LivenessHealthPayload,
   MetricsHealthPayload,
   ReadinessHealthPayload,
 } from "@repomentor/contracts";
 
+import { AuthAccessGuard } from "../auth/auth-access.guard.js";
+import { Roles } from "../auth/roles.decorator.js";
+import { RolesGuard } from "../auth/roles.guard.js";
 import { HealthMetricsService } from "./health.metrics.js";
 import { HealthService } from "./health.service.js";
 
@@ -31,8 +40,12 @@ export class HealthController {
     return this.healthService.getReadiness();
   }
 
+  @ApiUnauthorizedResponse({ description: "Authentication is required." })
+  @ApiForbiddenResponse({ description: "An ADMIN role is required." })
   @ApiOkResponse({ description: "Return aggregate application request metrics." })
   @ApiOperation({ summary: "Read aggregate application metrics" })
+  @Roles("ADMIN")
+  @UseGuards(AuthAccessGuard, RolesGuard)
   @Get("metrics")
   getMetrics(): MetricsHealthPayload {
     return this.healthMetricsService.getMetrics();

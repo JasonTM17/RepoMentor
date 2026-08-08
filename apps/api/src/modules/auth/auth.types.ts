@@ -5,6 +5,10 @@ export const AUTH_REPOSITORY = Symbol("AUTH_REPOSITORY");
 export const AUTH_USER_ROLES = ["USER", "ADMIN"] as const;
 export type AuthUserRole = (typeof AUTH_USER_ROLES)[number];
 
+export function isAuthUserRole(value: unknown): value is AuthUserRole {
+  return AUTH_USER_ROLES.some((role) => role === value);
+}
+
 export const AUTH_USER_STATUSES = ["ACTIVE", "DISABLED"] as const;
 export type AuthUserStatus = (typeof AUTH_USER_STATUSES)[number];
 
@@ -120,4 +124,5 @@ export interface AuthSessionMetadata {
 export interface AuthContext {
   readonly userId: string;
   readonly sessionId: string;
+  readonly role: AuthUserRole;
 }
