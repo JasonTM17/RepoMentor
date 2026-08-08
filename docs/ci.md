@@ -23,9 +23,10 @@ calls require their respective runtime environments. A passing application
 job therefore proves deterministic repository gates only, not deployment or
 production readiness.
 
-At the current `953e7da` baseline, the local credential-free
-`pnpm audit --audit-level=high` reports no known vulnerabilities. The prior
-three high advisories (`playwright`, transitive `effect`, and `js-yaml`) were
-closed by the focused dependency commit `953e7da` through a patched Playwright
-version and documented workspace overrides. Browser execution, live services,
-external Luna, and hosted GitHub-run evidence remain separate and unclaimed.
+At the current `5453e8c` baseline, hosted Application Gates run `31241219840`
+passed the deterministic API, contracts, and web tests, formatting, lint,
+typecheck, both application builds, package verification, and the high-severity
+dependency audit. The prior three high advisories (`playwright`, transitive
+`effect`, and `js-yaml`) were closed by dependency commit `953e7da` through a
+patched Playwright version and documented workspace overrides. Browser
+execution, live services, and external Luna remain separate and unclaimed.
