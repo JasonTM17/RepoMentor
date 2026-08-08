@@ -5,6 +5,8 @@ Worker scope: sensitive-action audit logging only
 Branch: `feature/security-audit-logging`
 Base: `73f57f5f3689fc47154d45719f1255c711b0b290`
 Worker commit: `8bdbe59` (`feat(audit): record sensitive user actions`)
+Follow-up commit: focused guest review coverage (this report is included in
+that commit).
 
 ## Handoff and boundary
 
@@ -37,6 +39,7 @@ The explicit allowlist covers:
 - Session: refresh, single logout, and logout-all.
 - Review: create, list, read, bulk delete, delete, retry, cancel, process,
   lifecycle events, and persisted result reads.
+- Public review: anonymous transient guest review creation.
 
 Each persisted record is bounded to:
 
@@ -75,6 +78,19 @@ Implementation commit `8bdbe59` contains only:
 The migration uses duplicate-object-safe enum creation,
 `CREATE TABLE IF NOT EXISTS`, and `CREATE INDEX IF NOT EXISTS` statements.
 
+## Follow-up acceptance review — guest review action
+
+The coordinator identified `POST /api/v1/guest/reviews`. The master prompt
+requires audit logging for sensitive actions, and this endpoint accepts
+untrusted source and invokes the review provider even though it is transient
+and anonymous. The decision is to audit it as `REVIEW_GUEST_CREATE`.
+
+The follow-up adds the exact `POST /guest/reviews` allowlist entry with `ANY`
+actor policy, so no auth context produces an `ANONYMOUS` record. It persists no
+body, query, or target data. The existing pre-merge idempotent migration was
+adjusted to include the enum value and to add it with `IF NOT EXISTS` when an
+older copy of the enum already exists; no second migration was added.
+
 ## Verify
 
 All commands were run in `D:\RepoMentor` on the corrected feature ref.
@@ -98,6 +114,12 @@ All commands were run in `D:\RepoMentor` on the corrected feature ref.
 - High-signal credential scan over the staged diff: passed with no key, token,
   private-key, or provider-secret pattern matches.
 
+Follow-up verification:
+
+- Focused guest-review audit tests: **11/11 passed**.
+- Follow-up API lint, typecheck, build, format, diff-check, and credential
+  scan: passed.
+
 ## Limitations and arbitration notes
 
 - No live PostgreSQL migration, database write, Redis, Luna, deployment, or
@@ -110,6 +132,6 @@ All commands were run in `D:\RepoMentor` on the corrected feature ref.
   configuration absence, and timeout do not fail the user request.
 - RBAC, pricing, UI, provider behavior, and unrelated security refactors were
   not changed.
-- The branch is ready for independent exact-head arbitration at
-  `8bdbe59`: one focused worker commit, exact base ancestry, scoped files, and
-  passing deterministic gates. Coordinator merge/push remains outstanding.
+- The follow-up is ready for independent exact-head arbitration: exact base
+  ancestry, five-path follow-up scope, and passing deterministic gates.
+  Coordinator merge/push remains outstanding.

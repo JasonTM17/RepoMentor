@@ -9,6 +9,7 @@ BEGIN
         'AUTH_ME',
         'AUTH_PASSWORD_CHANGE',
         'REVIEW_CREATE',
+        'REVIEW_GUEST_CREATE',
         'REVIEW_LIST',
         'REVIEW_READ',
         'REVIEW_BULK_DELETE',
@@ -23,6 +24,8 @@ EXCEPTION
     WHEN duplicate_object THEN NULL;
 END
 $$;
+
+ALTER TYPE "AuditAction" ADD VALUE IF NOT EXISTS 'REVIEW_GUEST_CREATE';
 
 DO $$
 BEGIN

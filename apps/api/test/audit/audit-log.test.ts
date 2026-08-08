@@ -104,6 +104,7 @@ describe("sensitive-action audit logging", () => {
     assert.equal(findAuditRoute("POST", "/auth/login")?.action, "AUTH_LOGIN");
     assert.equal(findAuditRoute("POST", "/auth/logout-all")?.action, "SESSION_LOGOUT_ALL");
     assert.equal(findAuditRoute("POST", "/reviews/:id/process")?.action, "REVIEW_PROCESS");
+    assert.equal(findAuditRoute("POST", "/guest/reviews")?.action, "REVIEW_GUEST_CREATE");
     assert.equal(findAuditRoute("POST", "/reviews/:id/unknown"), undefined);
     assert.equal(findAuditRoute("PUT", "/reviews/:id"), undefined);
   });
@@ -168,6 +169,38 @@ describe("sensitive-action audit logging", () => {
       route: "/auth/login",
       statusCode: 401,
     });
+  });
+
+  it("audits an anonymous guest review without reading source or caller identity", () => {
+    const request = makeRequest({
+      body: {
+        language: "typescript",
+        source: "guest-source-must-not-be-read",
+        userId: "body-user-must-not-win",
+      },
+      method: "POST",
+      query: { token: "guest-query-token-must-not-be-read" },
+      requestId: "guest-review-request-123",
+      routePath: "/guest/reviews",
+    });
+    const route = resolveAuditRoute(request);
+
+    assert.ok(route);
+    const record = createAuditLogRecord(request, route, "SUCCESS", 200, NOW);
+
+    assert.deepEqual(record, {
+      action: "REVIEW_GUEST_CREATE",
+      actorType: "ANONYMOUS",
+      method: "POST",
+      occurredAt: NOW,
+      outcome: "SUCCESS",
+      requestId: "guest-review-request-123",
+      route: "/guest/reviews",
+      statusCode: 200,
+    });
+    assert.equal(JSON.stringify(record).includes("guest-source"), false);
+    assert.equal(JSON.stringify(record).includes("guest-query-token"), false);
+    assert.equal(JSON.stringify(record).includes("body-user"), false);
   });
 
   it("does not create a review audit actor from caller-controlled fields", () => {

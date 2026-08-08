@@ -10,6 +10,7 @@ export const AUDIT_ACTIONS = [
   "AUTH_ME",
   "AUTH_PASSWORD_CHANGE",
   "REVIEW_CREATE",
+  "REVIEW_GUEST_CREATE",
   "REVIEW_LIST",
   "REVIEW_READ",
   "REVIEW_BULK_DELETE",
@@ -101,6 +102,13 @@ export const AUDIT_ROUTE_ALLOWLIST: readonly AuditRouteDefinition[] = [
     actor: "AUTHENTICATED",
     method: "POST",
     route: "/reviews",
+    target: "NONE",
+  },
+  {
+    action: "REVIEW_GUEST_CREATE",
+    actor: "ANY",
+    method: "POST",
+    route: "/guest/reviews",
     target: "NONE",
   },
   {
