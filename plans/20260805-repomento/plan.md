@@ -1073,3 +1073,82 @@ clean-but-stale `feature/auth-api`, dirty `feature/history-filter-api`, and
 dirty `feature/review-process-lock-v2`. Completed settings, security,
 review-detail, CI, and dependency refs were removed only after exact-head or
 patch-equivalence checks; no broad cleanup or reset was used.
+
+## Continuation: release truth, history workspace, and current head — 2026-08-08
+
+This append-only continuation supersedes stale status statements only for the
+current evidence boundary. It does not rewrite the historical checkpoint
+sections above.
+
+### Exact source boundaries
+
+- Historical deterministic checkpoint: `953e7da627d75bda394cdcfae2cee3a0199321be`.
+- Released tag: `v0.1.4` resolves to
+  `c3d1fe81928062929009e58d47c911ee8d5625ec`.
+- Current `main` and `origin/main`: `eeb7327452f0286f8ea512f1bf579bef31db0d92`.
+- The current head is unreleased and contains 13 commits across 27 paths
+  after the release tag.
+- Master-prompt attachment provenance was recorded from
+  `C:\Users\Admin\.codex\attachments\f57409b9-7413-4b5c-b370-278a6a490c2e\pasted-text.txt`;
+  SHA-256 is
+  `FD7435754F354ADEFECE3361D279C22DE38D6507758D3BF86945E5A7F19BE75D`.
+  The attachment is not committed, so prompt traceability remains
+  derived-only.
+
+### Integrated bounded slices
+
+- `41654f9`: safe database migration and seed commands with production guards.
+- `4ddd53d`, `24a74fb`, `f5b51b5`, `8530807`: migration image, Compose startup
+  ordering, offline Prisma engine, and CI assertions.
+- `8941c5c`, `0b74df5`, `62e7b52`: owner-scoped review history filters,
+  deterministic ordering, bulk soft-delete, tests, and API docs.
+- `fb756ae`, `239d047`, `3619bed`, `eeb7327`: authenticated responsive web
+  history transport/workspace/tests and strict outer envelope metadata.
+
+### Current validation evidence
+
+- Hosted Application gates pass at current head in run `31253446241`.
+- Hosted Container validation passes at current head in run `31253446243`.
+- Web local evidence: 48/48 shell tests, typecheck, lint, production build,
+  Prettier check, diff check, and credential-shaped scan pass.
+- Current web Luna arbiter sequence: agent
+  `019fe0f1-963c-70e1-a18f-aacbc38de181` held on permissive `meta`; agent
+  `019fe0f6-e7de-7f11-8a3c-6a14c867b27e` accepted after `eeb7327`.
+- Kongminh/Terra High advisor `019fe0e2-13e1-7a60-89da-f54a35a71f21` held
+  only the documentation continuation until the release/current-head,
+  provenance, license, and worktree boundaries were recorded. It accepted
+  the existing release artifact as an artifact, not a deployment.
+
+### Release and legal disposition
+
+- GitHub Release `v0.1.4` is published with no assets.
+- Container release run `31247857378` succeeded for `c3d1fe8`.
+- GHCR and Docker Hub API/Web digests are recorded in
+  `plans/reports/20260808-repomento-continuation.md` and `docs/release.md`.
+- The root and five workspace manifests remain `private: true`.
+- No `LICENSE` file or package `license` field exists. Owner license choice is
+  an open gate before any npm/public package or legal reuse claim.
+- GitHub Packages REST metadata was not queried because the available token
+  lacks `read:packages`; no stronger API claim is made.
+
+### Branch/worktree ledger
+
+- Completed `feature/web-review-history` was based exactly on `62e7b52`,
+  accepted at `eeb7327`, fast-forward merged, pushed, and its branch ref was
+  deleted.
+- Its worktree registration was removed. Normal directory removal stopped on
+  non-empty generated dependency/build residue; no force deletion was used.
+- Protected dirty/stale refs remain inventory-only: `feature/history-filter-api`,
+  detached historical `8662b6e`, stale `feature/auth-api`, unmerged
+  `docs/completeness`, and dirty `feature/review-process-lock-v2`.
+- No broad reset, force branch deletion, or unrelated worktree cleanup is
+  authorized by this continuation.
+
+### Open gates and next bounded decision
+
+Live PostgreSQL transaction/isolation, Redis/EVAL and multi-instance SSE,
+external Luna/provider calls, browser journeys, production deployment,
+independent attestation/SBOM verification, and license ownership remain open.
+The next release must choose whether the post-tag current-head slices are in
+scope, then publish a new exact semantic tag. `eeb7327` must not be described
+as `v0.1.4`.

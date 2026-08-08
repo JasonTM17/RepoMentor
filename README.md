@@ -14,6 +14,18 @@ GitHub Release was published after those tagged gates passed. Earlier SHAs in
 this document remain exact-head evidence anchors for their own checks; docs-only
 commits do not change the runtime inputs.
 
+## Current unreleased `main` boundary — 2026-08-08
+
+The tagged `v0.1.4` artifact remains pinned to
+`c3d1fe81928062929009e58d47c911ee8d5625ec`. The current `main` and
+`origin/main` heads are aligned at
+`eeb7327452f0286f8ea512f1bf579bef31db0d92`, which is **not** a new release
+tag. Thirteen focused commits and 27 paths follow the release tag, including
+safe database migration/seed commands, offline Prisma migration-image
+hardening, owner-scoped history filters and bulk delete, and the authenticated
+responsive `/history` workspace. The exact evidence and remaining live/runtime
+limits are recorded in [the 2026-08-08 continuation report](plans/reports/20260808-repomento-continuation.md).
+
 ## Current status
 
 This checkpoint contains:

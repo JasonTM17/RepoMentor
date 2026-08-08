@@ -24,6 +24,17 @@ not evidence of a live deployment or production readiness.
   the current checkpoint addendum; they do not establish a tag, release,
   registry artifact, license, deployment, or production certification.
 
+## Current unreleased `main` boundary — 2026-08-08
+
+The release checkpoint above remains `c3d1fe81928062929009e58d47c911ee8d5625ec`.
+The current `main` and `origin/main` heads are aligned at
+`eeb7327452f0286f8ea512f1bf579bef31db0d92`. This current head is unreleased:
+the 13 post-tag commits and 27 changed paths are not folded into `v0.1.4`.
+They include migration/seed commands, offline Prisma migration-image
+hardening, owner-scoped review-history API controls, and the authenticated web
+history workspace. See the [current-head continuation report](../plans/reports/20260808-repomento-continuation.md)
+for exact CI, arbiter, branch, provenance, and open-gate evidence.
+
 ## Current status
 
 - Root package: `repomento@0.1.0`, `private: true`.
