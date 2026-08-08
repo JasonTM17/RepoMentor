@@ -1,5 +1,8 @@
-import { createDeterministicFixtureResult } from "@/features/review/helpers/reviewHelpers";
-import type { ReviewDraft, ReviewTransport } from "@/features/review/types";
+import {
+  createDeterministicFixtureResult,
+  createInitialReviewDraft,
+} from "@/features/review/helpers/reviewHelpers";
+import type { ReviewDetailTransport, ReviewDraft, ReviewTransport } from "@/features/review/types";
 
 export const DEMO_REVIEW_ID = "demo-phase-08-review";
 
@@ -40,5 +43,30 @@ export const createDemoReviewTransport = (draft: ReviewDraft): ReviewTransport =
         status: "COMPLETED" as const,
       };
     },
+  });
+};
+
+export const createDemoReviewDetailTransport = (reviewId: string): ReviewDetailTransport => {
+  const draft = createInitialReviewDraft();
+  const reviewTransport = createDemoReviewTransport(draft);
+
+  return Object.freeze({
+    getDetail: async () => {
+      await wait(120);
+
+      return {
+        context: draft.context,
+        createdAt: "2026-08-06T00:00:00.000Z",
+        id: reviewId,
+        language: draft.language,
+        learnerLevel: draft.learnerLevel.toUpperCase() as "INTERMEDIATE",
+        mode: draft.mode,
+        source: draft.source,
+        status: "COMPLETED" as const,
+        title: draft.title,
+        updatedAt: "2026-08-06T00:00:00.000Z",
+      };
+    },
+    getResult: (id: string) => reviewTransport.getResult(id),
   });
 };

@@ -4,6 +4,8 @@ import type {
   ReviewCancelResponse,
   ReviewLifecycleEvent,
   ReviewDraft,
+  ReviewDetail,
+  ReviewDetailTransport,
   ReviewProcessResponse,
   ReviewResult,
   ReviewResultResponse,
@@ -27,6 +29,7 @@ const maxGeneratedTests = 3;
 const maxGeneratedTestLength = 8_000;
 const maxLearningQuestions = 5;
 const maxLearningQuestionLength = 500;
+const maxReviewSourceLength = 100_000;
 const maxReviewTitleLength = 80;
 const maxReviewContextLength = 500;
 
@@ -229,6 +232,39 @@ const isReviewAdmissionResponse = (value: unknown): value is ReviewAdmissionResp
     reviewAdmissionStatuses.includes(value.status as (typeof reviewAdmissionStatuses)[number]) &&
     (!hasOwn(value, "title") || isBoundedNonBlankString(value.title, maxReviewTitleLength)) &&
     (!hasOwn(value, "context") || isBoundedNonBlankString(value.context, maxReviewContextLength)) &&
+    isIsoDateTime(value.createdAt) &&
+    isIsoDateTime(value.updatedAt)
+  );
+};
+
+const isReviewDetailResponse = (value: unknown): value is ReviewDetail => {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, [
+      "createdAt",
+      "id",
+      "language",
+      "learnerLevel",
+      "mode",
+      "title",
+      "context",
+      "source",
+      "status",
+      "updatedAt",
+    ])
+  ) {
+    return false;
+  }
+
+  return (
+    isBoundedString(value.id, maxReviewIdLength) &&
+    isBoundedString(value.language, 32) &&
+    reviewApiLearnerLevels.includes(value.learnerLevel as ReviewApiLearnerLevel) &&
+    ["QUICK", "STANDARD", "DEEP"].includes(value.mode as string) &&
+    reviewAdmissionStatuses.includes(value.status as (typeof reviewAdmissionStatuses)[number]) &&
+    (!hasOwn(value, "title") || isBoundedNonBlankString(value.title, maxReviewTitleLength)) &&
+    (!hasOwn(value, "context") || isBoundedNonBlankString(value.context, maxReviewContextLength)) &&
+    isBoundedNonBlankString(value.source, maxReviewSourceLength) &&
     isIsoDateTime(value.createdAt) &&
     isIsoDateTime(value.updatedAt)
   );
@@ -621,8 +657,8 @@ export const consumeReviewEventStream = async (
 const createReviewTransport = (
   origin: string,
   getAccessToken: (() => string | undefined) | undefined,
-): ReviewTransport => {
-  const transport: ReviewTransport = {
+): ReviewTransport & ReviewDetailTransport => {
+  const transport: ReviewTransport & ReviewDetailTransport = {
     cancel: (reviewId) =>
       request(
         origin,
@@ -653,6 +689,14 @@ const createReviewTransport = (
           method: "POST",
         },
         isReviewAdmissionResponse,
+      ),
+    getDetail: (reviewId) =>
+      request(
+        origin,
+        getAccessToken,
+        `/api/v1/reviews/${encodeURIComponent(reviewId)}`,
+        { credentials: "include", method: "GET" },
+        isReviewDetailResponse,
       ),
     getResult: (reviewId) =>
       request(
@@ -688,9 +732,12 @@ const createReviewTransport = (
   });
 };
 
-export const reviewApi: ReviewTransport = createReviewTransport(apiOrigin, undefined);
+export const reviewApi: ReviewTransport & ReviewDetailTransport = createReviewTransport(
+  apiOrigin,
+  undefined,
+);
 
 export const createReviewApiTransport = (
   options: ReviewApiTransportOptions = {},
-): ReviewTransport =>
+): ReviewTransport & ReviewDetailTransport =>
   createReviewTransport(normalizeApiOrigin(options.apiOrigin ?? apiOrigin), options.getAccessToken);

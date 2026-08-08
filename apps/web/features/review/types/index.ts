@@ -109,6 +109,10 @@ export interface ReviewAdmissionResponse {
   readonly updatedAt: string;
 }
 
+export interface ReviewDetail extends ReviewAdmissionResponse {
+  readonly source: string;
+}
+
 export interface ReviewCancelResponse extends Omit<ReviewAdmissionResponse, "status"> {
   readonly status: "CANCELLED";
 }
@@ -215,6 +219,11 @@ export interface ReviewTransport {
     reviewId: string,
     options?: ReviewStreamOptions,
   ) => Promise<ReviewStreamOutcome>;
+}
+
+export interface ReviewDetailTransport {
+  readonly getDetail: (reviewId: string) => Promise<ReviewDetail>;
+  readonly getResult: (reviewId: string) => Promise<ReviewResultResponse>;
 }
 
 export type ReviewTransportFactory = (draft: ReviewDraft) => ReviewTransport;
