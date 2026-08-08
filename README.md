@@ -279,6 +279,23 @@ pnpm --filter @repomentor/contracts build
 pnpm db:validate
 ```
 
+After PostgreSQL is healthy, apply the checked-in migrations and create one
+local development user when needed:
+
+```bash
+pnpm db:migrate
+pnpm db:seed
+```
+
+`pnpm db:migrate` runs Prisma's forward-only deploy command against
+`prisma/schema.prisma`. `pnpm db:seed` requires `NODE_ENV` to be non-production
+and all three explicit local-only values `SEED_USER_EMAIL`,
+`SEED_USER_PASSWORD`, and `SEED_USER_DISPLAY_NAME`. Email, display name, and
+password lengths are bounded by the auth contract; the command hashes the
+password with Argon2id and safely upserts one `USER`/`ACTIVE` user by email.
+It fails closed when a required value is missing or invalid and never prints
+the password, tokens, or `DATABASE_URL`.
+
 `db:generate` and `db:validate` inspect the Prisma schema; they do not prove
 that PostgreSQL is reachable. To validate and start the local API/web plus
 PostgreSQL/Redis Compose layer, populate the Compose variables first and run:
@@ -306,6 +323,8 @@ Run the commands from the repository root:
 | ------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `pnpm run deps:install`                     | Frozen dependency install with lifecycle scripts disabled.                                 |
 | `pnpm db:generate`                          | Generate the Prisma client after `DATABASE_URL` is set.                                    |
+| `pnpm db:migrate`                           | Apply checked-in Prisma migrations with `prisma migrate deploy`.                           |
+| `pnpm db:seed`                              | Idempotently upsert the explicit non-production development user seed.                     |
 | `pnpm --filter @repomentor/contracts build` | Build the shared contract package before API typecheck/test/build.                         |
 | `pnpm dev`                                  | Run present workspace `dev` scripts; use explicit ports when running web and API together. |
 | `pnpm --filter @repomentor/api dev`         | Run the NestJS API.                                                                        |

@@ -62,8 +62,25 @@ workflow evidence, SBOM/provenance attestations, and the GitHub Release.
 
 Apply schema changes as forward-only, append-only Prisma migrations according to
 the [migration ownership ADR](architecture/database-migration-ownership.md).
-`pnpm db:validate` and `pnpm db:generate` do not connect to PostgreSQL. A real
-deployment must review and apply migrations with its backup/rollback policy.
+`pnpm db:validate` and `pnpm db:generate` do not connect to PostgreSQL. After
+the database is healthy, apply the checked-in migrations with:
+
+```bash
+pnpm db:migrate
+```
+
+For a local or CI non-production database, the idempotent development seed is:
+
+```bash
+pnpm db:seed
+```
+
+The seed requires explicit `SEED_USER_EMAIL`, `SEED_USER_PASSWORD`, and
+`SEED_USER_DISPLAY_NAME` values, validates the auth bounds, hashes the password
+with Argon2id, and upserts one `USER`/`ACTIVE` user by email. It refuses
+`NODE_ENV=production`, missing or invalid values, and never prints passwords,
+tokens, or connection URLs. A real deployment must review and apply migrations
+with its backup/rollback policy; do not run the development seed against it.
 
 Provide `LUNA_API_KEY`, database credentials, Redis password, JWT secrets, and
 quota fingerprint secrets through an approved secret mechanism. Never expose
