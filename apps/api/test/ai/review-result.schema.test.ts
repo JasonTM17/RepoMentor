@@ -11,7 +11,7 @@ import {
 const validResult = {
   education: {
     diff: "@@ -1 +1 @@\n-const answer = 41;\n+const answer = 42;",
-    generatedTests: ["test(\"answer\", () => assert.equal(answer, 42));"],
+    generatedTests: ['test("answer", () => assert.equal(answer, 42));'],
     improvedSource: "const answer = 42;",
     learningQuestions: ["Which invariant makes this value safe to change?"],
   },
@@ -51,7 +51,9 @@ describe("structured AI review result", () => {
   });
 
   it("normalizes legacy persisted results without education output", () => {
-    const { education: _education, ...legacyResult } = validResult;
+    const legacyResult = Object.fromEntries(
+      Object.entries(validResult).filter(([key]) => key !== "education"),
+    );
 
     assert.deepEqual(parseReviewResult(legacyResult), {
       ...legacyResult,

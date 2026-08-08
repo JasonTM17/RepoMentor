@@ -1109,7 +1109,9 @@ test("review result runtime validation enforces ISO timestamps, usage invariants
       })(),
       (() => {
         const response = createReviewResultResponse();
-        const { education: _education, ...legacyResult } = response.result;
+        const legacyResult = Object.fromEntries(
+          Object.entries(response.result).filter(([key]) => key !== "education"),
+        );
         response.result = legacyResult;
         return response;
       })(),
