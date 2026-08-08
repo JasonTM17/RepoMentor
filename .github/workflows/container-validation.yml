@@ -113,6 +113,7 @@ jobs:
           export REDIS_HOST_PORT=56379
           export API_HOST_PORT=58080
           export WEB_HOST_PORT=58081
+          export CORS_ORIGINS="http://127.0.0.1:${WEB_HOST_PORT}"
           export DATABASE_URL="postgresql://repomentor_ci:compose-check-${GITHUB_RUN_ID}@postgres:5432/repomentor_ci"
           export REDIS_URL="redis://:compose-check-${GITHUB_RUN_ID}@redis:6379"
           export JWT_ACCESS_SECRET="compose-check-access-${GITHUB_RUN_ID}-0123456789abcdef"
