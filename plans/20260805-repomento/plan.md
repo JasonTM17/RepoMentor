@@ -1160,23 +1160,57 @@ The next release must choose whether the post-tag current-head slices are in
 scope, then publish a new exact semantic tag. `eeb7327` must not be described
 as `v0.1.4`.
 
-## Final docs-head alignment — 2026-08-08
+## Final current-head alignment — 2026-08-08
 
-The continuation documentation was then integrated as `6b0873d` and
-`2ec543b`. Therefore the final current `main` and `origin/main` are aligned
-at `2ec543b060a56f43b24026e8a69bb51af0c7228c`, with 15 commits and 29 paths
-after the released `v0.1.4` commit `c3d1fe8`. The hosted Application gates
-run `31254038139` passed at this docs-only head. Container validation remains
-green at the last code head `eeb7327` in run `31253446243`; the two following
-commits are documentation-only and do not change runtime inputs.
+The authoritative current `main` and `origin/main` heads are aligned at
+`58a9a6a67d95e736dcc7a0a46e83315d89c031e8`. This is an unreleased head, not a
+replacement for `v0.1.4`, whose runtime commit remains
+`c3d1fe81928062929009e58d47c911ee8d5625ec`. There are 23 commits and 41
+changed paths after the released tag. Earlier checkpoint sections remain
+historical evidence for the heads at which they were authored.
 
-The first follow-up documentation candidate was
-`a32af2b02df7d06e0bedf13cd43bee2871fbfb12`. A second follow-up candidate,
-`468a81bd725a61247e4fde1bf57ef78eac8882c6`, records that predecessor identity
-for arbitration; the resulting docs branch remains isolated until the final
-exact-head review accepts the cumulative scope.
+### Sensitive-action audit logging acceptance
 
-The docs branch was independently Luna-accepted by agent
-`019fe106-14f2-7b02-8b9a-f49d87308471` after the coordinator verified exact
-ancestry, clean status, four-path scope, and `git diff --check`. The protected
-dirty/stale worktrees remain inventory-only, and no force cleanup was performed.
+The exact audit report is
+`plans/reports/20260808-security-audit-logging-worker.md`.
+Implementation commits are `8bdbe59` and `075a267`; evidence/report commits
+are `aef4fd7`, `0be728a`, and `58a9a6a`.
+
+The completed slice explicitly allowlists sensitive auth/session/review
+actions, including `POST /api/v1/guest/reviews`. Persisted metadata is bounded
+to action, outcome, actor user/session IDs when authenticated, request ID,
+canonical route, method, status, time, and safe target IDs. It never captures
+request bodies, queries, auth headers, cookies, tokens, passwords, source,
+prompt text, provider errors/secrets, or response bodies. Persistence is
+asynchronous, fail-open, and bounded to 250 ms; configured deployments use the
+Prisma adapter, while deterministic boots without database configuration use a
+no-op sink.
+
+Documented limits remain guard failures before interceptor execution,
+best-effort audit persistence, and the absence of live PostgreSQL, Redis,
+Luna/provider, deployment, or browser evidence.
+
+### Current validation evidence
+
+- Coordinator local evidence at `58a9a6a67d95e736dcc7a0a46e83315d89c031e8`:
+  focused audit `11/11`, API `282/282`, web `48/48`, contracts `7/7`,
+  typecheck, lint, build, format, package, Prisma validate/generate,
+  diff-check, and credential scan all passed.
+- Hosted Application Gates run `31265734227` and Container validation run
+  `31265734234` passed at exact head `58a9a6a`. Node 20 deprecation
+  annotations in hosted logs are non-failing warnings only.
+
+### Exact-head acceptance and advisory boundary
+
+The exact five-commit audit branch was accepted by the Luna arbiter with
+`ACCEPT` in thread `019fe117-6249-7852-ad08-c9200cab1725`. The worker thread
+was `019fe12d-1385-7cc1-a974-332c6387cfaf`. Terra/Kongminh documentation
+counsel remains advisory and is not implementation approval.
+
+The protected worktree/ref ledger above remains intact and inventory-only; no
+protected worktree was modified or cleaned.
+
+### Next bounded gap
+
+The next bounded gap is RBAC, cost truthfulness, and live/browser/deployment
+evidence. A new release tag must not be inferred from this unreleased head.

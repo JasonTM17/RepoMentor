@@ -28,12 +28,38 @@ not evidence of a live deployment or production readiness.
 
 The release checkpoint above remains `c3d1fe81928062929009e58d47c911ee8d5625ec`.
 The current `main` and `origin/main` heads are aligned at
-`2ec543b060a56f43b24026e8a69bb51af0c7228c`. This current head is unreleased:
-the 15 post-tag commits and 29 changed paths are not folded into `v0.1.4`.
+`58a9a6a67d95e736dcc7a0a46e83315d89c031e8`. This current head is unreleased:
+the 23 post-tag commits and 41 changed paths are not folded into `v0.1.4`.
 They include migration/seed commands, offline Prisma migration-image
-hardening, owner-scoped review-history API controls, and the authenticated web
-history workspace. See the [current-head continuation report](../plans/reports/20260808-repomento-continuation.md)
+hardening, owner-scoped review-history API controls, the authenticated web
+history workspace, and sensitive-action audit logging. See the [current-head
+continuation report](../plans/reports/20260808-repomento-continuation.md)
 for exact CI, arbiter, branch, provenance, and open-gate evidence.
+
+## Sensitive-action audit logging slice — current main
+
+The completed slice is documented in
+`plans/reports/20260808-security-audit-logging-worker.md`. Implementation
+commits are `8bdbe59` and `075a267`; evidence/report commits are `aef4fd7`,
+`0be728a`, and `58a9a6a`. The explicit allowlist covers sensitive
+auth/session/review actions, including anonymous `POST /api/v1/guest/reviews`.
+
+The persisted record is bounded to action, outcome, actor user/session IDs
+when authenticated, request ID, canonical route, method, status, time, and
+safe target IDs. Bodies, queries, auth headers, cookies, tokens, passwords,
+source, prompt text, provider errors/secrets, and response bodies are never
+captured. Persistence is asynchronous, fail-open, and bounded to 250 ms; the
+Prisma adapter is used when `DATABASE_URL` is configured, and deterministic
+boots without database configuration use a no-op sink.
+
+Coordinator validation at
+`58a9a6a67d95e736dcc7a0a46e83315d89c031e8` passed focused audit `11/11`, API
+`282/282`, web `48/48`, contracts `7/7`, typecheck, lint, build, format,
+package, Prisma validate/generate, diff-check, and credential scan. Hosted
+Application Gates run `31265734227` and Container validation run `31265734234`
+passed at this head. Node 20 deprecation annotations in hosted logs are
+non-failing warnings only. No live PostgreSQL, Redis, Luna/provider,
+deployment, or browser claim is made.
 
 ## Current status
 
@@ -166,8 +192,9 @@ oversized bodies use bounded error envelopes, and the transport emits CSP,
 HSTS in production, frame/content/referrer policies, and an explicit disabled
 Express fingerprint header.
 
-This slice does not claim a synchronizer/double-submit CSRF token, structured
-audit logging, or distributed rate-limit enforcement. Cookie SameSite defaults
+This slice does not claim a synchronizer/double-submit CSRF token or
+distributed rate-limit enforcement. Sensitive-action audit logging is covered
+by the separate bounded slice above. Cookie SameSite defaults
 remain the current baseline; any future cross-site `SameSite=None` flow needs an
 explicit CSRF design first.
 

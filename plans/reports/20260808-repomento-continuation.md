@@ -13,11 +13,11 @@ unreleased `main` head.
 - The `v0.1.4` GitHub Release and dual-registry container artifact are
   accepted as a release artifact, not as a deployment or production-readiness
   claim.
-- `main` and `origin/main` are currently aligned at `2ec543b060a56f43b24026e8a69bb51af0c7228c`.
+- `main` and `origin/main` are currently aligned at `58a9a6a67d95e736dcc7a0a46e83315d89c031e8`.
   This is an unreleased post-`v0.1.4` head.
-- The current web history slice is integrated. It has deterministic evidence,
-  hosted application/container validation, and a Luna exact-head ACCEPT. It
-  has no live browser journey or external AI/database deployment claim.
+- The current web history and sensitive-action audit slices are integrated. They
+  have deterministic evidence and hosted application/container validation, but
+  no live browser journey or external AI/database deployment claim.
 - Master-prompt traceability is recorded as derived evidence. The original
   attachment is outside the repository, so the repository does not claim that
   the full prompt is independently versioned in Git.
@@ -30,11 +30,11 @@ unreleased `main` head.
 | --- | --- | --- |
 | Historical deterministic checkpoint | `953e7da627d75bda394cdcfae2cee3a0199321be` | Historical evidence only |
 | Released runtime tag | `v0.1.4` resolves to `c3d1fe81928062929009e58d47c911ee8d5625ec` | Released container/GitHub artifact |
-| Current `main` and `origin/main` | `2ec543b060a56f43b24026e8a69bb51af0c7228c` | Current unreleased head |
+| Current `main` and `origin/main` | `58a9a6a67d95e736dcc7a0a46e83315d89c031e8` | Current unreleased head |
 | Prior docs-alignment candidate | `a32af2b02df7d06e0bedf13cd43bee2871fbfb12` | Superseded after arbiter requested explicit candidate provenance |
 | Follow-up candidate recorded for arbitration | `468a81bd725a61247e4fde1bf57ef78eac8882c6` | Documentation-only follow-up; this predecessor identity is recorded before final re-arbitration |
 
-There are 15 commits and 29 changed paths from `c3d1fe8` to the current
+There are 23 commits and 41 changed paths from `c3d1fe8` to the current
 `main`. They are not silently treated as part of `v0.1.4`. The post-release
 commits are:
 
@@ -54,6 +54,14 @@ fb756ae feat(web): add review history transport
 eeb7327 fix(web): reject untrusted history envelope metadata
 6b0873d docs: add current-head release continuation
 2ec543b docs: record full current-head gates
+a32af2b docs: align continuation with final main head
+468a81b docs: record final alignment identity
+73f57f5 docs: record arbiter predecessor identity
+8bdbe59 feat(audit): record sensitive user actions
+aef4fd7 docs(audit): record worker evidence and limits
+075a267 feat(audit): cover guest review action
+0be728a docs(audit): record coordinator verification counts
+58a9a6a docs(audit): correct final verification report
 ```
 
 The master-prompt attachment supplied for this project was live-hashed during
@@ -116,23 +124,49 @@ The final `eeb7327` fix strictly validates the outer API metadata keys
 `requestId`, `page`, `pageSize`, and `total`. An unknown value such as
 `meta.source` is rejected before UI state can consume the response.
 
+### Sensitive-action audit logging
+
+The audit slice is implemented by `8bdbe59` and `075a267`, with evidence and
+report commits `aef4fd7`, `0be728a`, and `58a9a6a`. The exact report is
+`plans/reports/20260808-security-audit-logging-worker.md`.
+
+Its explicit allowlist covers sensitive auth/session/review actions, including
+anonymous `POST /api/v1/guest/reviews`. Records are bounded to action, outcome,
+actor user/session IDs when authenticated, request ID, canonical route, method,
+status, time, and safe target IDs. Bodies, queries, auth headers, cookies,
+tokens, passwords, source, prompt text, provider errors/secrets, and response
+bodies are never captured. Persistence is asynchronous, fail-open, and
+bounded to 250 ms; configured deployments use the Prisma adapter, while
+deterministic boots without database configuration use a no-op sink.
+
+This slice does not claim live PostgreSQL, Redis, Luna/provider, deployment, or
+browser evidence. Guard failures before interceptor execution and best-effort
+persistence remain documented limits.
+
 ## Validation evidence
 
 ### Current `main`
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Hosted Application gates | Pass | [run 31254038139](https://github.com/JasonTM17/RepoMentor/actions/runs/31254038139), head `2ec543b` |
-| Hosted Container validation | Pass | [run 31253446243](https://github.com/JasonTM17/RepoMentor/actions/runs/31253446243), last code head `eeb7327`; docs-only commits followed |
-| Full workspace deterministic gates | Pass, API 271 / web 48 / contracts 7 | Local `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm format:check`, and `pnpm package:check` |
+| Hosted Application gates | Pass | [run 31265734227](https://github.com/JasonTM17/RepoMentor/actions/runs/31265734227), exact head `58a9a6a` |
+| Hosted Container validation | Pass | [run 31265734234](https://github.com/JasonTM17/RepoMentor/actions/runs/31265734234), exact head `58a9a6a` |
+| Full workspace deterministic gates | Pass, API 282 / web 48 / contracts 7 | Coordinator local `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm format:check`, and `pnpm package:check` |
+| Sensitive-action audit tests | Pass, 11/11 | Coordinator local focused audit suite |
+| Prisma validation/generation | Pass | Coordinator local `pnpm db:validate` and `pnpm db:generate` with a process-local non-secret configuration |
 | Web shell/runtime tests | Pass, 48/48 | Local `pnpm --filter @repomentor/web test` |
 | Web TypeScript | Pass | Local `pnpm --filter @repomentor/web typecheck` |
 | Web lint | Pass | Local `pnpm --filter @repomentor/web lint` |
 | Web production build | Pass | Local Next production build; `/history` generated successfully |
 | Targeted formatting/diff | Pass | Prettier check and `git diff --check` |
-| Credential-shaped scan | Pass | No real key was added; DeepSeek key was not copied or used |
-| Luna exact-head arbiter | Accept | Base `62e7b52` to final `eeb7327`; prior HOLD fixed by strict `meta` validation |
-| Luna docs-head arbiter | Accept | Final docs delta from `2ec543b` after exact ancestry, clean status, four-path scope, and `git diff --check` evidence |
+| Credential-shaped scan | Pass | Coordinator high-signal scan found no credential-shaped match |
+| Luna web arbiter | Accept | Historical `eeb7327` strict metadata fix; retained as historical evidence |
+| Luna audit branch arbiter | Accept | Exact five-commit audit branch accepted in thread `019fe117-6249-7852-ad08-c9200cab1725`; worker thread `019fe12d-1385-7cc1-a974-332c6387cfaf` |
+| Terra/Kongminh docs counsel | Advisory | Read-only documentation counsel; not implementation approval |
+
+Hosted logs include Node 20 deprecation annotations; these are non-failing
+warnings only. The deterministic and hosted results do not certify live
+PostgreSQL, Redis, external Luna/provider, browser automation, or deployment.
 
 The web evidence is deterministic/static and does not certify live
 PostgreSQL, Redis, external Luna, browser automation, multi-instance SSE, or
@@ -182,7 +216,7 @@ decision.
 | --- | --- |
 | Deterministic auth/review/history UI contracts | Pass for tested static/runtime boundaries |
 | `v0.1.4` GitHub Release and dual-registry images | Pass as immutable release artifact |
-| Current `main` hosted CI | Pass at `2ec543b` for Application gates; Container validation remains pass at the last code head `eeb7327` |
+| Current `main` hosted CI | Pass at `58a9a6a` for Application and Container gates in runs `31265734227` and `31265734234` |
 | Prompt provenance | Recorded externally by path/hash; repository traceability remains derived-only |
 | License/legal publication policy | Open owner decision |
 | Live PostgreSQL transactions/isolation | Not certified by these checks |
@@ -193,8 +227,10 @@ decision.
 | Independent attestation/SBOM verification | Open follow-up |
 
 The open gates are intentionally not hidden by the successful release or CI
-badges. The next release must decide whether the post-tag current-head slices
-are included, then publish a new exact tag with the same evidence discipline.
+badges. The next bounded gap is RBAC, cost truthfulness, and live/browser/
+deployment evidence. The next release must decide whether the post-tag
+current-head slices are included, then publish a new exact tag with the same
+evidence discipline.
 
 ## Branch and worktree ledger
 
@@ -234,6 +270,8 @@ review and did not modify code or approve the Luna implementation.
 | Luna web arbiter | `019fe0f1-963c-70e1-a18f-aacbc38de181` | HOLD on permissive outer `meta` validation |
 | Luna re-arbiter | `019fe0f6-e7de-7f11-8a3c-6a14c867b27e` | ACCEPT after `eeb7327` strict metadata fix |
 | Luna docs-head arbiter | `019fe106-14f2-7b02-8b9a-f49d87308471` | ACCEPT after coordinator supplied exact final-head ancestry, clean status, four-path scope, and diff-check evidence |
+| Luna audit branch arbiter | `019fe117-6249-7852-ad08-c9200cab1725` | ACCEPT for the exact five-commit sensitive-action audit branch |
+| Audit worker | `019fe12d-1385-7cc1-a974-332c6387cfaf` | Implemented the bounded sensitive-action audit slice and report evidence |
 
 Earlier Terra counsel in historical documents remains archival design input.
 It does not authorize a model exception for current code implementation.
@@ -245,7 +283,7 @@ The current-head web slice can be reverted with reviewed, focused reverts of
 is found. No reset or force-push is required.
 
 The next bounded task is to keep this addendum and the append-only execution
-plan aligned, then select the next acceptance gap (RBAC/audit logging/cost
-truthfulness, browser execution, or live integration) only after preserving
+plan aligned, then select the next acceptance gap (RBAC, cost truthfulness,
+browser execution, or live integration) only after preserving
 the protected worktree ledger. A new release tag must not be inferred from
 this current unreleased `main` head.

@@ -19,13 +19,38 @@ commits do not change the runtime inputs.
 The tagged `v0.1.4` artifact remains pinned to
 `c3d1fe81928062929009e58d47c911ee8d5625ec`. The current `main` and
 `origin/main` heads are aligned at
-`2ec543b060a56f43b24026e8a69bb51af0c7228c`, which is **not** a new release
-tag. Fifteen focused commits and 29 paths follow the release tag, including
+`58a9a6a67d95e736dcc7a0a46e83315d89c031e8`, which is **not** a new release
+tag. Twenty-three commits and 41 paths follow the release tag, including
 safe database migration/seed commands, offline Prisma migration-image
 hardening, owner-scoped history filters and bulk delete, the authenticated
-responsive `/history` workspace, and the continuation documentation itself.
-The exact evidence and remaining live/runtime
+responsive `/history` workspace, sensitive-action audit logging, and the
+continuation/evidence documentation. The exact evidence and remaining live/runtime
 limits are recorded in [the 2026-08-08 continuation report](plans/reports/20260808-repomento-continuation.md).
+
+### Sensitive-action audit logging — current main
+
+The completed audit slice is recorded in
+[the worker report](plans/reports/20260808-security-audit-logging-worker.md).
+Implementation commits are `8bdbe59` and `075a267`; evidence/report commits
+are `aef4fd7`, `0be728a`, and `58a9a6a`. The explicit allowlist covers
+auth/session/review actions, including `POST /api/v1/guest/reviews`.
+
+Audit records contain only bounded action, outcome, anonymous or authenticated
+actor identifiers, safe target IDs, request ID, canonical route, method,
+status, and time. Request bodies, queries, headers, cookies, source, prompt
+text, secrets, provider errors, and response bodies are not captured. Writes
+are asynchronous, fail open, and bounded to 250 ms; configured deployments use
+the Prisma adapter, while deterministic boots without database configuration
+use a no-op sink.
+
+Coordinator evidence at `58a9a6a67d95e736dcc7a0a46e83315d89c031e8` includes
+focused audit `11/11`, API `282/282`, web `48/48`, contracts `7/7`,
+typecheck, lint, build, format, package, Prisma validate/generate,
+diff-check, and credential scan. Hosted Application Gates run
+`31265734227` and Container validation run `31265734234` passed at this head.
+Node 20 deprecation annotations in hosted logs are non-failing warnings only.
+No live PostgreSQL, Redis, Luna/provider, deployment, or browser claim is
+made.
 
 ## Current status
 
@@ -503,7 +528,8 @@ No additional review provider is enabled or documented in this release.
 
 The HTTP hardening slice closes the explicit CORS, body-size, and security
 header boundaries, but it does not claim a synchronizer/double-submit CSRF
-token, structured audit logging, or distributed rate-limit enforcement.
+token or distributed rate-limit enforcement. The sensitive-action audit slice
+is documented above with its bounded metadata and evidence limits.
 
 ## Release and media notes
 
