@@ -1,21 +1,26 @@
 # RepoMentor release notes and artifact boundaries
 
-This note describes the current private monorepo and its release boundaries.
-It is documentation, not evidence of a deployment, registry publication,
-package publication, or production readiness.
+This note describes the public RepoMentor repository and its release
+boundaries. The root and workspace packages remain private. This documentation
+records the verified `v0.1.4` container artifact release; that publication is
+not evidence of a live deployment or production readiness.
 
 ## Source/evidence baseline
 
-- Current implementation checkpoint: `5453e8c`.
+- Current runtime release checkpoint: `c3d1fe8`.
+- Prior application evidence checkpoint: `5453e8c`; docs-only commits do not
+  change its runtime inputs.
 - The auth password-change slice was integrated as `0813d54`; the review
   metadata contract was integrated as `d955eaf`; the settings slice was
   integrated as `0bc05c7`; and the security transport slice was integrated as
   `2b146a5` from worker commit `e5d97ad`; review detail, CI gates, and
   dependency remediation were integrated through `953e7da`; the current exact
   head also includes the application-gate same-origin test fix at `5453e8c`.
+- Tagged container release `v0.1.4` points to the full runtime commit
+  `c3d1fe81928062929009e58d47c911ee8d5625ec`.
 - The final plan/report addendum is authored in the bounded documentation
   refresh that follows this checkpoint.
-- This SHA is the exact-head evidence anchor for the local checks recorded in
+- The earlier application checkpoint `5453e8c` is the exact-head evidence anchor for the local checks recorded in
   the current checkpoint addendum; they do not establish a tag, release,
   registry artifact, license, deployment, or production certification.
 
@@ -27,10 +32,66 @@ package publication, or production readiness.
   `@repomentor/typescript-config`; all are `private: true`.
 - No repository `LICENSE` file or package `license` field is present, and no
   license decision is invented here.
-- No npm/public package artifact, tag, GitHub release, GHCR image, or Docker
-  Hub image is claimed as published by this repository.
-- No deployment is performed or certified by this worker.
-- The external GitHub About metadata was not changed or verified by this task.
+- No npm/public package artifact was published; all workspace packages remain
+  private.
+- GitHub Release `v0.1.4` is published with no uploaded release assets.
+- Container release workflow run `31247857378` published the verified API/web
+  images to GHCR (GitHub Packages) and Docker Hub. Neither publication is a
+  deployment.
+- GitHub About metadata was updated and verified: description, homepage, and
+  repository topics are set to the values recorded below.
+
+## Tagged container artifact — `v0.1.4`
+
+The exact tag points to runtime commit
+`c3d1fe81928062929009e58d47c911ee8d5625ec`. [GitHub Release
+v0.1.4](https://github.com/JasonTM17/RepoMentor/releases/tag/v0.1.4) was
+published after [Container release workflow run
+31247857378](https://github.com/JasonTM17/RepoMentor/actions/runs/31247857378)
+completed successfully for both matrix entries. The release record has no
+uploaded assets; the images are published separately in GHCR and Docker Hub.
+
+| Image | GHCR / GitHub Packages semantic ref     | Docker Hub semantic ref                       | Verified manifest digest                                                  |
+| ----- | --------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------- |
+| API   | `ghcr.io/jasontm17/repomento-api:0.1.4` | `docker.io/nguyenson1710/repomento-api:0.1.4` | `sha256:8c2e87733282882764664cfa6a818bb27abc585036601843bfa6ecdbe293cf0a` |
+| Web   | `ghcr.io/jasontm17/repomento-web:0.1.4` | `docker.io/nguyenson1710/repomento-web:0.1.4` | `sha256:fc0ce52184144923a89cd4b60cf582fde711f325facad794b9938a93d5b290bf` |
+
+Each image also has the workflow-protected semantic and
+`sha-c3d1fe81928062929009e58d47c911ee8d5625ec` tags in both registries. The
+workflow digest artifacts and direct `docker buildx imagetools inspect`
+verification reported the same digest for all four refs of each image. The
+workflow also passed multi-architecture `linux/amd64`/`linux/arm64` builds,
+staging digest equality, Trivy HIGH/CRITICAL scans with unfixed findings
+ignored, final digest equality, SPDX SBOM generation, and SBOM/provenance
+attestation uploads to both registries.
+
+Digest-pinned pulls are the reproducible form:
+
+```text
+docker pull ghcr.io/jasontm17/repomento-api@sha256:8c2e87733282882764664cfa6a818bb27abc585036601843bfa6ecdbe293cf0a
+docker pull ghcr.io/jasontm17/repomento-web@sha256:fc0ce52184144923a89cd4b60cf582fde711f325facad794b9938a93d5b290bf
+```
+
+The release is a registry artifact publication. Digest-pinned references are
+the reproducible, content-addressed form; the workflow refuses to overwrite
+the release refs but no registry retention policy is claimed. The release does
+not prove live PostgreSQL, Redis, HTTP provider, external Luna, browser,
+multi-instance, or production deployment behavior.
+
+### Release evidence limits
+
+- The workflow logs and successful `actions/attest` steps prove the SBOM and
+  provenance publication steps ran; this record does not include a separate
+  public attestation-verification command or permanent attestation report.
+- The digest artifacts uploaded by run `31247857378` are temporary GitHub
+  Actions artifacts with an expiration date. The exact digests and workflow
+  link are copied into this repository so the release record remains readable.
+- Direct manifest inspection verified all eight public semantic/SHA-qualified
+  refs. GitHub Packages REST metadata could not be queried from the available
+  CLI token because it lacks `read:packages`; no stronger package-API claim is
+  made here.
+- Tag `v0.1.4` is annotated but not cryptographically signed. Digest identity,
+  workflow gates, and source-commit linkage are the evidence recorded here.
 
 ## Current implementation boundary
 
@@ -43,8 +104,9 @@ resolves an omitted mode to `STANDARD`, and rejects a null or invalid mode
 before mutation.
 
 The server normalizes and hashes idempotency material, then computes a
-version-1 HMAC-SHA-256 request fingerprint over the canonical source,
-language, and mode. It creates an owner-scoped durable `QuotaAdmission`
+version-2 HMAC-SHA-256 request fingerprint over the canonical source,
+language, mode, learner level, and bounded title/context metadata. It creates
+an owner-scoped durable `QuotaAdmission`
 intent, reserves the authenticated UTC-day quota with one atomic Redis
 `EVAL` operation, and finalizes the preallocated owned review through the
 Prisma boundary. Durable records retain the hash and explicit fingerprint
@@ -117,9 +179,8 @@ explicit CSRF design first.
   session exists; guest pages retain deterministic/demo-labelled fixtures.
   Compose healthchecks cover process/HTTP shell liveness, not dependency-aware
   readiness.
-- No deployment, production traffic, registry publication, or production
-  readiness follows from local tests, Compose configuration, or image workflow
-  definitions.
+- No deployment, production traffic, or production readiness follows from
+  local tests, Compose configuration, or the published image artifacts.
 
 ## Validation evidence
 
@@ -144,7 +205,7 @@ checkpoint addendum follows the table.
 
 ## Current checkpoint addendum — 2026-08-08
 
-The current merged code checkpoint `5453e8c` passed API `268/268`, web
+The prior merged application checkpoint `5453e8c` passed API `268/268`, web
 `46/46`, and contracts `7/7`, plus root typecheck, lint, format check,
 production build, package check, Prisma validate/generate, diff-check,
 credential scan, and `pnpm audit --audit-level=high` with no known
@@ -171,10 +232,10 @@ The guest QUICK route, Redis process lock, authenticated status-only SSE with
 replay/polling fallback, logout, and cancellation boundaries are implemented
 and covered by deterministic tests. Playwright discovery is `1/1`, but the
 browser run is not claimed because Chromium revision `chromium-1161` is
-unavailable locally. No Docker image, registry artifact, semantic tag, public
-package, GitHub release, or deployment was created. Live PostgreSQL, Redis,
-HTTP provider, external Luna, Docker daemon, and multi-instance runtime
-evidence remain unverified.
+unavailable locally. The later runtime container hardening commit `c3d1fe8`
+was released as `v0.1.4`; its tagged dual-registry evidence is recorded above.
+Live PostgreSQL, Redis, HTTP provider, external Luna, Docker Compose startup,
+and multi-instance runtime evidence remain unverified.
 
 GitHub Container Validation run `31241219843` passed against the runtime
 implementation head `5453e8c`: workflow validation, Dockerfile and Compose contracts,
@@ -183,11 +244,13 @@ only; it is not a registry publication or deployment. Run `31204852778` remains
 historical evidence for the earlier `4b2dfb7` checkpoint.
 
 The validation table above is historical evidence from the earlier docs
-refresh; rerun all release gates on the exact tag commit before publication.
+refresh. That pre-release record required rerunning all release gates on the
+exact tag commit; the requirement was subsequently satisfied by run
+`31247857378`.
 
-The latest docs evidence head recorded here is `7fd932d`; the runtime
-implementation checkpoint remains `5453e8c`. Later docs-only commits do not
-change the runtime inputs. Completed
+The earlier docs evidence head recorded here is `7fd932d`; the runtime release
+checkpoint is `c3d1fe8`. Later docs-only commits do not change the runtime
+inputs. Completed
 settings/security refs were removed only after clean exact-head/equivalence
 checks. The remaining `feature/auth-api` ref is clean but stale and unique;
 `feature/history-filter-api` and `feature/review-process-lock-v2` remain dirty
@@ -219,8 +282,8 @@ A passing validation run is not a registry publication or deployment claim.
 
 ### Tagged dual-registry release
 
-`.github/workflows/container-release.yml` is prepared for a real tag and has
-not published an image in this checkpoint. It requires a strict semantic tag
+`.github/workflows/container-release.yml` published `v0.1.4` successfully. It
+requires a strict semantic tag
 such as `v1.2.3` or `v1.2.3-rc.1`, a full 40-character `GITHUB_SHA`, a
 lowercase `DOCKERHUB_NAMESPACE` repository variable, and configured
 `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets. It logs into GHCR with
@@ -233,11 +296,10 @@ The intended image formulas in the workflow are:
 - Docker Hub: `docker.io/${DOCKERHUB_NAMESPACE}/repomento-api` and
   `docker.io/${DOCKERHUB_NAMESPACE}/repomento-web`.
 
-These are workflow-configured intended names, not proof that the namespaces,
-repositories, ownership, or images exist. The hard-coded GHCR root and the
-Docker Hub namespace have not been externally confirmed here. Confirm the
-final image names and namespace before any real tagged run; no registry
-publication or registry state is claimed.
+The `v0.1.4` run confirmed these names by logging in, pushing, resolving, and
+comparing the final refs in both registries. The GHCR images are the GitHub
+Packages container publication; the Docker Hub images use the configured
+`nguyenson1710` namespace.
 
 For each API/web image, the release workflow must pass all of these gates:
 
@@ -254,19 +316,19 @@ For each API/web image, the release workflow must pass all of these gates:
 6. Generate and verify an SPDX SBOM, attach provenance and SBOM attestations
    to the final digest in both registries, and upload digest evidence.
 
-Publication may be claimed only after the exact tagged commit has these CI,
-scan, digest, SBOM, and provenance records. Image publication is not
-application deployment or production-readiness evidence. This worker created
-no tag, did not run the release workflow, and did not publish or deploy.
+Publication is claimed here only because the exact tagged commit has these CI,
+scan, digest, SBOM, and provenance records in run `31247857378`. Image
+publication is not application deployment or production-readiness evidence.
 
 ## Private package boundary
 
 The root package and every current workspace package remain private. No
 `private` flag was changed, no `npm publish` or `pnpm publish` was run, and no
-public registry artifact is claimed. `@repomentor/contracts` is the only
-current package treated as a future publication candidate; it remains
-private today. The API, web, ESLint configuration, and TypeScript configuration
-packages remain internal workspace packages.
+public npm package artifact is claimed. `@repomentor/contracts` remains a
+future npm publication candidate; the API and web containers are a separate
+GitHub Packages/Docker Hub artifact release. The API, web, ESLint
+configuration, and TypeScript configuration packages remain internal workspace
+packages.
 
 The non-publishing `@repomentor/contracts` pack dry-run in this task returned
 JSON for version `0.1.0` with `33` entries. Because test compilation had
@@ -286,29 +348,30 @@ Before any package publication, the owner must explicitly decide and record:
 - a consumer check that installs the packed artifact and exercises its public
   imports/types.
 
-No package publication is authorized by this documentation refresh.
+No npm package publication is authorized by this documentation refresh; the
+separately documented API/web container publication is already released.
 
 ## License gate
 
 There is currently no repository `LICENSE` file and no `license` field in the
 root or workspace package metadata. The project owner must make an explicit
-license decision before adding legal or publication metadata. A public package
-or release remains blocked until the authorized license, exact payload, and
-associated release checks are present. This task does not add a license or
-flip package privacy flags.
+license decision before adding legal or publication metadata. An npm/public
+package still requires an authorized license, exact payload, and associated
+release checks. This task does not add a license or flip package privacy flags;
+the existing container artifact release does not resolve that open licensing
+decision.
 
 ## GitHub About metadata
 
-The following are intended values derived from the committed root metadata.
-They are discovery values only, not release, package, license, or deployment
-evidence. This task did not change the external GitHub About fields and did not
-verify their current external state.
+The following values are now set and verified on the external GitHub About
+metadata. They are repository discovery metadata, not package, license, or
+deployment evidence.
 
-| GitHub About field | Intended value                                                                                                      |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| Description        | `Developer-first AI code review and programming tutor workspace.`                                                   |
-| Homepage / website | `https://github.com/JasonTM17/RepoMentor#readme`                                                                    |
-| Topics             | `ai`, `code-review`, `programming-tutor`, `developer-tools`, `typescript`, `nextjs`, `nestjs`, `prisma`, `monorepo` |
+| GitHub About field | Verified value                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Description        | `Developer-first AI code review and programming tutor workspace.`                                                                          |
+| Homepage / website | `https://github.com/JasonTM17/RepoMentor#readme`                                                                                           |
+| Topics             | `ai`, `code-review`, `developer-tools`, `monorepo`, `nestjs`, `nextjs`, `postgresql`, `prisma`, `programming-tutor`, `redis`, `typescript` |
 
 ## Media boundary
 

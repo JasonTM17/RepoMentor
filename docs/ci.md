@@ -39,3 +39,22 @@ workflow syntax, Dockerfile/Compose contracts, and the `linux/amd64`
 no-publish API and web image builds. The docs-only commits did not change the
 container path. It used no registry credentials and did not publish an image;
 registry publication remains a separate tagged-release gate.
+
+## Tagged container release evidence
+
+The separate `.github/workflows/container-release.yml` gate ran for tag
+`v0.1.4` at runtime commit `c3d1fe81928062929009e58d47c911ee8d5625ec` in
+[workflow run 31247857378](https://github.com/JasonTM17/RepoMentor/actions/runs/31247857378).
+Both API and web matrix jobs passed multi-architecture builds, staging digest
+equality between GHCR and Docker Hub, Trivy HIGH/CRITICAL scans with
+unfixed findings ignored, promotion to semantic and SHA-qualified full-SHA tags,
+four-ref digest equality, SPDX SBOM generation, and SBOM/provenance uploads to
+both registries. This is artifact publication evidence, not live service,
+external Luna, or production deployment evidence.
+
+The verified final manifest digests are:
+
+| Image | GHCR / GitHub Packages                  | Docker Hub                                    | Digest                                                                    |
+| ----- | --------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------- |
+| API   | `ghcr.io/jasontm17/repomento-api:0.1.4` | `docker.io/nguyenson1710/repomento-api:0.1.4` | `sha256:8c2e87733282882764664cfa6a818bb27abc585036601843bfa6ecdbe293cf0a` |
+| Web   | `ghcr.io/jasontm17/repomento-web:0.1.4` | `docker.io/nguyenson1710/repomento-web:0.1.4` | `sha256:fc0ce52184144923a89cd4b60cf582fde711f325facad794b9938a93d5b290bf` |

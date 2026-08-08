@@ -1,15 +1,18 @@
 # RepoMentor
 
 RepoMentor is a developer-first workspace for AI-assisted code review and
-programming practice. It is a production-oriented monorepo, but the current
-repository checkpoint is an application slice, not a production release.
+programming practice. It is a production-oriented monorepo with a tagged
+container artifact release; a release artifact is not, by itself, a production
+deployment or production-readiness claim.
 
-The current runtime/evidence baseline is the exact implementation checkpoint
-`5453e8c`, which includes the authenticated review-detail route, application CI
-gates, dependency-audit remediation, and the same-origin workflow fix. The
-latest documentation-integrated evidence head used for hosted validation is `7fd932d`; later docs-only commits do not change runtime inputs. These SHAs are
-exact-head evidence anchors, not a release, tag, registry, license,
-package-publication, deployment, or production-readiness claim.
+The current runtime release commit is `c3d1fe8`, which includes the
+authenticated review workspace, application CI gates, dependency-audit
+remediation, same-origin workflow coverage, and hardened API/web container
+images. The `v0.1.4` tag triggered the container-release workflow, which
+published the API and web images to GHCR (GitHub Packages) and Docker Hub; the
+GitHub Release was published after those tagged gates passed. Earlier SHAs in
+this document remain exact-head evidence anchors for their own checks; docs-only
+commits do not change the runtime inputs.
 
 ## Current status
 
@@ -358,20 +361,20 @@ checkpoint addendum immediately after it. Both use Node `v24.12.0`, pnpm
 needed; neither proves live PostgreSQL, Redis, HTTP provider, Luna,
 deployment, or production readiness.
 
-| Check                                    | Result and evidence                                                                                                                                                                                                                                                                                  |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| API compile and deterministic test suite | Pass: direct TypeScript test compilation plus `node --test` reports `193/193` tests across `39` suites, with `0` failed and `0` cancelled. The suite includes the shared Redis seam and authenticated admission paths; it uses in-memory repositories, deterministic Redis executors, and fake Luna. |
-| Contracts test suite                     | Pass: direct build/test compilation plus `node --test` reports `5/5` contracts tests.                                                                                                                                                                                                                |
-| Web shell test suite                     | Pass: `node --test apps/web/test/shell.test.mjs` reports `32/32` tests.                                                                                                                                                                                                                              |
-| TypeScript and API build checks          | Pass: direct `tsc --noEmit` for contracts/API/web and direct API build.                                                                                                                                                                                                                              |
-| Prisma preparation                       | Pass: direct Prisma generate with a syntactically valid local-only `DATABASE_URL`; no PostgreSQL connection was attempted.                                                                                                                                                                           |
-| `docker compose config --quiet`          | Pass with safe dummy values, including the required fingerprint secret; this validates configuration only.                                                                                                                                                                                           |
-| `@repomentor/contracts` pack dry-run     | Pass without publishing: `npm pack --dry-run --json` returned JSON for `@repomentor/contracts@0.1.0` with `33` entries. The local payload included `dist/.test-dist` because test compilation had run; this is not an approved publication payload.                                                  |
-| Frozen workspace install                 | Attempted with `pnpm run deps:install`; pnpm installed the dependency tree but exited with `ERR_PNPM_IGNORED_BUILDS` while requesting build approval. No approval was enabled; direct local binaries were used for the checks above.                                                                 |
-| Docker daemon and live Compose smoke     | Not run: `docker compose config` passed, but `docker info` could not connect to the local Docker Desktop Linux engine. No image build, service startup, live PostgreSQL/Redis check, or HTTP smoke is claimed.                                                                                       |
-| Full root test/build and browser capture | Not run in this docs refresh. The checked-in GIF is documented below only as a narrow running-UI-shell capture, not as current backend or live-review evidence.                                                                                                                                      |
+| Check                                    | Result and evidence                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API compile and deterministic test suite | Pass: direct TypeScript test compilation plus `node --test` reports `193/193` tests across `39` suites, with `0` failed and `0` cancelled. The suite includes the shared Redis seam and authenticated admission paths; it uses in-memory repositories, deterministic Redis executors, and fake Luna.   |
+| Contracts test suite                     | Pass: direct build/test compilation plus `node --test` reports `5/5` contracts tests.                                                                                                                                                                                                                  |
+| Web shell test suite                     | Pass: `node --test apps/web/test/shell.test.mjs` reports `32/32` tests.                                                                                                                                                                                                                                |
+| TypeScript and API build checks          | Pass: direct `tsc --noEmit` for contracts/API/web and direct API build.                                                                                                                                                                                                                                |
+| Prisma preparation                       | Pass: direct Prisma generate with a syntactically valid local-only `DATABASE_URL`; no PostgreSQL connection was attempted.                                                                                                                                                                             |
+| `docker compose config --quiet`          | Pass with safe dummy values, including the required fingerprint secret; this validates configuration only.                                                                                                                                                                                             |
+| `@repomentor/contracts` pack dry-run     | Pass without publishing: `npm pack --dry-run --json` returned JSON for `@repomentor/contracts@0.1.0` with `33` entries. The local payload included `dist/.test-dist` because test compilation had run; this is not an approved publication payload.                                                    |
+| Frozen workspace install                 | Attempted with `pnpm run deps:install`; pnpm installed the dependency tree but exited with `ERR_PNPM_IGNORED_BUILDS` while requesting build approval. No approval was enabled; direct local binaries were used for the checks above.                                                                   |
+| Docker daemon and live Compose smoke     | Not run locally: `docker compose config` passed, but `docker info` could not connect to the local Docker Desktop Linux engine. Hosted Container Validation and the tagged release workflow provide CI image evidence; no local service startup, live PostgreSQL/Redis check, or HTTP smoke is claimed. |
+| Full root test/build and browser capture | Not run in this docs refresh. The checked-in GIF is documented below only as a narrow running-UI-shell capture, not as current backend or live-review evidence.                                                                                                                                        |
 
-## Current checkpoint evidence — 2026-08-08
+## Prior application checkpoint evidence — 2026-08-08
 
 The current runtime implementation checkpoint is `5453e8c`. The documentation
 commits are now integrated at repository head `7fd932d`, and `origin/main`
@@ -406,9 +409,9 @@ fallback, cancellation/logout boundaries, and the Luna education result
 contract plus text-only UI/export views.
 
 Playwright discovery is `1/1`, but execution remains unverified because
-Chromium revision `chromium-1161` is not installed locally. No Docker image,
-registry artifact, tag, public package, GitHub release, or deployment was
-created or claimed.
+Chromium revision `chromium-1161` is not installed locally. The runtime release
+evidence is recorded below; it is an artifact publication, not deployment
+evidence.
 
 GitHub Container Validation run `31241219843` passed against the runtime
 implementation head `5453e8c`: workflow, Dockerfile/Compose validation, and both
@@ -421,6 +424,31 @@ evidence head `7fd932d` is recorded in [docs/ci.md](docs/ci.md);
 its fail-closed audit
 behavior remains separate from live PostgreSQL, Redis, Luna, browser, or
 deployment evidence.
+
+## Tagged container release evidence — `v0.1.4`
+
+The exact release tag `v0.1.4` points to runtime commit `c3d1fe81928062929009e58d47c911ee8d5625ec`.
+GitHub Release [v0.1.4](https://github.com/JasonTM17/RepoMentor/releases/tag/v0.1.4)
+was published after [Container release run 31247857378](https://github.com/JasonTM17/RepoMentor/actions/runs/31247857378)
+passed both API and web jobs. Each job built and pushed one `linux/amd64` and
+`linux/arm64` artifact to both registries, compared staging digests, passed
+Trivy HIGH/CRITICAL scanning with `ignore-unfixed`, promoted workflow-protected
+semantic and full-SHA tags, verified four aligned refs, generated an SPDX SBOM,
+and attached SBOM/provenance attestations to both registries.
+
+| Image | GHCR / GitHub Packages                  | Docker Hub                                    | Verified digest                                                           |
+| ----- | --------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------- |
+| API   | `ghcr.io/jasontm17/repomento-api:0.1.4` | `docker.io/nguyenson1710/repomento-api:0.1.4` | `sha256:8c2e87733282882764664cfa6a818bb27abc585036601843bfa6ecdbe293cf0a` |
+| Web   | `ghcr.io/jasontm17/repomento-web:0.1.4` | `docker.io/nguyenson1710/repomento-web:0.1.4` | `sha256:fc0ce52184144923a89cd4b60cf582fde711f325facad794b9938a93d5b290bf` |
+
+The corresponding SHA-qualified refs are tagged with
+`sha-c3d1fe81928062929009e58d47c911ee8d5625ec` in both registries. The
+workflow digest artifacts and direct `docker buildx imagetools inspect` checks
+reported the same digest for the semantic and SHA-qualified refs across GHCR
+and Docker Hub. The workflow refuses to overwrite these release refs; pull by
+digest for immutable content identity. These images are published artifacts
+only; live PostgreSQL, Redis, external Luna, browser, and multi-instance
+deployment behavior remain unverified.
 
 ## Security and environment boundaries
 
@@ -438,9 +466,7 @@ that does not log source or secrets. `LUNA_API_KEY` is server-only and
 `https://api.openai.com/v1`. The live provider path exists server-side, but the
 current deterministic validation evidence includes no external AI request.
 
-Optional DeepSeek RAG suggestions remain disabled and deferred by
-[ADR-001](docs/architecture/adr-001-optional-rag-suggestion-provider.md); no
-DeepSeek secret is added, documented, or stored in this checkpoint.
+No additional review provider is enabled or documented in this release.
 
 The HTTP hardening slice closes the explicit CORS, body-size, and security
 header boundaries, but it does not claim a synchronizer/double-submit CSRF
@@ -448,12 +474,11 @@ token, structured audit logging, or distributed rate-limit enforcement.
 
 ## Release and media notes
 
-The root package and every current workspace package remain private. There is
-no npm/public package artifact, tag, registry publication, or deployment in
-this checkpoint. `@repomentor/contracts` is only a future package candidate;
-see [docs/release.md](docs/release.md) for exact package, image, tag, and
-license gates. The GitHub About table there contains intended values only;
-external About state was not changed or verified by this task.
+The root package and every current workspace package remain private; no npm
+package was published. The `v0.1.4` GitHub Release and its container images are
+documented in [docs/release.md](docs/release.md). GitHub About metadata is now
+set and verified, including the repository description, homepage, and project
+topics.
 
 ![RepoMentor UI shell capture](docs/media/repomentor-ui.gif)
 
@@ -484,18 +509,19 @@ processing, PostgreSQL, Redis, AI output, or a production deployment._
   claim a live browser session or backend integration.
 - The Compose definition covers local API, web, PostgreSQL, and Redis services.
   Configuration validation passed, but the local Docker daemon was unavailable,
-  so image builds, service startup, HTTP smoke, and PostgreSQL/Redis dependency
-  health remain unverified.
+  so local service startup, HTTP smoke, and PostgreSQL/Redis dependency health
+  remain unverified. The tagged CI release images are separately verified
+  publication artifacts.
 - `NEXT_PUBLIC_API_ORIGIN` is a web build-time value; changing the browser API
   origin requires rebuilding the web image. The Compose healthchecks do not
   provide dependency-aware API readiness.
-- The root package and every current workspace package are private; no npm or
-  other public package artifact is claimed. `@repomentor/contracts` remains a
-  future candidate only. No tag, registry publication, or deployment has
-  happened.
+- The root package and every current workspace package are private; no npm
+  package artifact was published. The public container artifacts are limited
+  to the documented `v0.1.4` GHCR/GitHub Packages and Docker Hub images; no
+  application deployment is claimed.
 - No license file or package `license` field is present. Treat licensing as a
-  blocker for a public package or public release until the project owner adds
-  a license supported by repository evidence.
+  blocker for a public npm package until the project owner adds a license
+  supported by repository evidence; the container artifact release is separate.
 - The remaining non-main refs are intentionally protected: `feature/auth-api`
   is clean but stale and unique, while `feature/history-filter-api` and
   `feature/review-process-lock-v2` are dirty. Completed settings/security refs

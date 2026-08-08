@@ -1,8 +1,10 @@
 # Deployment and operations
 
-RepoMentor currently has local Compose and GitHub workflow contracts. No image,
-package, GitHub release, registry tag, or production deployment is claimed by
-the checkpoint at `a8439bfa3fd03405a3ed26f0cbdefe06b6c736bb`.
+RepoMentor has local Compose and GitHub workflow contracts plus a verified
+container artifact release for `v0.1.4`. Runtime commit `c3d1fe81928062929009e58d47c911ee8d5625ec`
+is tagged `v0.1.4`; the container-release workflow published the API and web
+images to GHCR/GitHub Packages and Docker Hub. It is not a production
+deployment.
 
 ## Local Compose
 
@@ -46,13 +48,15 @@ by the repository's unit tests.
   validates workflow/Dockerfile/Compose contracts and builds API/web images
   with `push: false`; it has no registry credentials.
 - [`container-release.yml`](../.github/workflows/container-release.yml) is
-  triggered by a strict `v*.*.*` tag. It requires configured Docker Hub
+  triggered by `v*.*.*` tags and then validates a strict semantic version. It
+  requires configured Docker Hub
   credentials and owner-approved variables, stages and scans images in GHCR and
   Docker Hub, compares digests, promotes semantic/full-SHA tags, emits SBOM and
   provenance evidence, and publishes only after its fail-closed gates pass.
 
-The release workflow is a contract, not proof that it has run. The current
-checkpoint has no published image or package and no release tag.
+The release workflow has now run successfully for `v0.1.4`. See
+[docs/release.md](release.md) for exact registry refs, manifest digests,
+workflow evidence, SBOM/provenance attestations, and the GitHub Release.
 
 ## Database and secrets
 
@@ -69,7 +73,7 @@ configuration remains disabled and does not authorize a second provider.
 ## Current blockers
 
 The local Docker daemon was unavailable during the recorded checkpoint, so no
-local image build, Compose startup, live PostgreSQL/Redis check, HTTP smoke,
-registry push, package publish, or deployment evidence exists. A future release
-also needs the owner's explicit package/license decision and configured registry
-secrets; those gates must not be silently skipped.
+local Compose startup, live PostgreSQL/Redis check, or HTTP smoke is claimed.
+The tagged CI run provides separate multi-architecture image publication,
+digest, scan, SBOM, and provenance evidence. The npm package/license decision
+remains open and is separate from the container release.
