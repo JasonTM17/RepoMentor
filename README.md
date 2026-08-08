@@ -170,30 +170,31 @@ The API uses `/api/v1` as its global prefix except for the three health routes.
 Successful responses are wrapped as `{ "data": ... }`; failures use an
 `{ "error": ... }` problem envelope and a bounded `X-Request-Id` header.
 
-| Method and route                   | Implemented behavior                                                                                                                  |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health/live`                 | Process liveness: `{ "data": { "status": "ok" } }`.                                                                                   |
-| `GET /health/ready`                | Application-only readiness. It does not probe PostgreSQL, Redis, or AI.                                                               |
-| `GET /health/metrics`              | Aggregate process-local request counters; no route labels, source, provider, dependency, or credential data.                          |
-| `GET /api/docs`                    | Swagger UI for the current API document.                                                                                              |
-| `POST /api/v1/auth/register`       | Validates input and returns `202` with `{ "accepted": true }`; new and duplicate emails are intentionally indistinguishable.          |
-| `POST /api/v1/auth/login`          | Returns a short-lived Bearer access token and public user data in a `201` success envelope.                                           |
-| `POST /api/v1/auth/refresh`        | Reads and rotates the API-owned refresh cookie.                                                                                       |
-| `POST /api/v1/auth/logout`         | Revokes the presented refresh session when valid and clears the cookie; malformed or repeated logout is idempotent.                   |
-| `POST /api/v1/auth/logout-all`     | Authenticated session revocation for every session belonging to the user.                                                             |
-| `PATCH /api/v1/auth/password`      | Verifies the current password, changes the Argon2id hash, revokes all active sessions, clears the refresh cookie, and requires login. |
-| `GET /api/v1/auth/me`              | Returns the authenticated public user.                                                                                                |
-| `POST /api/v1/reviews`             | Requires authentication and a bounded `Idempotency-Key`; reserves quota and creates or safely replays an owned `PENDING` review.      |
-| `GET /api/v1/reviews`              | Lists only the authenticated user's active reviews with page, limit, and status filtering.                                            |
-| `GET /api/v1/reviews/:id`          | Returns one owned review, including source code.                                                                                      |
-| `DELETE /api/v1/reviews/:id`       | Soft-deletes one owned review and returns `204`.                                                                                      |
-| `POST /api/v1/reviews/:id/retry`   | Moves an owned review back to `PENDING` when the status policy allows it.                                                             |
-| `POST /api/v1/reviews/:id/cancel`  | Moves an owned review to `CANCELLED` when the status policy allows it.                                                                |
-| `POST /api/v1/reviews/:id/process` | Runs one bounded synchronous Luna review; returns a source-free completion or idempotent skip response.                               |
-| `GET /api/v1/reviews/:id/result`   | Returns one owned completed result with validated findings and safe Luna execution metadata; non-completed reviews return `409`.      |
-| `GET /api/v1/usage/summary`        | Returns an owner-scoped, source-free usage summary.                                                                                   |
-| `GET /api/v1/usage/history`        | Returns owner-scoped, source-free history with bounded filters and stable pagination.                                                 |
-| `GET /api/v1/usage/quota`          | Returns the authenticated UTC-day quota read model and configured limits.                                                             |
+| Method and route                   | Implemented behavior                                                                                                                    |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health/live`                 | Process liveness: `{ "data": { "status": "ok" } }`.                                                                                     |
+| `GET /health/ready`                | Application-only readiness. It does not probe PostgreSQL, Redis, or AI.                                                                 |
+| `GET /health/metrics`              | Aggregate process-local request counters; no route labels, source, provider, dependency, or credential data.                            |
+| `GET /api/docs`                    | Swagger UI for the current API document.                                                                                                |
+| `POST /api/v1/auth/register`       | Validates input and returns `202` with `{ "accepted": true }`; new and duplicate emails are intentionally indistinguishable.            |
+| `POST /api/v1/auth/login`          | Returns a short-lived Bearer access token and public user data in a `201` success envelope.                                             |
+| `POST /api/v1/auth/refresh`        | Reads and rotates the API-owned refresh cookie.                                                                                         |
+| `POST /api/v1/auth/logout`         | Revokes the presented refresh session when valid and clears the cookie; malformed or repeated logout is idempotent.                     |
+| `POST /api/v1/auth/logout-all`     | Authenticated session revocation for every session belonging to the user.                                                               |
+| `PATCH /api/v1/auth/password`      | Verifies the current password, changes the Argon2id hash, revokes all active sessions, clears the refresh cookie, and requires login.   |
+| `GET /api/v1/auth/me`              | Returns the authenticated public user.                                                                                                  |
+| `POST /api/v1/reviews`             | Requires authentication and a bounded `Idempotency-Key`; reserves quota and creates or safely replays an owned `PENDING` review.        |
+| `GET /api/v1/reviews`              | Lists only the authenticated user's active source-free reviews with page, limit, title, language, mode, status, and created-at sorting. |
+| `DELETE /api/v1/reviews`           | Soft-deletes up to 100 unique owned review IDs and returns `{ "deletedCount": number }`; other-user/missing IDs are ignored.            |
+| `GET /api/v1/reviews/:id`          | Returns one owned review, including source code.                                                                                        |
+| `DELETE /api/v1/reviews/:id`       | Soft-deletes one owned review and returns `204`.                                                                                        |
+| `POST /api/v1/reviews/:id/retry`   | Moves an owned review back to `PENDING` when the status policy allows it.                                                               |
+| `POST /api/v1/reviews/:id/cancel`  | Moves an owned review to `CANCELLED` when the status policy allows it.                                                                  |
+| `POST /api/v1/reviews/:id/process` | Runs one bounded synchronous Luna review; returns a source-free completion or idempotent skip response.                                 |
+| `GET /api/v1/reviews/:id/result`   | Returns one owned completed result with validated findings and safe Luna execution metadata; non-completed reviews return `409`.        |
+| `GET /api/v1/usage/summary`        | Returns an owner-scoped, source-free usage summary.                                                                                     |
+| `GET /api/v1/usage/history`        | Returns owner-scoped, source-free history with bounded filters and stable pagination.                                                   |
+| `GET /api/v1/usage/quota`          | Returns the authenticated UTC-day quota read model and configured limits.                                                               |
 
 Review statuses are `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`, and
 `CANCELLED`. Processing accepts no provider, model, or prompt options from the

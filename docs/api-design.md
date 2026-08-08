@@ -49,13 +49,14 @@ at `/api/docs` in non-production environments only.
 | Method   | Path                          | Contract                                                                                                  |
 | -------- | ----------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `POST`   | `/api/v1/reviews`             | Authenticated, bounded request with required `Idempotency-Key`; admits or safely replays an owned review. |
-| `GET`    | `/api/v1/reviews`             | Owner-scoped paginated list with bounded page, limit, and status filters.                                 |
+| `GET`    | `/api/v1/reviews`             | Owner-scoped source-free page with bounded title, language, mode, status, and created-at sort filters.    |
 | `GET`    | `/api/v1/reviews/:id`         | Owner-scoped review detail.                                                                               |
 | `GET`    | `/api/v1/reviews/:id/events`  | Owner-scoped status-only SSE with bounded replay cursor.                                                  |
 | `POST`   | `/api/v1/reviews/:id/process` | Runs one bounded synchronous review through pinned Luna; request body must be empty.                      |
 | `GET`    | `/api/v1/reviews/:id/result`  | Returns one validated result for an owned completed review.                                               |
 | `POST`   | `/api/v1/reviews/:id/cancel`  | Cancels an owned review run through the run coordinator.                                                  |
 | `POST`   | `/api/v1/reviews/:id/retry`   | Waits for the caller's run to be idle and retries an owned review.                                        |
+| `DELETE` | `/api/v1/reviews`             | Soft-deletes up to 100 unique owned review IDs and returns the deleted count.                             |
 | `DELETE` | `/api/v1/reviews/:id`         | Soft-deletes an owned review.                                                                             |
 | `GET`    | `/api/v1/usage/summary`       | Owner-scoped usage summary.                                                                               |
 | `GET`    | `/api/v1/usage/history`       | Owner-scoped source-free history with bounded filters and pagination.                                     |
@@ -72,10 +73,17 @@ in [`apps/api/src/modules`](../apps/api/src/modules), especially
 
 Global `ValidationPipe` rejects non-whitelisted properties. DTOs and AI policy
 bound source, language, mode, learner level, title, context, identifiers,
-pagination, and idempotency input. The access guard resolves a live user and
+pagination, history filters, bulk-delete IDs, and idempotency input. The access guard resolves a live user and
 session before attaching `userId` and `sessionId` to the request. Controllers
 pass that identity into repository/service methods; repositories repeat the
 owner predicate rather than trusting a client-supplied owner field.
+
+`GET /api/v1/reviews` accepts `page` (1-10000), `limit` (1-50), optional
+`title` substring (case-insensitive, title metadata only), `language`, `mode`,
+`status`, and `sort=asc|desc` over `createdAt` with a deterministic ID
+tie-breaker. It never returns source code in list items. `DELETE
+/api/v1/reviews` accepts `{ "ids": string[] }` with 1-100 unique IDs; missing
+and other-user IDs are ignored, and only active owned rows are soft-deleted.
 
 ## Streaming and errors
 
