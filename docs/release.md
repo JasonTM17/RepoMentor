@@ -65,13 +65,15 @@ deployment, or browser claim is made.
 
 ## Unreleased AI cost-estimation slice — feature branch
 
-The cost-estimation code is currently present only on
-`feature/usage-cost-estimation` at code head
-`85256008c89226e10e9bfc15404f964c8e4ff189`; `main` and `origin/main` remain at
-`2e061c88815aada6f46069d65de498cb623da4ea`. The three implementation commits
-are `000f642` (`feat(ai)`), `8f0e6dc` (`feat(usage)`), and `8525600`
-(`feat(web)`). This documentation-only slice does not merge or publish that
-feature branch, and the `v0.1.4` images do not include it.
+The cost-estimation slice is currently present only on
+`feature/usage-cost-estimation`. At document-authoring time, its evidence head
+was `e20e96b`, based on `main` and `origin/main` at `2e061c8`. The bounded
+sequence through that head is `000f642` (`feat(ai)`), `8f0e6dc` (`feat(usage)`),
+`8525600` (`feat(web)`), `92db485` (`docs`), `931eef5` (`fix(review)`), and
+`e20e96b` (`test(usage)`). A later docs-only commit naturally advances the
+branch; run `git rev-parse HEAD` for the exact current head. This corrective
+slice does not merge or publish the feature branch, and the `v0.1.4` images do
+not include it.
 
 The optional API pricing configuration consists of `AI_PRICING_VERSION`,
 `AI_INPUT_USD_MICROS_PER_MILLION_TOKENS`,

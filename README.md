@@ -29,12 +29,15 @@ are recorded in [the 2026-08-08 continuation report](plans/reports/20260808-repo
 its head references are historical rather than a replacement for the current
 `main` identity.
 
-The unreleased AI cost-estimation code is isolated on
-`feature/usage-cost-estimation` at code head
-`85256008c89226e10e9bfc15404f964c8e4ff189`; it is not in `main`, `origin/main`,
-`v0.1.4`, or either published image. The implementation and operator rules
-are recorded in [the release boundary](docs/release.md) and
-[deployment notes](docs/deployment.md).
+The unreleased AI cost-estimation slice is isolated on
+`feature/usage-cost-estimation`. At document-authoring time, its evidence head
+was `e20e96b`, based on `main`/`origin/main` at `2e061c8`; the bounded sequence
+through that head is `000f642`, `8f0e6dc`, `8525600`, `92db485`, `931eef5`, and
+`e20e96b`. A later docs-only commit naturally advances the branch, so operators
+must run `git rev-parse HEAD` when an exact current head is required. The slice
+is not in `main`, `origin/main`, `v0.1.4`, or either published image. The
+implementation and operator rules are recorded in [the release boundary](docs/release.md)
+and [deployment notes](docs/deployment.md).
 
 ### Sensitive-action audit logging — preserved evidence
 
