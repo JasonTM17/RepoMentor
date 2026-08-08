@@ -1794,6 +1794,13 @@ test("review history API validates filters, bearer auth, and bulk-delete envelop
       () => transport.list({ limit: 20, page: 1, sort: "desc" }),
       (error) => error instanceof ReviewHistoryApiError && error.status === 200,
     );
+
+    globalThis.fetch = async () =>
+      createJsonResponse(200, { data: validHistory, meta: { source: "forbidden" } });
+    await assert.rejects(
+      () => transport.list({ limit: 20, page: 1, sort: "desc" }),
+      (error) => error instanceof ReviewHistoryApiError && error.status === 200,
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }

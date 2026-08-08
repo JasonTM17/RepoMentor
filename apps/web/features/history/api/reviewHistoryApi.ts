@@ -16,6 +16,8 @@ const maxIdLength = 25;
 const maxLanguageLength = 32;
 const maxTitleLength = 80;
 const maxContextLength = 500;
+const maxRequestIdLength = 128;
+const maxEnvelopePageSize = 100;
 const modes: readonly ReviewHistoryMode[] = ["QUICK", "STANDARD", "DEEP"];
 const statuses: readonly ReviewHistoryStatus[] = [
   "PENDING",
@@ -67,6 +69,9 @@ const isTimestamp = (value: unknown): value is string =>
 
 const isNonNegativeInteger = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+
+const isPositiveInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 
 const isMode = (value: unknown): value is ReviewHistoryMode =>
   typeof value === "string" && modes.includes(value as ReviewHistoryMode);
@@ -153,11 +158,20 @@ const isDeleteData = (value: unknown): value is ReviewHistoryDeleteData =>
   hasExactKeys(value, ["deletedCount"]) &&
   isNonNegativeInteger(value.deletedCount);
 
+const isApiMeta = (value: unknown): boolean =>
+  isRecord(value) &&
+  hasOnlyKeys(value, ["requestId", "page", "pageSize", "total"]) &&
+  (!hasOwn(value, "requestId") || isBoundedString(value.requestId, maxRequestIdLength)) &&
+  (!hasOwn(value, "page") || isPositiveInteger(value.page)) &&
+  (!hasOwn(value, "pageSize") ||
+    (isPositiveInteger(value.pageSize) && value.pageSize <= maxEnvelopePageSize)) &&
+  (!hasOwn(value, "total") || isNonNegativeInteger(value.total));
+
 const isSuccessEnvelope = (value: unknown): value is { readonly data: unknown } =>
   isRecord(value) &&
   hasOwn(value, "data") &&
   hasOnlyKeys(value, ["data", "meta"]) &&
-  (!hasOwn(value, "meta") || isRecord(value.meta));
+  (!hasOwn(value, "meta") || isApiMeta(value.meta));
 
 const normalizeOrigin = (origin: string): string => origin.replace(/\/+$/u, "");
 
