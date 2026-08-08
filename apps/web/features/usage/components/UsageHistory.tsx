@@ -61,10 +61,23 @@ const isUsageReviewMode = (value: string): value is UsageReviewMode =>
 const statusClassName = (status: UsageReviewStatus): string =>
   `usage-record-status usage-record-status-${status.toLowerCase()}`;
 
+const reviewHref = (reviewId: string): string => `/reviews/${encodeURIComponent(reviewId)}`;
+
+const ReviewReopenLink: FC<{ readonly reviewId: string }> = ({ reviewId }): ReactElement => (
+  <a
+    className="usage-history-review-link"
+    href={reviewHref(reviewId)}
+    aria-label={`Open review ${reviewId}`}
+  >
+    <span>{reviewId}</span>
+    <LineIcon name="arrow-right" />
+  </a>
+);
+
 const HistoryRow: FC<{ readonly item: UsageHistoryItem }> = ({ item }): ReactElement => (
   <tr>
     <th scope="row" className="usage-history-review-id">
-      {item.reviewId}
+      <ReviewReopenLink reviewId={item.reviewId} />
     </th>
     <td>{formatLanguage(item.language)}</td>
     <td>{formatMode(item.mode)}</td>
@@ -80,7 +93,9 @@ const HistoryRow: FC<{ readonly item: UsageHistoryItem }> = ({ item }): ReactEle
 const HistoryMobileItem: FC<{ readonly item: UsageHistoryItem }> = ({ item }): ReactElement => (
   <li className="usage-history-mobile-item">
     <header className="usage-history-mobile-header">
-      <strong className="usage-history-review-id">{item.reviewId}</strong>
+      <strong className="usage-history-review-id">
+        <ReviewReopenLink reviewId={item.reviewId} />
+      </strong>
       <span className={statusClassName(item.status)}>{formatStatus(item.status)}</span>
     </header>
     <dl className="usage-history-mobile-details">

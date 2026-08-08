@@ -38,6 +38,8 @@ const source = Object.freeze({
   authTypes: readTrackedSource("features/auth/types/index.ts"),
   validation: readTrackedSource("features/auth/helpers/validation.ts"),
   reviewPage: readTrackedSource("app/reviews/new/page.tsx"),
+  reviewDetailPage: readTrackedSource("app/reviews/[id]/page.tsx"),
+  reviewDetailComponent: readTrackedSource("features/review/components/ReviewDetailPage.tsx"),
   reviewWorkspace: readTrackedSource("features/review/components/ReviewWorkspace.tsx"),
   reviewSourceEditor: readTrackedSource("features/review/components/ReviewSourceEditor.tsx"),
   reviewResultPanel: readTrackedSource("features/review/components/ReviewResultPanel.tsx"),
@@ -822,6 +824,93 @@ test("review transport preserves the accepted process and result endpoints", () 
   assert.doesNotMatch(source.reviewApi, /DEEPSEEK|api[_-]?key|secret/iu);
 });
 
+test("review detail transport validates owner-scoped detail data and hides backend errors", async () => {
+  const { ReviewApiError, createReviewApiTransport } = await reviewApiRuntime;
+  const originalFetch = globalThis.fetch;
+  const detail = {
+    context: "Keep the review grounded in the source.",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    id: "review-detail-1",
+    language: "typescript",
+    learnerLevel: "ADVANCED",
+    mode: "STANDARD",
+    source: "const answer = 42;",
+    status: "COMPLETED",
+    title: "Boundary review",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+  const fetchCalls = [];
+
+  try {
+    globalThis.fetch = async (url, init) => {
+      fetchCalls.push({ init, url });
+      return createJsonResponse(200, { data: detail });
+    };
+
+    const transport = createReviewApiTransport({
+      apiOrigin: "https://api.example.test",
+      getAccessToken: () => "memory-only-access-token",
+    });
+    const received = await transport.getDetail("review/1");
+
+    assert.deepEqual(received, detail);
+    assert.equal(fetchCalls[0].url, "https://api.example.test/api/v1/reviews/review%2F1");
+    assert.equal(fetchCalls[0].init.method, "GET");
+    assert.equal(fetchCalls[0].init.credentials, "include");
+    assert.deepEqual(fetchCalls[0].init.headers, {
+      Authorization: "Bearer memory-only-access-token",
+    });
+
+    for (const invalidDetail of [
+      { ...detail, source: "" },
+      { ...detail, context: " " },
+      { ...detail, updatedAt: "not-a-date" },
+      { ...detail, unexpected: true },
+      { ...detail, status: "DELETED" },
+    ]) {
+      globalThis.fetch = async () => createJsonResponse(200, { data: invalidDetail });
+      await assert.rejects(
+        () => transport.getDetail("review-1"),
+        (error) => error instanceof ReviewApiError && error.status === 200,
+      );
+    }
+
+    globalThis.fetch = async () =>
+      createJsonResponse(404, {
+        error: { code: "NOT_FOUND", message: "backend-only ownership detail" },
+      });
+    await assert.rejects(
+      () => transport.getDetail("review-1"),
+      (error) =>
+        error instanceof ReviewApiError &&
+        error.status === 404 &&
+        !error.message.includes("backend-only ownership detail"),
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("review detail route and history expose an explicit reopen boundary", () => {
+  assert.match(source.reviewDetailPage, /<ReviewDetailPage\s*\/>/u);
+  assert.match(source.reviewDetailComponent, /useParams/u);
+  assert.match(source.reviewDetailComponent, /createReviewApiTransport\(\{ getAccessToken \}\)/u);
+  assert.match(source.reviewDetailComponent, /transport\.getDetail\(reviewId\)/u);
+  assert.match(source.reviewDetailComponent, /transport\.getResult\(detail\.id\)/u);
+  assert.match(source.reviewDetailComponent, /status === "loading"/u);
+  assert.match(source.reviewDetailComponent, /status === "processing"/u);
+  assert.match(source.reviewDetailComponent, /status === "empty"/u);
+  assert.match(source.reviewDetailComponent, /status="error"/u);
+  assert.match(source.reviewDetailComponent, /Demo fixture/u);
+  assert.match(source.reviewDetailComponent, /reviewUnavailableCopy/u);
+  assert.doesNotMatch(
+    source.reviewDetailComponent,
+    /localStorage|sessionStorage|error\.message|error\.code/u,
+  );
+  assert.match(source.usageHistory, /href=\{reviewHref\(reviewId\)\}/u);
+  assert.match(source.usageHistory, /Open review \$\{reviewId\}/u);
+});
+
 test("review API admission uses a bounded idempotency key and forwards draft metadata", async () => {
   const { createReviewApiTransport } = await reviewApiRuntime;
   const originalFetch = globalThis.fetch;
@@ -1414,6 +1503,8 @@ test("review CSS preserves product accessibility and responsive contracts", () =
 test("review source copy contains no em dash, emoji, or banned marketing language", () => {
   const reviewSources = [
     source.reviewPage,
+    source.reviewDetailPage,
+    source.reviewDetailComponent,
     source.reviewWorkspace,
     source.reviewSourceEditor,
     source.reviewResultPanel,
