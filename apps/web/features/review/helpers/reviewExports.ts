@@ -24,12 +24,17 @@ const getExportOptionalData = (
     return undefined;
   }
 
+  const generatedTests = (optionalData.generatedTests ?? []).filter(hasText);
+  const learningQuestions = (optionalData.learningQuestions ?? []).filter(hasText);
   const presentData = {
+    ...(hasText(optionalData.diff) ? { diff: optionalData.diff } : {}),
+    ...(generatedTests.length > 0 ? { generatedTests } : {}),
     ...(hasText(optionalData.generatedTest) ? { generatedTest: optionalData.generatedTest } : {}),
     ...(hasText(optionalData.improvedCode) ? { improvedCode: optionalData.improvedCode } : {}),
     ...(hasText(optionalData.improvedSource)
       ? { improvedSource: optionalData.improvedSource }
       : {}),
+    ...(learningQuestions.length > 0 ? { learningQuestions } : {}),
     ...(hasText(optionalData.learningQuestion)
       ? { learningQuestion: optionalData.learningQuestion }
       : {}),
@@ -108,9 +113,21 @@ export const formatReviewMarkdown = (
     lines.push("## Improved code", "", "```", optional.improvedCode, "```", "");
   }
 
+  if (optional?.diff) {
+    lines.push("## Unified diff", "", "```diff", optional.diff, "```", "");
+  }
+
+  optional?.generatedTests?.forEach((generatedTest, index) => {
+    lines.push(`## Generated test ${index + 1}`, "", "```", generatedTest, "```", "");
+  });
+
   if (optional?.generatedTest) {
     lines.push("## Generated test", "", "```", optional.generatedTest, "```", "");
   }
+
+  optional?.learningQuestions?.forEach((learningQuestion, index) => {
+    lines.push(`## Learning question ${index + 1}`, "", learningQuestion, "");
+  });
 
   if (optional?.learningQuestion) {
     lines.push("## Learning question", "", optional.learningQuestion, "");

@@ -231,10 +231,10 @@ const createReviewResultResponse = () => ({
   id: "review-1",
   result: {
     education: {
-      diff: null,
-      generatedTests: [],
-      improvedSource: null,
-      learningQuestions: [],
+      diff: "@@ -1 +1 @@\n-const answer = 41;\n+const answer = 42;",
+      generatedTests: ['test("answer", () => assert.equal(answer, 42));'],
+      improvedSource: "const answer = 42;",
+      learningQuestions: ["Which invariant makes this value safe to change?"],
     },
     findings: [],
     schemaVersion: "v1",
@@ -1154,6 +1154,8 @@ test("review result renders safe boundaries, issue selection, and learning notes
   assert.match(source.reviewResultPanel, /review-code-context-line-selected/u);
   assert.match(source.reviewResultPanel, /data-transport-mode=\{transportMode\}/u);
   assert.match(source.reviewResultPanel, /Authenticated API result/u);
+  assert.match(source.reviewResultPanel, /result\.result\.education/u);
+  assert.match(source.reviewResultPanel, /education\.generatedTests/u);
   assert.match(source.reviewWorkspace, /transportMode=\{transportMode\}/u);
   assert.doesNotMatch(
     source.reviewResultPanel,
@@ -1167,6 +1169,9 @@ test("review optional views expose real data seams and explicit unavailable stat
   assert.match(source.reviewOptionalViews, /Generated test/u);
   assert.match(source.reviewOptionalViews, /Learning question/u);
   assert.match(source.reviewOptionalViews, /Original versus improved/u);
+  assert.match(source.reviewOptionalViews, /Generated tests/u);
+  assert.match(source.reviewOptionalViews, /Learning questions/u);
+  assert.match(source.reviewOptionalViews, /Unified diff/u);
   assert.match(source.reviewOptionalViews, /Not supplied/u);
   assert.match(source.reviewOptionalViews, /ReviewDiffEditor/u);
   assert.match(source.reviewOptionalViews, /optionalData\?\.improvedCode/u);
@@ -1177,6 +1182,7 @@ test("review optional views expose real data seams and explicit unavailable stat
 test("review result actions use browser APIs only after a user action", () => {
   assert.match(source.reviewResultActions, /Copy improved code/u);
   assert.match(source.reviewResultActions, /Copy test case/u);
+  assert.match(source.reviewResultActions, /Copy diff/u);
   assert.match(source.reviewResultActions, /Download Markdown/u);
   assert.match(source.reviewResultActions, /Download JSON/u);
   assert.match(source.reviewResultActions, /navigator\?\.clipboard/u);
@@ -1201,9 +1207,12 @@ test("review exports remain source-free by default and include optional data onl
   assert.match(formatReviewJson(result), /"schemaVersion": "v1"/u);
 
   const optionalData = {
+    diff: "@@ -1 +1 @@\n-const original = true;\n+const improved = true;",
+    generatedTests: ['test("array", () => expect(true).toBe(true));'],
     generatedTest: 'test("guard", () => expect(true).toBe(true));',
     improvedCode: "return fallback;",
     improvedSource: "const improved = true;",
+    learningQuestions: ["Which invariant does the array example preserve?"],
     learningQuestion: "Which boundary is easiest to explain?",
     originalSource: "const original = true;",
   };
@@ -1214,7 +1223,10 @@ test("review exports remain source-free by default and include optional data onl
   assert.match(markdown, /## Original source[\s\S]*const original = true;/u);
   assert.match(markdown, /## Improved source[\s\S]*const improved = true;/u);
   assert.match(markdown, /## Improved code[\s\S]*return fallback;/u);
+  assert.match(markdown, /## Unified diff[\s\S]*const improved = true;/u);
+  assert.match(markdown, /## Generated test 1[\s\S]*test\("array"/u);
   assert.match(markdown, /## Generated test[\s\S]*test\("guard"/u);
+  assert.match(markdown, /## Learning question 1[\s\S]*Which invariant/u);
   assert.match(markdown, /## Learning question[\s\S]*Which boundary/u);
   assert.deepEqual(JSON.parse(formatReviewJson(result, optionalData)).optional, optionalData);
 });
