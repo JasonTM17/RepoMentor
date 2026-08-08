@@ -46,6 +46,10 @@ FROM workspace AS migration
 
 # This one-shot target intentionally retains the Prisma CLI, schema, and
 # checked-in migrations. DATABASE_URL is supplied only when the container runs.
+# Generate the platform engine while the image build has package-registry access;
+# the migration container must not download engines on the internal network.
+RUN pnpm exec prisma generate --schema prisma/schema.prisma
+
 CMD ["pnpm", "db:migrate"]
 
 FROM workspace AS build
