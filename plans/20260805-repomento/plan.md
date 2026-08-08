@@ -815,6 +815,41 @@ The branch is complete and no longer active; historical refs and worktrees
 remain frozen and are not eligible for wholesale cleanup. The next bounded
 scope must be selected only after this clean pushed checkpoint.
 
+## Auth, review metadata, and branch hygiene follow-up — 2026-08-08
+
+The coordinator audited every local branch and registered worktree with exact
+`git cherry main <branch>`, clean/dirty status, and explicit worktree paths.
+Completed equivalent refs were removed in bounded batches; generated residue
+was preserved when non-force removal could not delete non-empty directories.
+The pushed `main` head is `d955eaf` and the main worktree is clean.
+
+The auth password-change slice was implemented on exact base `6a5c5d9` as
+`0813d54` and fast-forward merged/pushed. It adds `PATCH /api/v1/auth/password`,
+strict DTO validation, Argon2id compare-and-update, all-session revocation
+inside the Prisma transaction, refresh-cookie clearing, and deterministic
+API/Prisma/controller coverage.
+
+The review metadata slice was implemented on exact base `6a5c5d9` as
+`d76c53e`, cherry-picked onto current main as `d955eaf`, and pushed. It
+propagates bounded `title`, `context`, and `learnerLevel` through review
+admission, version-2 keyed fingerprints, Prisma/in-memory persistence,
+finalization, processing, bounded Luna prompt framing, and web transport.
+
+Post-merge evidence at `d955eaf`: root `pnpm test` passes API `261/261`, web
+`43/43`, and contracts `7/7`; typecheck, lint, build, format check, Prisma
+validate/generate, diff-check, and credential scan pass. Prisma client
+generation was rerun after the metadata cherry-pick because stale ignored
+generated types initially exposed the integration gap. No live PostgreSQL,
+Redis, Luna, browser, Docker, registry, package, or deployment evidence is
+claimed.
+
+The only remaining non-main refs are intentionally protected: clean but stale
+unique `feature/auth-api`, dirty `feature/history-filter-api`, and dirty
+`feature/review-process-lock-v2`. They are not eligible for deletion or merge
+without a focused handoff and validation. One detached historical worktree
+remains without a branch ref. Current Luna-only advisor/Kongminh attempts for
+the new slices timed out and were closed; timeout is recorded as no ACCEPT.
+
 ## Education result and final exact-head audit — 2026-08-08
 
 The education-result follow-up was delivered as two isolated Luna-only slices

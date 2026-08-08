@@ -5,7 +5,8 @@ programming practice. It is a production-oriented monorepo, but the current
 repository checkpoint is an application slice, not a production release.
 
 The current code/evidence baseline is the exact implementation checkpoint
-`a5f55c6`. This SHA
+`d955eaf`, which includes the focused auth password-change commit
+`0813d54` and the review metadata source commit `d76c53e`. These SHAs
 are exact-head evidence anchors for the local checks recorded below; they are
 not a release, tag, registry, license, package-publication, deployment, or
 production-readiness claim.
@@ -53,13 +54,20 @@ This checkpoint contains:
   generated tests, and learning questions, rendered as text-only web views
   with copy/download actions;
 - focused unit and in-memory controller tests for the implemented boundaries.
+- an authenticated `PATCH /api/v1/auth/password` boundary that verifies the
+  current password, atomically updates the Argon2id hash, revokes all active
+  sessions, clears the refresh cookie, and requires re-authentication;
+- persisted review `title`, `context`, and `learnerLevel` metadata propagated
+  through admission, version-2 request fingerprints, Prisma/in-memory
+  persistence, bounded Luna prompt framing, and source-free owner responses.
 
 The authenticated admission contract requires Bearer authentication and a
 bounded `Idempotency-Key`. It canonicalizes the language (NFC, trim, and
 lowercase), preserves source as data, resolves an omitted mode to `STANDARD`,
 and rejects a null or invalid mode before mutation. The server normalizes and
-hashes the idempotency material, computes a version-1 HMAC-SHA-256 request
-fingerprint over the canonical source/language/mode, creates an owner-scoped
+hashes the idempotency material, computes a version-2 HMAC-SHA-256 request
+fingerprint over the canonical source/language/mode/learner-level/metadata
+fields, creates an owner-scoped
 durable `QuotaAdmission` intent, and reserves the authenticated UTC-day quota
 with one Redis `EVAL` operation. The finalizer then creates or safely replays
 the owned pending review through the Prisma boundary; raw idempotency material
@@ -68,6 +76,12 @@ returns `201`, an identical owner replay returns `200`, a conflicting reuse is
 `409`, confirmed quota denial is `429` with bounded `Retry-After`, and uncertain
 Redis or persistence outcomes fail closed into safe unavailable/reconciliation
 states rather than being blindly retried or compensated.
+
+The current fingerprint version is `2` and includes the canonical source,
+language, mode, learner level, and optional title/context metadata. Metadata
+is bounded, validated server-side, and framed as untrusted data for Luna; it
+is never treated as instructions or returned with source code in list/result
+envelopes.
 
 `QUOTA_ADMISSION_FINGERPRINT_SECRET` is server-only configuration. It must be
 32 to 4096 UTF-8 bytes outside test-only injection; HTTP callers cannot supply
@@ -130,29 +144,30 @@ The API uses `/api/v1` as its global prefix except for the three health routes.
 Successful responses are wrapped as `{ "data": ... }`; failures use an
 `{ "error": ... }` problem envelope and a bounded `X-Request-Id` header.
 
-| Method and route                   | Implemented behavior                                                                                                             |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health/live`                 | Process liveness: `{ "data": { "status": "ok" } }`.                                                                              |
-| `GET /health/ready`                | Application-only readiness. It does not probe PostgreSQL, Redis, or AI.                                                          |
-| `GET /health/metrics`              | Aggregate process-local request counters; no route labels, source, provider, dependency, or credential data.                     |
-| `GET /api/docs`                    | Swagger UI for the current API document.                                                                                         |
-| `POST /api/v1/auth/register`       | Validates input and returns `202` with `{ "accepted": true }`; new and duplicate emails are intentionally indistinguishable.     |
-| `POST /api/v1/auth/login`          | Returns a short-lived Bearer access token and public user data in a `201` success envelope.                                      |
-| `POST /api/v1/auth/refresh`        | Reads and rotates the API-owned refresh cookie.                                                                                  |
-| `POST /api/v1/auth/logout`         | Revokes the presented refresh session when valid and clears the cookie; malformed or repeated logout is idempotent.              |
-| `POST /api/v1/auth/logout-all`     | Authenticated session revocation for every session belonging to the user.                                                        |
-| `GET /api/v1/auth/me`              | Returns the authenticated public user.                                                                                           |
-| `POST /api/v1/reviews`             | Requires authentication and a bounded `Idempotency-Key`; reserves quota and creates or safely replays an owned `PENDING` review. |
-| `GET /api/v1/reviews`              | Lists only the authenticated user's active reviews with page, limit, and status filtering.                                       |
-| `GET /api/v1/reviews/:id`          | Returns one owned review, including source code.                                                                                 |
-| `DELETE /api/v1/reviews/:id`       | Soft-deletes one owned review and returns `204`.                                                                                 |
-| `POST /api/v1/reviews/:id/retry`   | Moves an owned review back to `PENDING` when the status policy allows it.                                                        |
-| `POST /api/v1/reviews/:id/cancel`  | Moves an owned review to `CANCELLED` when the status policy allows it.                                                           |
-| `POST /api/v1/reviews/:id/process` | Runs one bounded synchronous Luna review; returns a source-free completion or idempotent skip response.                          |
-| `GET /api/v1/reviews/:id/result`   | Returns one owned completed result with validated findings and safe Luna execution metadata; non-completed reviews return `409`. |
-| `GET /api/v1/usage/summary`        | Returns an owner-scoped, source-free usage summary.                                                                              |
-| `GET /api/v1/usage/history`        | Returns owner-scoped, source-free history with bounded filters and stable pagination.                                            |
-| `GET /api/v1/usage/quota`          | Returns the authenticated UTC-day quota read model and configured limits.                                                        |
+| Method and route                   | Implemented behavior                                                                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health/live`                 | Process liveness: `{ "data": { "status": "ok" } }`.                                                                                   |
+| `GET /health/ready`                | Application-only readiness. It does not probe PostgreSQL, Redis, or AI.                                                               |
+| `GET /health/metrics`              | Aggregate process-local request counters; no route labels, source, provider, dependency, or credential data.                          |
+| `GET /api/docs`                    | Swagger UI for the current API document.                                                                                              |
+| `POST /api/v1/auth/register`       | Validates input and returns `202` with `{ "accepted": true }`; new and duplicate emails are intentionally indistinguishable.          |
+| `POST /api/v1/auth/login`          | Returns a short-lived Bearer access token and public user data in a `201` success envelope.                                           |
+| `POST /api/v1/auth/refresh`        | Reads and rotates the API-owned refresh cookie.                                                                                       |
+| `POST /api/v1/auth/logout`         | Revokes the presented refresh session when valid and clears the cookie; malformed or repeated logout is idempotent.                   |
+| `POST /api/v1/auth/logout-all`     | Authenticated session revocation for every session belonging to the user.                                                             |
+| `PATCH /api/v1/auth/password`      | Verifies the current password, changes the Argon2id hash, revokes all active sessions, clears the refresh cookie, and requires login. |
+| `GET /api/v1/auth/me`              | Returns the authenticated public user.                                                                                                |
+| `POST /api/v1/reviews`             | Requires authentication and a bounded `Idempotency-Key`; reserves quota and creates or safely replays an owned `PENDING` review.      |
+| `GET /api/v1/reviews`              | Lists only the authenticated user's active reviews with page, limit, and status filtering.                                            |
+| `GET /api/v1/reviews/:id`          | Returns one owned review, including source code.                                                                                      |
+| `DELETE /api/v1/reviews/:id`       | Soft-deletes one owned review and returns `204`.                                                                                      |
+| `POST /api/v1/reviews/:id/retry`   | Moves an owned review back to `PENDING` when the status policy allows it.                                                             |
+| `POST /api/v1/reviews/:id/cancel`  | Moves an owned review to `CANCELLED` when the status policy allows it.                                                                |
+| `POST /api/v1/reviews/:id/process` | Runs one bounded synchronous Luna review; returns a source-free completion or idempotent skip response.                               |
+| `GET /api/v1/reviews/:id/result`   | Returns one owned completed result with validated findings and safe Luna execution metadata; non-completed reviews return `409`.      |
+| `GET /api/v1/usage/summary`        | Returns an owner-scoped, source-free usage summary.                                                                                   |
+| `GET /api/v1/usage/history`        | Returns owner-scoped, source-free history with bounded filters and stable pagination.                                                 |
+| `GET /api/v1/usage/quota`          | Returns the authenticated UTC-day quota read model and configured limits.                                                             |
 
 Review statuses are `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`, and
 `CANCELLED`. Processing accepts no provider, model, or prompt options from the
@@ -333,7 +348,15 @@ deployment, or production readiness.
 
 ## Current checkpoint evidence — 2026-08-08
 
-The exact merged implementation checkpoint `a5f55c6` passed `pnpm test` with
+The current merged and pushed checkpoint is `d955eaf`. It passed root
+`pnpm test`: API `261/261`, web `43/43`, and contracts `7/7`. The same
+checkpoint passed `pnpm typecheck`, `pnpm lint`, `pnpm build`,
+`pnpm format:check`, Prisma validate/generate with a process-local dummy
+`DATABASE_URL`, `git diff --check`, and a credential-shaped scan. The Prisma
+client was regenerated after integration so the new review metadata fields
+are represented by the generated types.
+
+The prior exact implementation checkpoint `a5f55c6` passed `pnpm test` with
 API `251/251`, contracts `7/7`, and web `42/42`. `pnpm typecheck`, `pnpm lint`,
 `pnpm format:check`, `pnpm build`, `pnpm package:check`, Prisma validation and
 generation with a process-local dummy URL, and a credential-shaped repository
@@ -347,7 +370,7 @@ Chromium revision `chromium-1161` is not installed locally. No Docker image,
 registry artifact, tag, public package, GitHub release, or deployment was
 created or claimed.
 
-GitHub Container Validation run `31234347927` passed against the exact code
+GitHub Container Validation run `31234347927` passed against the prior code
 head `a5f55c6`: workflow, Dockerfile/Compose validation, and both
 `linux/amd64` no-publish image builds. This is CI validation evidence only; it
 is not a registry publication or deployment.

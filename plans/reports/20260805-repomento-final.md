@@ -2,10 +2,11 @@
 
 ## Outcome
 
-The deterministic application checkpoint is complete in code at `a5f55c6`;
-the documentation-only commits that follow it are merged on `main`. The
-repository is clean and pushed, and the GitHub Container Validation run for
-the exact code checkpoint is green. This is not a production-ready or
+The current deterministic application checkpoint is complete in code at
+`d955eaf`, with auth password-change integrated at `0813d54` and the
+review metadata contract integrated at `d955eaf`. The repository is clean
+and pushed. The GitHub Container Validation run recorded below is for the
+prior code checkpoint, not this follow-up merge. This is not a production-ready or
 published release: live PostgreSQL/Redis/provider/Luna execution, browser
 execution, local Docker startup, registry credentials, semantic tagging,
 package publication, deployment, and the owner license decision remain open
@@ -13,10 +14,15 @@ gates.
 
 ## Exact source identity and branch discipline
 
-- The exact implementation/code checkpoint validated by the local gates and
-  current CI run is `a5f55c65afec024f9bf6b0cc571fa60b14fbfae8` (`a5f55c6`).
-- Documentation-only commits `f7f5d37`, `a8d6656`, and the subsequent report
-  alignment commit follow the code checkpoint; the final local/remote head is
+- The exact current implementation/code checkpoint validated by the local
+  post-merge gates is `d955eaff2bfad76838d90956e87214dd4ebfb968`
+  (`d955eaf`).
+- Auth password-change commit: `0813d5490dc9e42450d8fb910c3e54c09074398f`
+  (`0813d54`); review metadata contract commit:
+  `d76c53e` (cherry-picked as `d955eaf`).
+- Earlier documentation-only commits `f7f5d37`, `a8d6656`, and the subsequent
+  report alignment commit preceded the focused auth/metadata merges; the final
+  local/remote head is
   verified by the handoff command `git rev-parse HEAD` against
   `git rev-parse origin/main`.
 - The main worktree was clean at handoff: `git status --short --branch` showed
@@ -27,11 +33,31 @@ gates.
 - Each education branch was checked against its exact base, pushed, merged by
   fast-forward, and deleted locally and remotely after validation. No broad
   `git add .`, reset, force-delete, or unrelated worktree cleanup was used.
-- Historical branches and worktrees remain preserved as frozen inventory.
-  Unregistered generated dependency residue in the two education worktrees was
-  left in place because removing it would require an unsafe recursive cleanup.
+- Completed equivalent refs were audited with exact `git cherry main` and
+  removed in bounded batches. Generated dependency residue was preserved when
+  non-force worktree removal could not delete non-empty directories.
 
 ## Delivered implementation slices
+
+### Auth password-change boundary
+
+The authenticated `PATCH /api/v1/auth/password` route verifies the current
+password, validates a bounded replacement and exact confirmation, updates the
+Argon2id hash with compare-and-update semantics, revokes every active session
+in one Prisma transaction, clears the API-owned refresh cookie, and requires
+re-authentication. The in-memory adapter mirrors the transaction boundary and
+tests cover wrong credentials, secret redaction, strict fields, session
+revocation, Prisma parity, and Swagger.
+
+### Review metadata contract
+
+Authenticated review admission now persists bounded `title`, `context`,
+and `learnerLevel` metadata through Prisma and in-memory repositories,
+finalization, processing, web transport, and owner-scoped summary/detail
+responses. The version-2 keyed fingerprint includes the canonical metadata;
+optional fields remain omitted when absent, and metadata is framed as
+untrusted data in the Luna prompt. Source remains excluded from transient and
+list/result response envelopes.
 
 ### Education result contract
 
@@ -65,34 +91,56 @@ evidence.
 
 | Check | Result |
 | --- | --- |
-| Workspace tests | Pass: API `251/251`, web `42/42`, contracts `7/7`. |
+| Workspace tests | Pass: API `261/261`, web `43/43`, contracts `7/7`. |
 | TypeScript | Pass: `pnpm typecheck`. |
 | Lint | Pass: `pnpm lint`. |
 | Production build | Pass: `pnpm build`, including the web production build and contracts/API builds. |
 | Formatting | Pass: `pnpm format:check`. |
-| Package payload | Pass: `pnpm package:check`; exact allowlisted payload verified. |
+| Package payload | Prior checkpoint evidence exists; not rerun after the metadata merge. No publication was performed. |
 | Prisma tooling | Pass: `pnpm db:validate` and `pnpm db:generate` with a process-local dummy `DATABASE_URL`; no live database connection claimed. |
 | Credential-shaped scan | Pass: no matches for common API-key, GitHub-token, AWS-key, or private-key patterns in tracked source scope. The user-provided secret was not copied, logged, or committed. |
 | Browser test discovery | Pass: Playwright discovery `1/1`; browser execution not claimed because Chromium revision `chromium-1161` is unavailable locally. |
-| GitHub Container Validation | Pass: run `31234347927` at exact head `a5f55c6`; workflow/Dockerfile/Compose validation and API/web `linux/amd64` no-publish image builds succeeded. |
+| GitHub Container Validation | Pass: run `31234347927` at prior code head `a5f55c6`; workflow/Dockerfile/Compose validation and API/web `linux/amd64` no-publish image builds succeeded. |
 | GitHub release inventory | At audit: 0 repository variables, 0 repository secrets, and 0 releases returned by the checked GitHub inventory commands. |
 
 The local Docker daemon was unavailable, so no local image build or Compose
 startup was claimed. No live PostgreSQL, Redis/EVAL, HTTP provider, external
 Luna, multi-instance lease/stream, or migration-isolation run was performed.
 
+## Branch cleanup and current residual inventory
+
+The pushed `main` head is `d955eaf` and the main worktree is clean. The
+completed auth and metadata worker refs were cherry-picked/merged, pushed, and
+deleted after clean exact-head checks. Equivalent clean refs from the earlier
+inventory were also removed. The remaining non-main refs are intentionally
+protected because they are not complete clean equivalents:
+
+- `feature/auth-api`: clean but unique/stale; its old tip would remove current
+  Redis/Monaco dependencies, so it was not merged or deleted.
+- `feature/history-filter-api`: dirty with uncommitted usage/history source
+  and a boundary note.
+- `feature/review-process-lock-v2`: dirty with uncommitted processing lock
+  changes and tests.
+
+One detached worktree remains without a branch ref for historical coordinator
+state. Generated dependency residue from removed worktrees is preserved; no
+force worktree cleanup or broad reset was used. Branch force-deletion was
+used only after a fresh zero-unique-commit `git cherry` recheck. The current advisor and Kongminh
+Luna-only review attempts for the new slices timed out and were closed, so
+they are recorded as no independent ACCEPT.
+
 ## Master-prompt acceptance mapping
 
 The following mapping distinguishes deterministic application evidence from
 live/release evidence that is still unavailable.
 
-| # | Acceptance criterion | Evidence at `a5f55c6` | Status/limit |
+| # | Acceptance criterion | Evidence at `d955eaf` | Status/limit |
 | ---: | --- | --- | --- |
 | 1 | Register and sign in | Auth API and deterministic web transport tests. | Deterministic pass; no live browser journey. |
 | 2 | Open review page | Authenticated review workspace and web shell tests. | Deterministic pass; browser execution unavailable. |
 | 3 | Enter code | Bounded editor/source validation and review request tests. | Deterministic pass. |
 | 4 | Choose programming language | Language control and server canonicalization tests. | Deterministic pass. |
-| 5 | Choose learner level | Learner-level control is present in the review workspace. | UI evidence; persistence/provider live behavior not claimed. |
+| 5 | Choose learner level | UI control plus persisted API/Prisma/fingerprint/Luna metadata propagation tests. | Deterministic pass; no live PostgreSQL or external Luna call. |
 | 6 | Choose quick, standard, or deep review | Server-owned mode validation and reasoning mapping. | Deterministic pass. |
 | 7 | Backend creates a review record | Authenticated admission/finalizer and repository tests. | In-memory/contract evidence; no live PostgreSQL transaction. |
 | 8 | Backend selects suitable reasoning effort | Luna-only QUICK/STANDARD/DEEP mapping and provider metadata tests. | Deterministic pass; no external Luna call. |
@@ -150,7 +198,7 @@ worktree deletion as a rollback mechanism without explicit owner approval.
 
 `main` is ready for the next explicitly bounded implementation or live-gate
 task with a clean exact-head baseline. The deterministic application work is
-complete for the `a5f55c6` code checkpoint; the overall
+complete for the `d955eaf` code checkpoint; the overall
 delivery plan remains `in-progress`
 until the live/runtime and publication gates above are either executed with
 evidence or explicitly descoped by the project owner.

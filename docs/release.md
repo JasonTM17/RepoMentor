@@ -6,7 +6,9 @@ package publication, or production readiness.
 
 ## Source/evidence baseline
 
-- Current implementation checkpoint: `a5f55c6`.
+- Current implementation checkpoint: `d955eaf`.
+- The auth password-change slice was integrated as `0813d54`; the review
+  metadata contract was integrated as `d955eaf`.
 - The final plan/report addendum is authored in the bounded documentation
   refresh that follows this checkpoint.
 - This SHA is the exact-head evidence anchor for the local checks recorded in
@@ -122,9 +124,12 @@ checkpoint addendum follows the table.
 
 ## Current checkpoint addendum — 2026-08-08
 
-The merged implementation checkpoint `a5f55c6` passed API `251/251`, web
-`42/42`, and contracts `7/7`; the focused UI branch also passed web
-typecheck, lint, format check, and production build. The result contract is
+The current merged checkpoint `d955eaf` passed API `261/261`, web
+`43/43`, and contracts `7/7`, plus root typecheck, lint, format check,
+production build, Prisma validate/generate, diff-check, and credential scan.
+It includes the authenticated password-change boundary and persisted review
+title/context/learner-level metadata with version-2 request fingerprints. The
+result contract is
 strict and Luna-only, normalizes legacy persisted results with empty education
 fields, and carries improved source, unified diff, generated tests, and
 learning questions through the authenticated result API into text-only web
@@ -140,7 +145,7 @@ package, GitHub release, or deployment was created. Live PostgreSQL, Redis,
 HTTP provider, external Luna, Docker daemon, and multi-instance runtime
 evidence remain unverified.
 
-GitHub Container Validation run `31234347927` passed against the exact merged
+GitHub Container Validation run `31234347927` passed against the prior merged
 code head `a5f55c6`: workflow validation, Dockerfile and Compose contracts,
 and both `linux/amd64` no-publish image builds. It is CI validation evidence
 only; it is not a registry publication or deployment. Run `31204852778` remains
