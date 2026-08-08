@@ -169,7 +169,8 @@ jobs:
           echo "source_digest=${ghcr_digest}" >> "$GITHUB_OUTPUT"
 
       - name: Scan GHCR staging image for high and critical vulnerabilities
-        uses: aquasecurity/trivy-action@0.28.0
+        # v0.36.0 (a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
         with:
           image-ref: ${{ steps.release.outputs.ghcr_staging_ref }}
           format: table
@@ -180,7 +181,8 @@ jobs:
           exit-code: "1"
 
       - name: Scan Docker Hub staging image for high and critical vulnerabilities
-        uses: aquasecurity/trivy-action@0.28.0
+        # v0.36.0 (a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
         with:
           image-ref: ${{ steps.release.outputs.dockerhub_staging_ref }}
           format: table
@@ -262,7 +264,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate final SPDX SBOM
-        uses: aquasecurity/trivy-action@0.28.0
+        # v0.36.0 (a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
         with:
           image-ref: ${{ steps.release.outputs.ghcr_image }}:${{ steps.release.outputs.version }}
           format: spdx-json
