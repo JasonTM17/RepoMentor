@@ -38,9 +38,12 @@ docker compose up --build
 
 The first command is configuration-only. `docker compose up --build` builds the
 dedicated migration target, waits for PostgreSQL health, applies migrations,
-and starts the API only after the migration container exits successfully. A
-migration failure therefore prevents the API and web from starting. To run the
-one-shot migration service explicitly, use `docker compose run --rm migrate`.
+and starts the API only after the migration container exits successfully. The
+migration image generates and bakes its Prisma engine during the image build, so
+`prisma migrate deploy` does not require runtime registry access on Compose's
+internal network. A migration failure therefore prevents the API and web from
+starting. To run the one-shot migration service explicitly, use
+`docker compose run --rm migrate`.
 The API runtime image is production-pruned and non-root; it is not the
 migration runner and intentionally does not contain the Prisma CLI, schema, or
 checked-in migrations. A live startup, dependency check, and HTTP smoke still

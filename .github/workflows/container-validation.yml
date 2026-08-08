@@ -90,6 +90,7 @@ jobs:
             exit 1
           fi
           grep -q '^FROM workspace AS migration$' apps/api/Dockerfile
+          grep -q 'pnpm exec prisma generate --schema prisma/schema.prisma' apps/api/Dockerfile
           grep -q '^CMD \["pnpm", "db:migrate"\]$' apps/api/Dockerfile
           grep -q '^      target: migration$' docker-compose.yml
           grep -q '^        condition: service_completed_successfully$' docker-compose.yml
