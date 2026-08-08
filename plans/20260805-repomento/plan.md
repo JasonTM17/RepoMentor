@@ -815,6 +815,72 @@ The branch is complete and no longer active; historical refs and worktrees
 remain frozen and are not eligible for wholesale cleanup. The next bounded
 scope must be selected only after this clean pushed checkpoint.
 
+## Education result and final exact-head audit — 2026-08-08
+
+The education-result follow-up was delivered as two isolated Luna-only slices
+and integrated immediately into `main`. The exact merged implementation head is
+`a5f55c6`, and `origin/main` points to the same commit. The slice is an
+application checkpoint, not a production or release certification.
+
+The contract chain was committed as focused units:
+
+- `a751eb5`: bounded education result contract and strict schema fields;
+- `6213bfb`: AI schema-boundary tests;
+- `4385bc6`: web education transport validation;
+- `1e6cddc`: malformed/incomplete result-envelope tests;
+- `c52f792`: formatting/contract guard cleanup.
+
+The UI chain was then committed and merged from an exact `c52f792` base:
+
+- `a875ef5`: education result views for improved source, tests, questions,
+  and diff;
+- `7aa4f5c`: Markdown/JSON export support for the education artifacts;
+- `a5f55c6`: deterministic result-journey coverage.
+
+The result payload is bounded and strict. Legacy persisted results normalize to
+empty education fields; new Luna results carry improved source, unified diff,
+generated tests, and learning questions. The web surface treats all model
+output as text/code data, provides explicit unavailable states and
+copy/download actions, and never executes generated code or tests.
+
+Exact-head validation after merge:
+
+- `pnpm test`: API `251/251`, web `42/42`, contracts `7/7`;
+- `pnpm typecheck`, `pnpm lint`, `pnpm build`, and `pnpm format:check`: pass;
+- `pnpm package:check`: pass with the exact allowlisted payload;
+- `pnpm db:validate` and `pnpm db:generate`: pass with a process-local dummy
+  `DATABASE_URL`; no database connection was claimed;
+- credential-shaped repository scan: no matches;
+- GitHub Container Validation run `31234347927`: success at the exact
+  `a5f55c6` head, including workflow/Dockerfile/Compose validation and both
+  `linux/amd64` no-publish image builds.
+
+The guest QUICK endpoint, Redis process lease/fencing, authenticated
+status-only SSE/replay with polling fallback, cancellation, logout, history,
+usage, and quota boundaries are present in the merged code and covered by
+deterministic tests. They do not establish live PostgreSQL, Redis/EVAL,
+multi-instance, HTTP-provider, external Luna, Docker-daemon, or deployment
+evidence. Playwright discovery is `1/1`; the browser journey was not claimed as
+passing because Chromium revision `chromium-1161` is unavailable locally.
+
+AK supervision remained Luna-only for current work. The bounded advisor and
+Kongminh exact-head review attempts are recorded as independent evidence only
+when they return a directly inspectable verdict; a timeout or shutdown is
+recorded as no ACCEPT. Historical Terra counsel rows are archival context and
+are not a new model exception.
+
+The two current feature branches were pushed, fast-forward merged, and their
+local/remote branch refs were deleted after exact-head checks. Their generated
+dependency residue could not be removed safely after worktree unregistering,
+so it was preserved. Older branches and worktrees remain frozen inventory;
+none were swept, force-deleted, rebased, or mixed into the current commits.
+
+The plan remains `in-progress` because live dependency startup, browser
+execution, release credentials, registry publication, semantic tagging,
+package publication, deployment, and the owner’s license decision are still
+open gates. The final report maps each master-prompt acceptance criterion to
+direct evidence or an explicit limitation.
+
 ## Web review cancellation resolution — 2026-08-08
 
 The next bounded web quality slice was `feature/web-review-cancel`, based
