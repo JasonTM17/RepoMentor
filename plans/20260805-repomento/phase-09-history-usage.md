@@ -92,8 +92,9 @@ filters. Count and page queries reuse the same owner and `deletedAt: null`
 predicates; the Prisma select and response remain source-free. Swagger and
 global DTO validation document and reject unknown, ambiguous, out-of-range,
 or invalid query values. Prisma `LIKE`/`ILIKE` wildcard semantics are handled
-by escaping `_` at the repository boundary; persisted title search remains a
-P2 schema/migration decision because the current Review model has no title.
+by escaping `_` at the repository boundary; persisted title search remains
+outside this usage contract as a P2 query/indexing decision, while the Review
+model now stores optional bounded title metadata for the review lifecycle.
 
 Post-merge evidence is API `112/112` across 23 suites, API lint, typecheck,
 build, Prettier, Prisma validate/generate with a non-secret placeholder

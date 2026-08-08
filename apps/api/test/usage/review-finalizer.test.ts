@@ -19,7 +19,7 @@ const OWNER = "owner-a";
 const OTHER_OWNER = "owner-b";
 const ADMISSION_ID = "admission-a";
 const REVIEW_ID = "review-a";
-const FINGERPRINT_VERSION = 1;
+const FINGERPRINT_VERSION = 2;
 const FINGERPRINT_HASH = "a".repeat(64);
 
 const RESERVED: SeedReservedAdmission = {
@@ -37,6 +37,9 @@ function input(overrides: Partial<FinalizeReviewInput> = {}): FinalizeReviewInpu
     admissionId: ADMISSION_ID,
     language: "typescript",
     mode: "STANDARD",
+    learnerLevel: "ADVANCED",
+    title: "Review title",
+    context: "Review context",
     now: NOW,
     reviewId: REVIEW_ID,
     fingerprintVersion: FINGERPRINT_VERSION,
@@ -60,6 +63,9 @@ describe("review finalizer contract seam", () => {
       id: REVIEW_ID,
       language: "typescript",
       mode: "STANDARD",
+      learnerLevel: "ADVANCED",
+      title: "Review title",
+      context: "Review context",
       status: "PENDING",
       updatedAt: NOW,
     });

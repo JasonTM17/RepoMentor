@@ -20,11 +20,13 @@ describe("AI review policy", () => {
       validateAiReviewRequest({
         source: "const answer = 42;",
         language: " TypeScript ",
+        learnerLevel: "INTERMEDIATE",
         mode: "STANDARD",
       }),
       {
         source: "const answer = 42;",
         language: "typescript",
+        learnerLevel: "INTERMEDIATE",
         mode: "STANDARD",
       },
     );
@@ -43,9 +45,19 @@ describe("AI review policy", () => {
 
   it("rejects empty, oversized, and invalid-language requests", () => {
     for (const input of [
-      { source: "", language: "typescript", mode: "STANDARD" },
-      { source: "x".repeat(AI_MAX_SOURCE_LENGTH + 1), language: "typescript", mode: "STANDARD" },
-      { source: "const answer = 42;", language: "Type Script", mode: "STANDARD" },
+      { source: "", language: "typescript", learnerLevel: "INTERMEDIATE", mode: "STANDARD" },
+      {
+        source: "x".repeat(AI_MAX_SOURCE_LENGTH + 1),
+        language: "typescript",
+        learnerLevel: "INTERMEDIATE",
+        mode: "STANDARD",
+      },
+      {
+        source: "const answer = 42;",
+        language: "Type Script",
+        learnerLevel: "INTERMEDIATE",
+        mode: "STANDARD",
+      },
     ]) {
       assert.throws(() => validateAiReviewRequest(input), AiRequestError);
     }

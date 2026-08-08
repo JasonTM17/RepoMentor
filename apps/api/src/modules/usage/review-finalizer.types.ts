@@ -1,4 +1,4 @@
-import type { ReviewMode, ReviewStatus } from "../review/review.types.js";
+import type { ReviewLearnerLevel, ReviewMode, ReviewStatus } from "../review/review.types.js";
 import type { QuotaAdmissionStatus } from "./quota-admission.types.js";
 import {
   ReviewFinalizerConflictError,
@@ -60,6 +60,9 @@ export interface FinalizeReviewInput {
   readonly source: string;
   readonly language: string;
   readonly mode: ReviewMode;
+  readonly learnerLevel: ReviewLearnerLevel;
+  readonly title?: string;
+  readonly context?: string;
   /** Server-computed admission metadata; this pair must not come from HTTP. */
   readonly fingerprintVersion: number;
   readonly requestFingerprintHash: string;
@@ -71,6 +74,9 @@ export interface ReviewFinalizerSummary {
   readonly id: string;
   readonly language: string;
   readonly mode: ReviewMode;
+  readonly learnerLevel: ReviewLearnerLevel;
+  readonly title?: string;
+  readonly context?: string;
   readonly status: ReviewStatus;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -101,6 +107,9 @@ export interface ReviewFinalizerReviewCreateData {
   readonly source: string;
   readonly language: string;
   readonly mode: ReviewMode;
+  readonly learnerLevel: ReviewLearnerLevel;
+  readonly title?: string;
+  readonly context?: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }

@@ -33,13 +33,16 @@ import {
 function mapReview(row: PrismaReview): ReviewRecord {
   return {
     createdAt: row.createdAt,
+    ...(row.context === null ? {} : { context: row.context }),
     deletedAt: row.deletedAt,
     id: row.id,
     language: row.language,
     mode: row.mode,
+    learnerLevel: row.learnerLevel,
     processingGeneration: row.processingGeneration,
     source: row.source,
     status: row.status,
+    ...(row.title === null ? {} : { title: row.title }),
     updatedAt: row.updatedAt,
     userId: row.userId,
   };
@@ -108,10 +111,13 @@ export class PrismaReviewRepository implements ReviewRepository {
       const review = await transaction.review.create({
         data: {
           ...(input.id ? { id: input.id } : {}),
+          ...(input.context === undefined ? {} : { context: input.context }),
           eventSequence: 1,
           language: input.language,
           mode: input.mode,
+          learnerLevel: input.learnerLevel,
           source: input.source,
+          ...(input.title === undefined ? {} : { title: input.title }),
           userId: input.userId,
         },
       });

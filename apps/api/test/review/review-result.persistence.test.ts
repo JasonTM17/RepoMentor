@@ -67,6 +67,7 @@ describe("persisted AI review execution contract", () => {
       id: REVIEW_ID,
       language: "typescript",
       mode: "DEEP",
+      learnerLevel: "INTERMEDIATE",
       source: "const answer = 42;",
       userId: OWNER_ID,
     });

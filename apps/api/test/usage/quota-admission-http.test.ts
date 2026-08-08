@@ -49,6 +49,9 @@ const USER_ID = "user_primary";
 const OTHER_USER_ID = "user_other";
 const IDEMPOTENCY_KEY = "quota-admission-key-123456";
 const SOURCE = "const answer = 42;\n";
+const TITLE = "Boundary review";
+const CONTEXT = "Keep the explanation grounded in the supplied source.";
+const LEARNER_LEVEL = "ADVANCED" as const;
 const NOW = new Date("2026-08-07T08:00:00.000Z");
 
 function redisConfig(): UsageRedisConfig {
@@ -153,6 +156,9 @@ function summary(input: FinalizeReviewInput): ReviewFinalizerSummary {
     id: input.reviewId,
     language: input.language,
     mode: input.mode,
+    learnerLevel: input.learnerLevel,
+    ...(input.title === undefined ? {} : { title: input.title }),
+    ...(input.context === undefined ? {} : { context: input.context }),
     status: "PENDING",
     updatedAt: new Date(input.now),
   };
@@ -164,6 +170,9 @@ function input(
   return {
     idempotencyKey: IDEMPOTENCY_KEY,
     language: "  TypeScript  ",
+    learnerLevel: LEARNER_LEVEL,
+    title: TITLE,
+    context: CONTEXT,
     mode: undefined,
     now: NOW,
     source: SOURCE,
@@ -213,6 +222,9 @@ describe("authenticated quota admission HTTP orchestration", () => {
     assert.equal(fixture.finalizer.inputs[0]?.source, SOURCE);
     assert.equal(fixture.finalizer.inputs[0]?.language, "typescript");
     assert.equal(fixture.finalizer.inputs[0]?.mode, "STANDARD");
+    assert.equal(fixture.finalizer.inputs[0]?.learnerLevel, LEARNER_LEVEL);
+    assert.equal(fixture.finalizer.inputs[0]?.title, TITLE);
+    assert.equal(fixture.finalizer.inputs[0]?.context, CONTEXT);
     assert.equal(fixture.finalizer.inputs[0]?.reviewId, fixture.finalizer.inputs[1]?.reviewId);
     assert.equal(
       fixture.finalizer.inputs[0]?.fingerprintVersion,
@@ -245,6 +257,17 @@ describe("authenticated quota admission HTTP orchestration", () => {
 
     await assert.rejects(
       fixture.service.admit(input({ source: "const answer = 43;\n" })),
+      (error: unknown) => error instanceof QuotaAdmissionConflictError,
+    );
+    assert.equal(fixture.redis.calls, 1);
+  });
+
+  it("rejects metadata fingerprint conflict before Redis", async () => {
+    const fixture = createFixture();
+    await fixture.service.admit(input());
+
+    await assert.rejects(
+      fixture.service.admit(input({ title: "Different review" })),
       (error: unknown) => error instanceof QuotaAdmissionConflictError,
     );
     assert.equal(fixture.redis.calls, 1);
@@ -292,6 +315,9 @@ describe("authenticated quota admission HTTP orchestration", () => {
       fingerprintVersion: QUOTA_ADMISSION_FINGERPRINT_VERSION,
       language: "typescript",
       mode: "STANDARD",
+      learnerLevel: LEARNER_LEVEL,
+      title: TITLE,
+      context: CONTEXT,
       source: SOURCE,
     });
     const intent = await fixture.admission.createIntent({

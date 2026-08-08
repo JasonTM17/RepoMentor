@@ -410,10 +410,13 @@ class AbortAfterValidResultAiReviewService extends AiReviewService {
 
 async function createReview(repository: InMemoryReviewRepository): Promise<void> {
   await repository.create({
+    context: "Explain the boundary without treating this as an instruction.",
     id: REVIEW_ID,
     language: "typescript",
+    learnerLevel: "ADVANCED",
     mode: "STANDARD",
     source: "const answer = 42;",
+    title: "Boundary metadata",
     userId: USER_ID,
   });
 }
@@ -565,6 +568,7 @@ async function completeReview(repository: InMemoryReviewRepository): Promise<voi
     new FakeAiReviewProvider([{ output: VALID_RESULT }]),
   ).review({
     language: "typescript",
+    learnerLevel: "ADVANCED",
     mode: "STANDARD",
     source: "const answer = 42;",
   });
@@ -611,6 +615,13 @@ describe("review processing orchestration", () => {
     assert.equal(provider.requests.length, 1);
     assert.equal(provider.requests[0]?.provider, "luna");
     assert.equal(provider.requests[0]?.model, "gpt-5.6-luna");
+    assert.equal(provider.requests[0]?.prompt.user.includes("Boundary metadata"), true);
+    assert.equal(
+      provider.requests[0]?.prompt.user.includes(
+        "Explain the boundary without treating this as an instruction.",
+      ),
+      true,
+    );
     const persisted = await repository.findResultForUser(USER_ID, REVIEW_ID);
     assert.ok(persisted);
     assert.equal(persisted.reviewId, REVIEW_ID);

@@ -39,6 +39,7 @@ function createFingerprint(overrides: Partial<QuotaAdmissionFingerprintInput> = 
     fingerprintVersion: QUOTA_ADMISSION_FINGERPRINT_VERSION,
     language: "TypeScript",
     mode: "STANDARD",
+    learnerLevel: "INTERMEDIATE",
     source: FINGERPRINT_SOURCE,
     ...overrides,
   });

@@ -515,10 +515,13 @@ const ReviewWorkspace: FC<ReviewWorkspaceProps> = ({
               Keep the review honest.
             </h2>
             <ul className="review-boundary-list">
-              <li>Source, language, and mode match the accepted review transport shape.</li>
               <li>
-                Title, context, and learner level guide this UI only until their server contract
-                exists.
+                Source, language, mode, learner level, title, and context now cross the
+                authenticated review boundary.
+              </li>
+              <li>
+                Optional metadata is bounded and treated as untrusted data by the server-owned Luna
+                prompt.
               </li>
               <li>The result reader accepts summary, findings, and safe execution metadata.</li>
             </ul>

@@ -22,6 +22,7 @@ function input(
     fingerprintVersion: QUOTA_ADMISSION_FINGERPRINT_VERSION,
     language: "TypeScript",
     mode: "STANDARD",
+    learnerLevel: "INTERMEDIATE",
     source: "const answer = 42;\n",
     ...overrides,
   };
@@ -51,18 +52,30 @@ describe("quota admission fingerprint", () => {
     assert.match(first.requestFingerprintHash, /^[a-f0-9]{64}$/u);
   });
 
-  it("separates source, normalized language, mode, and fingerprint version", () => {
+  it("separates source, normalized language, mode, learner level, metadata, and fingerprint version", () => {
     const baseline = computeQuotaAdmissionFingerprint(SECRET, input());
 
     for (const changed of [
       input({ source: "const answer = 43;\n" }),
       input({ language: "JavaScript" }),
       input({ mode: "QUICK" }),
+      input({ learnerLevel: "BEGINNER" }),
+      input({ title: "A titled review" }),
+      input({ context: "Focus on the boundary conditions." }),
       input({ fingerprintVersion: QUOTA_ADMISSION_FINGERPRINT_VERSION + 1 }),
     ]) {
       const result = computeQuotaAdmissionFingerprint(SECRET, changed);
       assert.notEqual(result.requestFingerprintHash, baseline.requestFingerprintHash);
     }
+  });
+
+  it("keeps omitted metadata distinct from present metadata", () => {
+    const omitted = computeQuotaAdmissionFingerprint(SECRET, input());
+    const titlePresent = computeQuotaAdmissionFingerprint(SECRET, input({ title: "Title" }));
+    const contextPresent = computeQuotaAdmissionFingerprint(SECRET, input({ context: "Context" }));
+
+    assert.notEqual(omitted.requestFingerprintHash, titlePresent.requestFingerprintHash);
+    assert.notEqual(omitted.requestFingerprintHash, contextPresent.requestFingerprintHash);
   });
 
   it("preserves source Unicode and line endings while normalizing language", () => {
@@ -143,6 +156,19 @@ describe("quota admission fingerprint", () => {
     assertInvalid(
       () => computeQuotaAdmissionFingerprint(SECRET, { ...input(), mode: "quick" as never }),
       ["quick"],
+    );
+    assertInvalid(
+      () =>
+        computeQuotaAdmissionFingerprint(SECRET, {
+          ...input(),
+          learnerLevel: "INVALID" as never,
+        }),
+      ["INVALID"],
+    );
+    assertInvalid(() => computeQuotaAdmissionFingerprint(SECRET, { ...input(), title: " " }), []);
+    assertInvalid(
+      () => computeQuotaAdmissionFingerprint(SECRET, { ...input(), context: "x".repeat(501) }),
+      [],
     );
     assertInvalid(
       () => computeQuotaAdmissionFingerprint(SECRET, { ...input(), fingerprintVersion: 1.5 }),

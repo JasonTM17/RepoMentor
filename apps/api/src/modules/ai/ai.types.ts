@@ -1,4 +1,4 @@
-import type { ReviewMode } from "../review/review.types.js";
+import type { ReviewLearnerLevel, ReviewMode } from "../review/review.types.js";
 
 export const AI_REVIEW_PROVIDER = Symbol("AI_REVIEW_PROVIDER");
 
@@ -13,6 +13,9 @@ export interface AiReviewRequest {
   readonly source: string;
   readonly language: string;
   readonly mode: ReviewMode;
+  readonly learnerLevel: ReviewLearnerLevel;
+  readonly title?: string;
+  readonly context?: string;
 }
 
 export interface AiReviewPrompt {

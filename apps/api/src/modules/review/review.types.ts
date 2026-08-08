@@ -12,8 +12,13 @@ export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 export const REVIEW_MODES = ["QUICK", "STANDARD", "DEEP"] as const;
 export type ReviewMode = (typeof REVIEW_MODES)[number];
 
+export const REVIEW_LEARNER_LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED"] as const;
+export type ReviewLearnerLevel = (typeof REVIEW_LEARNER_LEVELS)[number];
+
 export const REVIEW_MAX_SOURCE_LENGTH = 100_000;
 export const REVIEW_MAX_LANGUAGE_LENGTH = 32;
+export const REVIEW_MAX_TITLE_LENGTH = 80;
+export const REVIEW_MAX_CONTEXT_LENGTH = 500;
 export const REVIEW_MAX_PAGE_SIZE = 50;
 export const REVIEW_MAX_PAGE_NUMBER = 10_000;
 // Keep the persisted counter below PostgreSQL's signed INTEGER maximum so a
@@ -30,6 +35,9 @@ export interface ReviewRecord {
   readonly source: string;
   readonly language: string;
   readonly mode: ReviewMode;
+  readonly learnerLevel: ReviewLearnerLevel;
+  readonly title?: string;
+  readonly context?: string;
   readonly processingGeneration: number;
   readonly status: ReviewStatus;
   readonly deletedAt: Date | null;
@@ -43,6 +51,9 @@ export interface CreateReviewInput {
   readonly source: string;
   readonly language: string;
   readonly mode: ReviewMode;
+  readonly learnerLevel: ReviewLearnerLevel;
+  readonly title?: string;
+  readonly context?: string;
 }
 
 export interface ReviewListQuery {

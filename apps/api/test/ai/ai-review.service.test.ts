@@ -20,6 +20,7 @@ const validResult = {
 const reviewRequest = {
   source: "const answer = 42;",
   language: "typescript",
+  learnerLevel: "INTERMEDIATE" as const,
   mode: "DEEP" as const,
 };
 

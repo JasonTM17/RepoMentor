@@ -14,9 +14,18 @@ import {
   QuotaAdmissionFingerprintInputError,
   resolveQuotaAdmissionReviewMode,
 } from "./quota-admission.fingerprint.js";
-import { createOpaqueAdmissionId, normalizeIdempotencyKey } from "./quota-admission.hash.js";
+import {
+  assertReviewLearnerLevel,
+  createOpaqueAdmissionId,
+  normalizeIdempotencyKey,
+} from "./quota-admission.hash.js";
 import { QuotaAdmissionService } from "./quota-admission.service.js";
-import type { ReviewMode } from "../review/review.types.js";
+import {
+  REVIEW_MAX_CONTEXT_LENGTH,
+  REVIEW_MAX_TITLE_LENGTH,
+  type ReviewLearnerLevel,
+  type ReviewMode,
+} from "../review/review.types.js";
 import type { QuotaAdmissionRecord } from "./quota-admission.types.js";
 import {
   QuotaAdmissionFinalizerConflictError,
@@ -50,6 +59,9 @@ export interface AuthenticatedQuotaAdmissionInput {
   readonly idempotencyKey: unknown;
   readonly source: unknown;
   readonly language: unknown;
+  readonly learnerLevel: unknown;
+  readonly title?: unknown;
+  readonly context?: unknown;
   readonly mode?: unknown;
   readonly now?: Date;
 }
@@ -95,6 +107,31 @@ function canonicalizeMode(value: unknown): ReviewMode {
   }
 }
 
+function canonicalizeLearnerLevel(value: unknown): ReviewLearnerLevel {
+  return assertReviewLearnerLevel(value);
+}
+
+function canonicalizeOptionalText(
+  value: unknown,
+  field: "title" | "context",
+  maximum: number,
+): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > maximum ||
+    !/\S/u.test(value)
+  ) {
+    throw new QuotaAdmissionInputError(field);
+  }
+
+  return value;
+}
+
 function boundedRetryAfterSeconds(value: number): number {
   if (!Number.isSafeInteger(value)) {
     return MAX_RETRY_AFTER_SECONDS;
@@ -125,12 +162,18 @@ export class QuotaAdmissionHttpService {
     const now = input.now ?? new Date();
     const source = canonicalizeSource(input.source);
     const language = canonicalizeLanguage(input.language);
+    const learnerLevel = canonicalizeLearnerLevel(input.learnerLevel);
+    const title = canonicalizeOptionalText(input.title, "title", REVIEW_MAX_TITLE_LENGTH);
+    const context = canonicalizeOptionalText(input.context, "context", REVIEW_MAX_CONTEXT_LENGTH);
     const mode = canonicalizeMode(input.mode);
     const idempotencyKey = normalizeIdempotencyKey(input.idempotencyKey);
     const fingerprint = computeQuotaAdmissionFingerprint(this.fingerprintConfig.fingerprintSecret, {
       fingerprintVersion: QUOTA_ADMISSION_FINGERPRINT_VERSION,
       language,
       mode,
+      learnerLevel,
+      ...(title === undefined ? {} : { title }),
+      ...(context === undefined ? {} : { context }),
       source,
     });
     const candidateAdmissionId = createOpaqueAdmissionId();
@@ -198,7 +241,18 @@ export class QuotaAdmissionHttpService {
       throw new QuotaAdmissionUnavailableError();
     }
 
-    return this.finalize(input, record, intent.created, source, language, now, fingerprint);
+    return this.finalize(
+      input,
+      record,
+      intent.created,
+      source,
+      language,
+      learnerLevel,
+      title,
+      context,
+      now,
+      fingerprint,
+    );
   }
 
   private async reservePending(
@@ -300,6 +354,9 @@ export class QuotaAdmissionHttpService {
     admissionCreated: boolean,
     source: string,
     language: string,
+    learnerLevel: ReviewLearnerLevel,
+    title: string | undefined,
+    context: string | undefined,
     now: Date,
     fingerprint: { readonly requestFingerprintHash: string; readonly fingerprintVersion: number },
   ): Promise<QuotaAdmissionHttpResult> {
@@ -307,11 +364,14 @@ export class QuotaAdmissionHttpService {
       admissionId: record.id,
       fingerprintVersion: fingerprint.fingerprintVersion,
       language,
+      learnerLevel,
       mode: record.mode,
       now,
       requestFingerprintHash: fingerprint.requestFingerprintHash,
       reviewId: record.reviewId,
       source,
+      ...(title === undefined ? {} : { title }),
+      ...(context === undefined ? {} : { context }),
       userId: record.userId,
     };
     let result: ReviewFinalizerResult;

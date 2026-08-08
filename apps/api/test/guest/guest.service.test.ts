@@ -113,7 +113,9 @@ describe("guest review service", () => {
       now,
     );
 
-    assert.deepEqual(fixture.aiRequests, [{ language: "typescript", mode: "QUICK", source }]);
+    assert.deepEqual(fixture.aiRequests, [
+      { language: "typescript", learnerLevel: "INTERMEDIATE", mode: "QUICK", source },
+    ]);
     assert.equal(fixture.redis.calls[0]?.operation, "quota-reservation");
     assert.equal(fixture.redis.calls[0]?.options.keys[0]?.includes("192.0.2.10"), false);
     assert.equal(JSON.stringify(response).includes(source), false);

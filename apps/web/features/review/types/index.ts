@@ -11,6 +11,7 @@ export type ReviewLanguage =
   | "other";
 
 export type LearnerLevel = "beginner" | "intermediate" | "advanced";
+export type ReviewApiLearnerLevel = "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
 
 export type ReviewMode = "QUICK" | "STANDARD" | "DEEP";
 
@@ -100,7 +101,10 @@ export interface ReviewAdmissionResponse {
   readonly createdAt: string;
   readonly id: string;
   readonly language: string;
+  readonly learnerLevel: ReviewApiLearnerLevel;
   readonly mode: ReviewMode;
+  readonly title?: string;
+  readonly context?: string;
   readonly status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED";
   readonly updatedAt: string;
 }

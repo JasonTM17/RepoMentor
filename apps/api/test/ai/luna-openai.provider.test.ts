@@ -23,6 +23,7 @@ function providerRequest(): AiProviderRequest {
   const prompt = new VersionedCodeReviewPromptBuilder().build({
     source,
     language: "typescript",
+    learnerLevel: "INTERMEDIATE",
     mode: "DEEP",
   });
 

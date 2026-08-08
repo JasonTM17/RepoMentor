@@ -68,6 +68,7 @@ async function createTerminalReview(repository: InMemoryReviewRepository): Promi
     id: REVIEW_ID,
     language: "typescript",
     mode: "STANDARD",
+    learnerLevel: "INTERMEDIATE",
     source: "private source",
     userId: OWNER_ID,
   });
@@ -233,6 +234,7 @@ describe("review lifecycle SSE service", () => {
       id: REVIEW_ID,
       language: "typescript",
       mode: "STANDARD",
+      learnerLevel: "INTERMEDIATE",
       source: "private source",
       userId: OWNER_ID,
     });
@@ -264,6 +266,7 @@ describe("review lifecycle SSE service", () => {
       id: REVIEW_ID,
       language: "typescript",
       mode: "STANDARD",
+      learnerLevel: "INTERMEDIATE",
       source: "source",
       userId: OWNER_ID,
     });
@@ -290,6 +293,7 @@ describe("review lifecycle SSE service", () => {
       id: REVIEW_ID,
       language: "typescript",
       mode: "STANDARD",
+      learnerLevel: "INTERMEDIATE",
       source: "private source",
       userId: OWNER_ID,
     });
@@ -325,6 +329,7 @@ describe("review lifecycle SSE service", () => {
       id: REVIEW_ID,
       language: "typescript",
       mode: "STANDARD",
+      learnerLevel: "INTERMEDIATE",
       source: "private source",
       userId: OWNER_ID,
     });
@@ -361,6 +366,7 @@ describe("review lifecycle SSE service", () => {
       id: REVIEW_ID,
       language: "typescript",
       mode: "STANDARD",
+      learnerLevel: "INTERMEDIATE",
       source: "source",
       userId: OWNER_ID,
     });

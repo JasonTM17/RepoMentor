@@ -8,10 +8,14 @@ import {
 
 import { allowedSourceStatuses } from "./review.policy.js";
 import {
+  REVIEW_MAX_CONTEXT_LENGTH,
   REVIEW_MAX_LANGUAGE_LENGTH,
   REVIEW_MAX_SOURCE_LENGTH,
+  REVIEW_MAX_TITLE_LENGTH,
+  REVIEW_LEARNER_LEVELS,
   REVIEW_REPOSITORY,
   type ReviewListQuery,
+  type ReviewLearnerLevel,
   type ReviewMode,
   type ReviewRecord,
   type ReviewRepository,
@@ -22,6 +26,9 @@ export interface ReviewSummary {
   readonly id: string;
   readonly language: string;
   readonly mode: ReviewMode;
+  readonly learnerLevel: ReviewLearnerLevel;
+  readonly title?: string;
+  readonly context?: string;
   readonly status: ReviewStatus;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -68,12 +75,30 @@ function assertCreateInput(source: string, language: string): void {
   }
 }
 
+function assertOptionalMetadata(value: unknown, maximum: number): void {
+  if (
+    value !== undefined &&
+    (typeof value !== "string" || value.length < 1 || value.length > maximum || !/\S/u.test(value))
+  ) {
+    throw new BadRequestException();
+  }
+}
+
+function assertLearnerLevel(value: ReviewLearnerLevel): void {
+  if (!REVIEW_LEARNER_LEVELS.includes(value)) {
+    throw new BadRequestException();
+  }
+}
+
 function toSummary(review: ReviewRecord): ReviewSummary {
   return {
     createdAt: review.createdAt,
     id: review.id,
     language: review.language,
     mode: review.mode,
+    learnerLevel: review.learnerLevel,
+    ...(review.title === undefined ? {} : { title: review.title }),
+    ...(review.context === undefined ? {} : { context: review.context }),
     status: review.status,
     updatedAt: review.updatedAt,
   };
@@ -92,12 +117,25 @@ export class ReviewService {
 
   async create(
     userId: string,
-    input: { readonly source: string; readonly language: string; readonly mode?: ReviewMode },
+    input: {
+      readonly source: string;
+      readonly language: string;
+      readonly learnerLevel: ReviewLearnerLevel;
+      readonly mode?: ReviewMode;
+      readonly title?: string;
+      readonly context?: string;
+    },
   ): Promise<ReviewSummary> {
     const language = normalizeLanguage(input.language);
     assertCreateInput(input.source, language);
+    assertLearnerLevel(input.learnerLevel);
+    assertOptionalMetadata(input.title, REVIEW_MAX_TITLE_LENGTH);
+    assertOptionalMetadata(input.context, REVIEW_MAX_CONTEXT_LENGTH);
 
     const review = await this.repository.create({
+      ...(input.context === undefined ? {} : { context: input.context }),
+      ...(input.title === undefined ? {} : { title: input.title }),
+      learnerLevel: input.learnerLevel,
       language,
       mode: input.mode ?? "STANDARD",
       source: input.source,

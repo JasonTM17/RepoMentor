@@ -7,6 +7,7 @@ import type {
   ReviewProcessResponse,
   ReviewResult,
   ReviewResultResponse,
+  ReviewApiLearnerLevel,
   ReviewStreamOptions,
   ReviewStreamOutcome,
   ReviewTransport,
@@ -26,6 +27,8 @@ const maxGeneratedTests = 3;
 const maxGeneratedTestLength = 8_000;
 const maxLearningQuestions = 5;
 const maxLearningQuestionLength = 500;
+const maxReviewTitleLength = 80;
+const maxReviewContextLength = 500;
 
 export class ReviewApiError extends Error {
   public readonly code: string | undefined;
@@ -200,6 +203,7 @@ const reviewAdmissionStatuses = [
   "FAILED",
   "CANCELLED",
 ] as const;
+const reviewApiLearnerLevels = ["BEGINNER", "INTERMEDIATE", "ADVANCED"] as const;
 
 const isReviewAdmissionResponse = (value: unknown): value is ReviewAdmissionResponse => {
   if (!isRecord(value)) {
@@ -207,11 +211,24 @@ const isReviewAdmissionResponse = (value: unknown): value is ReviewAdmissionResp
   }
 
   return (
-    hasExactKeys(value, ["createdAt", "id", "language", "mode", "status", "updatedAt"]) &&
+    hasOnlyKeys(value, [
+      "createdAt",
+      "id",
+      "language",
+      "learnerLevel",
+      "mode",
+      "title",
+      "context",
+      "status",
+      "updatedAt",
+    ]) &&
     isBoundedString(value.id, maxReviewIdLength) &&
     isBoundedString(value.language, 32) &&
+    reviewApiLearnerLevels.includes(value.learnerLevel as ReviewApiLearnerLevel) &&
     ["QUICK", "STANDARD", "DEEP"].includes(value.mode as string) &&
     reviewAdmissionStatuses.includes(value.status as (typeof reviewAdmissionStatuses)[number]) &&
+    (!hasOwn(value, "title") || isBoundedNonBlankString(value.title, maxReviewTitleLength)) &&
+    (!hasOwn(value, "context") || isBoundedNonBlankString(value.context, maxReviewContextLength)) &&
     isIsoDateTime(value.createdAt) &&
     isIsoDateTime(value.updatedAt)
   );
@@ -621,9 +638,12 @@ const createReviewTransport = (
         "/api/v1/reviews",
         {
           body: JSON.stringify({
+            ...(draft.context.length === 0 ? {} : { context: draft.context }),
             language: draft.language,
+            learnerLevel: draft.learnerLevel.toUpperCase() as ReviewApiLearnerLevel,
             mode: draft.mode,
             source: draft.source,
+            ...(draft.title.length === 0 ? {} : { title: draft.title }),
           }),
           credentials: "include",
           headers: {

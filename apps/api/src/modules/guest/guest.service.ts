@@ -78,6 +78,7 @@ export class GuestReviewService {
 
     const execution = await this.aiReviewService.review({
       language: input.language,
+      learnerLevel: "INTERMEDIATE",
       mode: "QUICK",
       source: input.source,
     });

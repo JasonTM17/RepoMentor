@@ -51,6 +51,12 @@ enum ReviewMode {
   DEEP
 }
 
+enum LearnerLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
 enum QuotaAdmissionStatus {
   PENDING
   RESERVED
@@ -104,6 +110,9 @@ model Review {
   source               String        @db.VarChar(100000)
   language             String        @db.VarChar(32)
   mode                 ReviewMode    @default(STANDARD)
+  learnerLevel         LearnerLevel  @map("learner_level")
+  title                String?       @db.VarChar(80)
+  context              String?       @db.VarChar(500)
   eventSequence        Int           @default(0) @map("event_sequence")
   processingGeneration Int           @default(0) @map("processing_generation")
   status               ReviewStatus  @default(PENDING)

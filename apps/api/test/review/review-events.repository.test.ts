@@ -28,6 +28,7 @@ describe("in-memory review lifecycle event seam", () => {
       id: REVIEW_ID,
       language: "typescript",
       mode: "STANDARD",
+      learnerLevel: "INTERMEDIATE",
       source: "private source that must not cross the stream",
       userId: OWNER_ID,
     });
@@ -73,6 +74,7 @@ describe("in-memory review lifecycle event seam", () => {
       id: REVIEW_ID,
       language: "typescript",
       mode: "STANDARD",
+      learnerLevel: "INTERMEDIATE",
       source: "source",
       userId: OWNER_ID,
     });

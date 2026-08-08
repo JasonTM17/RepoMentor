@@ -488,8 +488,11 @@ export class ReviewProcessingService {
       const executionPromise = this.aiReviewService.review(
         {
           language: claim.review.language,
+          learnerLevel: claim.review.learnerLevel,
           mode: claim.review.mode,
           source: claim.review.source,
+          ...(claim.review.context === undefined ? {} : { context: claim.review.context }),
+          ...(claim.review.title === undefined ? {} : { title: claim.review.title }),
         },
         providerSignal,
       );

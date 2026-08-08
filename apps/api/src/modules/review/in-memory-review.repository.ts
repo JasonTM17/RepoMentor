@@ -63,12 +63,15 @@ export class InMemoryReviewRepository implements ReviewRepository {
     const id = input.id ?? `c${(++this.sequence).toString(36).padStart(24, "0")}`;
     const review: ReviewRecord = {
       createdAt: now,
+      ...(input.context === undefined ? {} : { context: input.context }),
       deletedAt: null,
       id,
       language: input.language,
       mode: input.mode,
+      learnerLevel: input.learnerLevel,
       processingGeneration: 0,
       source: input.source,
+      ...(input.title === undefined ? {} : { title: input.title }),
       status: "PENDING",
       updatedAt: now,
       userId: input.userId,

@@ -21,9 +21,13 @@ import {
   assertReviewFinalizerFingerprintMetadata,
 } from "./review-finalizer.types.js";
 import {
+  REVIEW_LEARNER_LEVELS,
+  REVIEW_MAX_CONTEXT_LENGTH,
   REVIEW_MAX_LANGUAGE_LENGTH,
   REVIEW_MAX_SOURCE_LENGTH,
+  REVIEW_MAX_TITLE_LENGTH,
   REVIEW_MODES,
+  type ReviewLearnerLevel,
   type ReviewMode,
 } from "../review/review.types.js";
 
@@ -82,6 +86,35 @@ function assertMode(value: unknown): ReviewMode {
   return value as ReviewMode;
 }
 
+function assertLearnerLevel(value: unknown): ReviewLearnerLevel {
+  if (typeof value !== "string" || !(REVIEW_LEARNER_LEVELS as readonly string[]).includes(value)) {
+    throw new ReviewFinalizerInputError("learnerLevel");
+  }
+
+  return value as ReviewLearnerLevel;
+}
+
+function assertOptionalMetadata(
+  value: unknown,
+  field: "title" | "context",
+  maximum: number,
+): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    typeof value !== "string" ||
+    value.length < 1 ||
+    value.length > maximum ||
+    !/\S/u.test(value)
+  ) {
+    throw new ReviewFinalizerInputError(field);
+  }
+
+  return value;
+}
+
 function assertDate(value: unknown): Date {
   if (!(value instanceof Date) || !Number.isFinite(value.getTime())) {
     throw new ReviewFinalizerInputError("now");
@@ -121,6 +154,9 @@ function toSummary(review: PrismaReview): ReviewFinalizerSummary {
     id: review.id,
     language: review.language,
     mode: review.mode,
+    learnerLevel: review.learnerLevel,
+    ...(review.title === null ? {} : { title: review.title }),
+    ...(review.context === null ? {} : { context: review.context }),
     status: review.status,
     updatedAt: new Date(review.updatedAt),
   };
@@ -152,6 +188,9 @@ export class PrismaReviewFinalizer implements ReviewFinalizer {
     const source = assertSource(input.source);
     const language = canonicalLanguage(input.language);
     const mode = assertMode(input.mode);
+    const learnerLevel = assertLearnerLevel(input.learnerLevel);
+    const title = assertOptionalMetadata(input.title, "title", REVIEW_MAX_TITLE_LENGTH);
+    const context = assertOptionalMetadata(input.context, "context", REVIEW_MAX_CONTEXT_LENGTH);
     const fingerprintMetadata = assertReviewFinalizerFingerprintMetadata(input);
     const now = assertDate(input.now);
 
@@ -195,6 +234,9 @@ export class PrismaReviewFinalizer implements ReviewFinalizer {
             id: admission.reviewId,
             language,
             mode: admission.mode,
+            learnerLevel,
+            ...(title === undefined ? {} : { title }),
+            ...(context === undefined ? {} : { context }),
             source,
             status: "PENDING",
             updatedAt: now,
@@ -217,6 +259,9 @@ export class PrismaReviewFinalizer implements ReviewFinalizer {
         assertReviewMatchesAdmission(created, userId, admission.reviewId, admission.mode);
         if (
           created.language !== language ||
+          created.learnerLevel !== learnerLevel ||
+          created.title !== title ||
+          created.context !== context ||
           created.source !== source ||
           created.status !== "PENDING"
         ) {

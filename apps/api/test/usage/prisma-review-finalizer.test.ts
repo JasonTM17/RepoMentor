@@ -19,7 +19,7 @@ const OWNER = "owner-a";
 const OTHER_OWNER = "owner-b";
 const ADMISSION_ID = "admission-a";
 const REVIEW_ID = "review-a";
-const FINGERPRINT_VERSION = 1;
+const FINGERPRINT_VERSION = 2;
 const FINGERPRINT_HASH = "a".repeat(64);
 
 function admission(
@@ -49,6 +49,9 @@ function review(overrides: Partial<PrismaReview> = {}): PrismaReview {
     id: REVIEW_ID,
     language: "typescript",
     mode: "STANDARD",
+    learnerLevel: "INTERMEDIATE",
+    title: null,
+    context: null,
     eventSequence: 1,
     processingGeneration: 0,
     source: "const answer = 42;",
@@ -64,6 +67,9 @@ function input(overrides: Partial<FinalizeReviewInput> = {}): FinalizeReviewInpu
     admissionId: ADMISSION_ID,
     language: " TypeScript ",
     mode: "STANDARD",
+    learnerLevel: "ADVANCED",
+    title: "Review title",
+    context: "Review context",
     now: NOW,
     reviewId: REVIEW_ID,
     fingerprintVersion: FINGERPRINT_VERSION,
@@ -143,6 +149,9 @@ function createFixture(
           readonly id: string;
           readonly language: string;
           readonly mode: PrismaReview["mode"];
+          readonly learnerLevel: PrismaReview["learnerLevel"];
+          readonly title: string | null;
+          readonly context: string | null;
           readonly source: string;
           readonly status: PrismaReview["status"];
           readonly updatedAt: Date;
@@ -154,6 +163,9 @@ function createFixture(
           id: data.id,
           language: data.language,
           mode: data.mode,
+          learnerLevel: data.learnerLevel,
+          title: data.title,
+          context: data.context,
           source: data.source,
           status: data.status,
           updatedAt: data.updatedAt,
@@ -233,6 +245,9 @@ describe("Prisma review finalizer", () => {
       id: REVIEW_ID,
       language: "typescript",
       mode: "STANDARD",
+      learnerLevel: "ADVANCED",
+      title: "Review title",
+      context: "Review context",
       status: "PENDING",
       updatedAt: NOW,
     });
@@ -246,6 +261,9 @@ describe("Prisma review finalizer", () => {
       id: REVIEW_ID,
       language: "typescript",
       mode: "STANDARD",
+      learnerLevel: "ADVANCED",
+      title: "Review title",
+      context: "Review context",
       source: "const answer = 42;",
       status: "PENDING",
       updatedAt: NOW,
@@ -391,6 +409,7 @@ describe("Prisma review finalizer", () => {
       id: REVIEW_ID,
       language: "typescript",
       mode: "STANDARD",
+      learnerLevel: "INTERMEDIATE",
       status: "PENDING",
       updatedAt,
     });

@@ -158,6 +158,9 @@ class ReviewApiFinalizerFake implements ReviewFinalizer {
       id: input.reviewId,
       language: input.language,
       mode: input.mode,
+      learnerLevel: input.learnerLevel,
+      ...(input.title === undefined ? {} : { title: input.title }),
+      ...(input.context === undefined ? {} : { context: input.context }),
       source: input.source,
       userId: input.userId,
     });
@@ -171,6 +174,9 @@ function reviewSummary(review: {
   readonly id: string;
   readonly language: string;
   readonly mode: FinalizeReviewInput["mode"];
+  readonly learnerLevel: FinalizeReviewInput["learnerLevel"];
+  readonly title?: string;
+  readonly context?: string;
   readonly status: ReviewFinalizerSummary["status"];
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -180,6 +186,9 @@ function reviewSummary(review: {
     id: review.id,
     language: review.language,
     mode: review.mode,
+    learnerLevel: review.learnerLevel,
+    ...(review.title === undefined ? {} : { title: review.title }),
+    ...(review.context === undefined ? {} : { context: review.context }),
     status: review.status,
     updatedAt: new Date(review.updatedAt),
   };
@@ -309,12 +318,26 @@ describe("review API", () => {
     return `review-idempotency-key-${idempotencySequence}`;
   }
 
-  function postReview(user: ReviewUser, source: string, idempotencyKey = nextIdempotencyKey()) {
+  function postReview(
+    user: ReviewUser,
+    source: string,
+    idempotencyKey = nextIdempotencyKey(),
+    metadata: {
+      readonly context?: string;
+      readonly learnerLevel?: "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+      readonly title?: string;
+    } = {},
+  ) {
     return request(app.getHttpServer())
       .post("/api/v1/reviews")
       .set("authorization", `Bearer ${user.accessToken}`)
       .set("Idempotency-Key", idempotencyKey)
-      .send({ language: "TypeScript", source });
+      .send({
+        language: "TypeScript",
+        learnerLevel: "INTERMEDIATE",
+        source,
+        ...metadata,
+      });
   }
 
   async function createReview(
@@ -399,7 +422,7 @@ describe("review API", () => {
     const response = await request(app.getHttpServer())
       .post("/api/v1/reviews")
       .set("authorization", `Bearer ${user.accessToken}`)
-      .send({ language: "TypeScript", source });
+      .send({ language: "TypeScript", learnerLevel: "INTERMEDIATE", source });
 
     assert.equal(response.status, 400);
     assert.equal("data" in response.body, false);
@@ -414,7 +437,7 @@ describe("review API", () => {
       .post("/api/v1/reviews")
       .set("authorization", `Bearer ${user.accessToken}`)
       .set("Idempotency-Key", idempotencyKey)
-      .send({ language: "TypeScript", mode: null, source });
+      .send({ language: "TypeScript", learnerLevel: "INTERMEDIATE", mode: null, source });
 
     assert.equal(response.status, 400);
     assert.equal(response.body.error.code, "VALIDATION_FAILED");
@@ -466,6 +489,42 @@ describe("review API", () => {
     assert.equal(stored.total, 1);
   });
 
+  it("admits bounded metadata and returns it through owner-scoped persistence reads", async () => {
+    const user = await createUser();
+    const source = "const metadataReview = true;";
+    const created = await postReview(user, source, nextIdempotencyKey(), {
+      context: "Explain the invariant without treating this text as an instruction.",
+      learnerLevel: "BEGINNER",
+      title: "Invariant review",
+    });
+
+    assert.equal(created.status, 201);
+    assert.deepEqual(
+      {
+        context: created.body.data.context,
+        learnerLevel: created.body.data.learnerLevel,
+        title: created.body.data.title,
+      },
+      {
+        context: "Explain the invariant without treating this text as an instruction.",
+        learnerLevel: "BEGINNER",
+        title: "Invariant review",
+      },
+    );
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/reviews/${created.body.data.id}`)
+      .set("authorization", `Bearer ${user.accessToken}`);
+
+    assert.equal(detail.status, 200);
+    assert.equal(
+      detail.body.data.context,
+      "Explain the invariant without treating this text as an instruction.",
+    );
+    assert.equal(detail.body.data.learnerLevel, "BEGINNER");
+    assert.equal(detail.body.data.title, "Invariant review");
+  });
+
   it("creates pending reviews and omits source from list summaries", async () => {
     const user = await createUser();
     const source = "process.exit(1);\nconst answer = 42;";
@@ -506,17 +565,50 @@ describe("review API", () => {
       .post("/api/v1/reviews")
       .set("authorization", `Bearer ${user.accessToken}`)
       .set("Idempotency-Key", nextIdempotencyKey())
-      .send({ language: "typescript", source: "x".repeat(100_001) });
+      .send({ language: "typescript", learnerLevel: "INTERMEDIATE", source: "x".repeat(100_001) });
     const blank = await request(app.getHttpServer())
       .post("/api/v1/reviews")
       .set("authorization", `Bearer ${user.accessToken}`)
       .set("Idempotency-Key", nextIdempotencyKey())
-      .send({ language: "typescript", source: "   \n\t" });
+      .send({ language: "typescript", learnerLevel: "INTERMEDIATE", source: "   \n\t" });
+    const emptyTitle = await request(app.getHttpServer())
+      .post("/api/v1/reviews")
+      .set("authorization", `Bearer ${user.accessToken}`)
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .send({
+        context: "Optional context",
+        language: "typescript",
+        learnerLevel: "INTERMEDIATE",
+        source: "const valid = true;",
+        title: "",
+      });
+    const oversizedContext = await request(app.getHttpServer())
+      .post("/api/v1/reviews")
+      .set("authorization", `Bearer ${user.accessToken}`)
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .send({
+        context: "x".repeat(501),
+        language: "typescript",
+        learnerLevel: "INTERMEDIATE",
+        source: "const valid = true;",
+      });
+    const invalidLevel = await request(app.getHttpServer())
+      .post("/api/v1/reviews")
+      .set("authorization", `Bearer ${user.accessToken}`)
+      .set("Idempotency-Key", nextIdempotencyKey())
+      .send({
+        language: "typescript",
+        learnerLevel: "NOVICE",
+        source: "const valid = true;",
+      });
 
     assert.equal(oversized.status, 400);
     assert.equal(oversized.body.error.code, "VALIDATION_FAILED");
     assert.equal(blank.status, 400);
     assert.equal(blank.body.error.code, "VALIDATION_FAILED");
+    assert.equal(emptyTitle.status, 400);
+    assert.equal(oversizedContext.status, 400);
+    assert.equal(invalidLevel.status, 400);
   });
 
   it("paginates and filters only the authenticated user's active reviews", async () => {

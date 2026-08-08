@@ -1,6 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { REVIEW_MODES, type ReviewMode } from "../review/review.types.js";
+import {
+  REVIEW_LEARNER_LEVELS,
+  REVIEW_MODES,
+  type ReviewLearnerLevel,
+  type ReviewMode,
+} from "../review/review.types.js";
 import { QuotaAdmissionInputError } from "./quota-admission.errors.js";
 
 export const IDEMPOTENCY_KEY_MIN_LENGTH = 22;
@@ -78,4 +83,12 @@ export function assertReviewMode(value: unknown): ReviewMode {
   }
 
   return value as ReviewMode;
+}
+
+export function assertReviewLearnerLevel(value: unknown): ReviewLearnerLevel {
+  if (typeof value !== "string" || !(REVIEW_LEARNER_LEVELS as readonly string[]).includes(value)) {
+    throw new QuotaAdmissionInputError("learnerLevel");
+  }
+
+  return value as ReviewLearnerLevel;
 }

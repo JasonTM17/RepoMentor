@@ -1,13 +1,17 @@
 import { createHmac } from "node:crypto";
 
 import {
+  REVIEW_LEARNER_LEVELS,
+  REVIEW_MAX_CONTEXT_LENGTH,
   REVIEW_MAX_LANGUAGE_LENGTH,
   REVIEW_MAX_SOURCE_LENGTH,
+  REVIEW_MAX_TITLE_LENGTH,
   REVIEW_MODES,
+  type ReviewLearnerLevel,
   type ReviewMode,
 } from "../review/review.types.js";
 
-export const QUOTA_ADMISSION_FINGERPRINT_VERSION = 1 as const;
+export const QUOTA_ADMISSION_FINGERPRINT_VERSION = 2 as const;
 export const QUOTA_ADMISSION_FINGERPRINT_DOMAIN =
   "repomentor:usage:quota-admission:fingerprint" as const;
 export const QUOTA_ADMISSION_FINGERPRINT_MIN_SECRET_BYTES = 32;
@@ -16,6 +20,10 @@ export const QUOTA_ADMISSION_FINGERPRINT_MAX_SOURCE_LENGTH = REVIEW_MAX_SOURCE_L
 export const QUOTA_ADMISSION_FINGERPRINT_MAX_SOURCE_BYTES = REVIEW_MAX_SOURCE_LENGTH * 4;
 export const QUOTA_ADMISSION_FINGERPRINT_MAX_LANGUAGE_LENGTH = REVIEW_MAX_LANGUAGE_LENGTH;
 export const QUOTA_ADMISSION_FINGERPRINT_MAX_LANGUAGE_BYTES = REVIEW_MAX_LANGUAGE_LENGTH * 4;
+export const QUOTA_ADMISSION_FINGERPRINT_MAX_TITLE_LENGTH = REVIEW_MAX_TITLE_LENGTH;
+export const QUOTA_ADMISSION_FINGERPRINT_MAX_TITLE_BYTES = REVIEW_MAX_TITLE_LENGTH * 4;
+export const QUOTA_ADMISSION_FINGERPRINT_MAX_CONTEXT_LENGTH = REVIEW_MAX_CONTEXT_LENGTH;
+export const QUOTA_ADMISSION_FINGERPRINT_MAX_CONTEXT_BYTES = REVIEW_MAX_CONTEXT_LENGTH * 4;
 export const QUOTA_ADMISSION_FINGERPRINT_MAX_VERSION = 2_147_483_647;
 
 const LENGTH_PREFIX_BYTES = 4;
@@ -27,6 +35,9 @@ export interface QuotaAdmissionFingerprintInput {
   readonly source: string;
   readonly language: string;
   readonly mode: ReviewMode;
+  readonly learnerLevel: ReviewLearnerLevel;
+  readonly title?: string;
+  readonly context?: string;
 }
 
 export interface QuotaAdmissionFingerprintResult {
@@ -35,7 +46,15 @@ export interface QuotaAdmissionFingerprintResult {
 }
 
 export type QuotaAdmissionFingerprintInputField =
-  "input" | "secret" | "fingerprintVersion" | "source" | "language" | "mode";
+  | "input"
+  | "secret"
+  | "fingerprintVersion"
+  | "source"
+  | "language"
+  | "mode"
+  | "learnerLevel"
+  | "title"
+  | "context";
 
 export class QuotaAdmissionFingerprintInputError extends Error {
   readonly field: QuotaAdmissionFingerprintInputField;
@@ -165,6 +184,48 @@ function validateMode(value: unknown): ReviewMode {
   return value;
 }
 
+function validateLearnerLevel(value: unknown): ReviewLearnerLevel {
+  if (typeof value !== "string" || !(REVIEW_LEARNER_LEVELS as readonly string[]).includes(value)) {
+    invalid("learnerLevel");
+  }
+
+  return value as ReviewLearnerLevel;
+}
+
+function validateOptionalText(
+  value: unknown,
+  field: "title" | "context",
+  maximum: number,
+  maximumBytes: number,
+): Buffer | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > maximum ||
+    !/\S/u.test(value)
+  ) {
+    invalid(field);
+  }
+
+  const bytes = encodeUtf8(value);
+
+  if (bytes.byteLength > maximumBytes) {
+    invalid(field);
+  }
+
+  return bytes;
+}
+
+function encodeOptionalLengthPrefixed(value: Buffer | undefined): Buffer {
+  return value === undefined
+    ? Buffer.from([0])
+    : Buffer.concat([Buffer.from([1]), encodeLengthPrefixed(value)]);
+}
+
 function encodeVersion(value: number): Buffer {
   const encoded = Buffer.allocUnsafe(4);
   encoded.writeUInt32BE(value, 0);
@@ -176,6 +237,9 @@ function buildFingerprintMessage(
   sourceBytes: Buffer,
   languageBytes: Buffer,
   mode: ReviewMode,
+  learnerLevel: ReviewLearnerLevel,
+  titleBytes: Buffer | undefined,
+  contextBytes: Buffer | undefined,
 ): Buffer {
   return Buffer.concat([
     encodeLengthPrefixed(encodeUtf8(QUOTA_ADMISSION_FINGERPRINT_DOMAIN)),
@@ -183,6 +247,9 @@ function buildFingerprintMessage(
     encodeLengthPrefixed(sourceBytes),
     encodeLengthPrefixed(languageBytes),
     encodeLengthPrefixed(encodeUtf8(mode)),
+    encodeLengthPrefixed(encodeUtf8(learnerLevel)),
+    encodeOptionalLengthPrefixed(titleBytes),
+    encodeOptionalLengthPrefixed(contextBytes),
   ]);
 }
 
@@ -212,7 +279,28 @@ export function computeQuotaAdmissionFingerprint(
   const sourceBytes = validateSource(input.source);
   const languageBytes = normalizeLanguage(input.language);
   const mode = validateMode(input.mode);
-  const message = buildFingerprintMessage(fingerprintVersion, sourceBytes, languageBytes, mode);
+  const learnerLevel = validateLearnerLevel(input.learnerLevel);
+  const titleBytes = validateOptionalText(
+    input.title,
+    "title",
+    QUOTA_ADMISSION_FINGERPRINT_MAX_TITLE_LENGTH,
+    QUOTA_ADMISSION_FINGERPRINT_MAX_TITLE_BYTES,
+  );
+  const contextBytes = validateOptionalText(
+    input.context,
+    "context",
+    QUOTA_ADMISSION_FINGERPRINT_MAX_CONTEXT_LENGTH,
+    QUOTA_ADMISSION_FINGERPRINT_MAX_CONTEXT_BYTES,
+  );
+  const message = buildFingerprintMessage(
+    fingerprintVersion,
+    sourceBytes,
+    languageBytes,
+    mode,
+    learnerLevel,
+    titleBytes,
+    contextBytes,
+  );
   const requestFingerprintHash = createHmac("sha256", secretBytes).update(message).digest("hex");
 
   if (!FINGERPRINT_HASH_PATTERN.test(requestFingerprintHash)) {

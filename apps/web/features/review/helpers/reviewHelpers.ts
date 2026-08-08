@@ -70,8 +70,16 @@ export const validateReviewField = (field: ReviewTextField, value: string): stri
     return `Keep the title under ${REVIEW_MAX_TITLE_LENGTH} characters.`;
   }
 
+  if (field === "title" && value.length > 0 && value.trim().length === 0) {
+    return "Use a title or leave the optional field empty.";
+  }
+
   if (field === "context" && value.length > REVIEW_MAX_CONTEXT_LENGTH) {
     return `Keep the context under ${REVIEW_MAX_CONTEXT_LENGTH} characters.`;
+  }
+
+  if (field === "context" && value.length > 0 && value.trim().length === 0) {
+    return "Use context text or leave the optional field empty.";
   }
 
   return undefined;

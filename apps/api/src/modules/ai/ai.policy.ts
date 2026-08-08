@@ -1,8 +1,11 @@
 import { z } from "zod";
 
 import {
+  REVIEW_LEARNER_LEVELS,
+  REVIEW_MAX_CONTEXT_LENGTH,
   REVIEW_MAX_LANGUAGE_LENGTH,
   REVIEW_MAX_SOURCE_LENGTH,
+  REVIEW_MAX_TITLE_LENGTH,
   REVIEW_MODES,
   type ReviewMode,
 } from "../review/review.types.js";
@@ -26,7 +29,8 @@ export const AI_MAX_LEARNING_QUESTIONS = 5;
 export const AI_MAX_LEARNING_QUESTION_LENGTH = 500;
 export const AI_MAX_SYSTEM_PROMPT_LENGTH = 4_000;
 export const AI_MAX_DEVELOPER_PROMPT_LENGTH = 8_000;
-export const AI_MAX_USER_PROMPT_LENGTH = AI_MAX_SOURCE_LENGTH + 2_048;
+export const AI_MAX_USER_PROMPT_LENGTH =
+  AI_MAX_SOURCE_LENGTH + REVIEW_MAX_TITLE_LENGTH + REVIEW_MAX_CONTEXT_LENGTH + 4_096;
 
 export const AI_TIMEOUT_MS = 15_000;
 export const AI_MAX_TIMEOUT_MS = 60_000;
@@ -51,6 +55,19 @@ const aiReviewRequestSchema = z
       .max(AI_MAX_LANGUAGE_LENGTH)
       .regex(/^[a-z0-9#+._-]+$/u),
     mode: z.enum(REVIEW_MODES),
+    learnerLevel: z.enum(REVIEW_LEARNER_LEVELS),
+    title: z
+      .string()
+      .min(1)
+      .max(REVIEW_MAX_TITLE_LENGTH)
+      .refine((value) => /\S/u.test(value))
+      .optional(),
+    context: z
+      .string()
+      .min(1)
+      .max(REVIEW_MAX_CONTEXT_LENGTH)
+      .refine((value) => /\S/u.test(value))
+      .optional(),
   })
   .strict();
 
@@ -61,7 +78,14 @@ export function validateAiReviewRequest(input: unknown): AiReviewRequest {
     throw new AiRequestError();
   }
 
-  return result.data;
+  return {
+    language: result.data.language,
+    learnerLevel: result.data.learnerLevel,
+    mode: result.data.mode,
+    source: result.data.source,
+    ...(result.data.title === undefined ? {} : { title: result.data.title }),
+    ...(result.data.context === undefined ? {} : { context: result.data.context }),
+  };
 }
 
 export function mapReviewModeToReasoningEffort(mode: ReviewMode): AiReasoningEffort {

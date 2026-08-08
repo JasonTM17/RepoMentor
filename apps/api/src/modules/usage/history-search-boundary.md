@@ -4,9 +4,9 @@
 substring match against the persisted `Review.id` metadata field only.
 
 The search does not inspect submitted source code, result content, or a title.
-The current Prisma `Review` model has no persisted title column; the title shown
-by the current web surface is UI-only. Persisted title search is a P2 follow-up
-that requires an explicit schema and migration decision.
+The Prisma `Review` model now stores optional bounded title metadata, but title
+search remains outside this usage-history contract and is a P2 follow-up that
+requires an explicit query and indexing decision.
 
 History still applies the authenticated `userId` and `deletedAt IS NULL`
 predicates to both the count and page queries. Search input is length-bounded

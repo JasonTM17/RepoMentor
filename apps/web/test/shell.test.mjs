@@ -765,7 +765,7 @@ test("review transport preserves the accepted process and result endpoints", () 
   assert.doesNotMatch(source.reviewApi, /DEEPSEEK|api[_-]?key|secret/iu);
 });
 
-test("review API admission uses a bounded idempotency key and forwards only accepted fields", async () => {
+test("review API admission uses a bounded idempotency key and forwards draft metadata", async () => {
   const { createReviewApiTransport } = await reviewApiRuntime;
   const originalFetch = globalThis.fetch;
   const fetchCalls = [];
@@ -773,7 +773,10 @@ test("review API admission uses a bounded idempotency key and forwards only acce
     createdAt: "2026-01-01T00:00:00.000Z",
     id: "review-created-1",
     language: "typescript",
+    learnerLevel: "ADVANCED",
     mode: "STANDARD",
+    title: "Boundary review",
+    context: "Keep the review grounded in the source.",
     status: "PENDING",
     updatedAt: "2026-01-01T00:00:00.000Z",
   };
@@ -790,12 +793,12 @@ test("review API admission uses a bounded idempotency key and forwards only acce
     });
     assert.ok(transport.create);
     const created = await transport.create({
-      context: "not sent to the accepted API body",
+      context: "Keep the review grounded in the source.",
       language: "typescript",
       learnerLevel: "advanced",
       mode: "STANDARD",
       source: "const answer = 42;",
-      title: "not sent to the accepted API body",
+      title: "Boundary review",
     });
 
     assert.deepEqual(created, admission);
@@ -806,10 +809,52 @@ test("review API admission uses a bounded idempotency key and forwards only acce
     assert.equal(fetchCalls[0].init.headers.Authorization, "Bearer access-token-fixture");
     assert.match(fetchCalls[0].init.headers["Idempotency-Key"], /^web-review-[A-Za-z0-9-]+$/u);
     assert.deepEqual(JSON.parse(fetchCalls[0].init.body), {
+      context: "Keep the review grounded in the source.",
       language: "typescript",
+      learnerLevel: "ADVANCED",
       mode: "STANDARD",
       source: "const answer = 42;",
+      title: "Boundary review",
     });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("review API admission rejects missing or blank metadata in the response", async () => {
+  const { ReviewApiError, createReviewApiTransport } = await reviewApiRuntime;
+  const originalFetch = globalThis.fetch;
+  const base = {
+    createdAt: "2026-01-01T00:00:00.000Z",
+    id: "review-created-1",
+    language: "typescript",
+    mode: "STANDARD",
+    status: "PENDING",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+  const draft = {
+    context: "Context",
+    language: "typescript",
+    learnerLevel: "intermediate",
+    mode: "STANDARD",
+    source: "const answer = 42;",
+    title: "Title",
+  };
+
+  try {
+    const transport = createReviewApiTransport({ apiOrigin: "https://api.example.test" });
+    assert.ok(transport.create);
+
+    for (const response of [
+      { data: base },
+      { data: { ...base, learnerLevel: "INTERMEDIATE", title: " " } },
+    ]) {
+      globalThis.fetch = async () => createJsonResponse(201, response);
+      await assert.rejects(
+        () => transport.create(draft),
+        (error) => error instanceof ReviewApiError && error.status === 201,
+      );
+    }
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -823,6 +868,7 @@ test("review API cancellation is authenticated, source-free, and status-strict",
     createdAt: "2026-01-01T00:00:00.000Z",
     id: "review-cancel-1",
     language: "typescript",
+    learnerLevel: "INTERMEDIATE",
     mode: "STANDARD",
     status: "CANCELLED",
     updatedAt: "2026-01-01T00:00:00.000Z",
