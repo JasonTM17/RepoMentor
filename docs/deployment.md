@@ -25,9 +25,13 @@ remains application-only.
 
 For a local setup, copy `.env.example` to an untracked `.env`, choose unused
 localhost ports, URL-encode credentials in `DATABASE_URL`/`REDIS_URL`, set the
-required JWT/cookie/quota values, and set `NEXT_PUBLIC_API_ORIGIN` to the host
-published API URL. The API uses Compose service names (`postgres`, `redis`) in
-container connection strings; the browser uses the host-published API origin.
+required JWT/cookie/quota values, and set `CORS_ORIGINS` to the browser origin
+that should be allowed to call the API. Because Compose runs the API in
+production mode, `CORS_ORIGINS` is mandatory; for the default local web
+binding, use `http://localhost:<WEB_HOST_PORT>`. Compose passes this value into
+the API container. Set `NEXT_PUBLIC_API_ORIGIN` to the host-published API URL.
+The API uses Compose service names (`postgres`, `redis`) in the container
+connection strings; the browser uses the host-published API origin.
 
 ### Optional AI cost estimates
 
