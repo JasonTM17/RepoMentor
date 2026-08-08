@@ -23,7 +23,7 @@ calls require their respective runtime environments. A passing application
 job therefore proves deterministic repository gates only, not deployment or
 production readiness.
 
-At repository head `7fd932d` (runtime implementation checkpoint `5453e8c`),
+At evidence head `7fd932d` (runtime implementation checkpoint `5453e8c`),
 hosted Application Gates run `31243141059`
 passed the deterministic API, contracts, and web tests, formatting, lint,
 typecheck, both application builds, package verification, and the high-severity
@@ -32,7 +32,8 @@ dependency audit. The prior three high advisories (`playwright`, transitive
 patched Playwright version and documented workspace overrides. Browser
 execution, live services, and external Luna remain separate and unclaimed.
 
-`main` and `origin/main` are aligned at `7fd932d`. Container Validation run
+The docs evidence record uses head `7fd932d`; later docs-only commits do not
+change the runtime inputs. Container Validation run
 `31241219843` passed against the runtime implementation head `5453e8c`:
 workflow syntax, Dockerfile/Compose contracts, and the `linux/amd64`
 no-publish API and web image builds. The docs-only commits did not change the

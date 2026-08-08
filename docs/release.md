@@ -185,8 +185,9 @@ historical evidence for the earlier `4b2dfb7` checkpoint.
 The validation table above is historical evidence from the earlier docs
 refresh; rerun all release gates on the exact tag commit before publication.
 
-The current `main` and `origin/main` are aligned at `7fd932d`; the runtime
-implementation checkpoint remains `5453e8c`. Completed
+The latest docs evidence head recorded here is `7fd932d`; the runtime
+implementation checkpoint remains `5453e8c`. Later docs-only commits do not
+change the runtime inputs. Completed
 settings/security refs were removed only after clean exact-head/equivalence
 checks. The remaining `feature/auth-api` ref is clean but stale and unique;
 `feature/history-filter-api` and `feature/review-process-lock-v2` remain dirty
@@ -195,7 +196,7 @@ and protected. No worktree residue was force-deleted.
 The CI worker commits `295335b`, `f45b224`, and `a4b70d6` add the application
 quality-gate workflow, repository-format step, and container-validation path
 coverage. Kongminh accepted the exact worker head. Hosted Application Gates
-run `31243141059` covers the docs-integrated head; the hosted container run
+run `31243141059` covers the docs evidence head; the hosted container run
 above covers the unchanged runtime image inputs. Both remain deterministic/no-
 publish evidence, not a deployment claim.
 

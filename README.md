@@ -7,7 +7,7 @@ repository checkpoint is an application slice, not a production release.
 The current runtime/evidence baseline is the exact implementation checkpoint
 `5453e8c`, which includes the authenticated review-detail route, application CI
 gates, dependency-audit remediation, and the same-origin workflow fix. The
-documentation-integrated repository head is `7fd932d`; these SHAs are
+latest documentation-integrated evidence head used for hosted validation is `7fd932d`; later docs-only commits do not change runtime inputs. These SHAs are
 exact-head evidence anchors, not a release, tag, registry, license,
 package-publication, deployment, or production-readiness claim.
 
@@ -417,7 +417,7 @@ is not a registry publication or deployment.
 
 `.github/workflows/application-gates.yml` now runs the deterministic application
 gate set on pull requests and pushes to `main`. The completed hosted run for
-the docs-integrated head `7fd932d` is recorded in [docs/ci.md](docs/ci.md);
+evidence head `7fd932d` is recorded in [docs/ci.md](docs/ci.md);
 its fail-closed audit
 behavior remains separate from live PostgreSQL, Redis, Luna, browser, or
 deployment evidence.
