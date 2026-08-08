@@ -238,9 +238,11 @@ it; keep the `.env.example` placeholder empty and never commit a real value.
 The Redis primitive configuration also accepts `GUEST_QUICK_REVIEWS_PER_DAY`
 (default `3`), `USAGE_REDIS_QUOTA_TTL_MAX_SECONDS` (default `86400`, bounded
 to `1..86400`), and `USAGE_REDIS_LOCK_TTL_MS` (default `10000`, bounded to
-`1000..60000`). Guest quota remains a primitive/configuration boundary with no
-guest HTTP route, and the lock TTL is not evidence that processing has a wired
-process lock.
+`1000..60000`). `POST /api/v1/guest/reviews` exposes one public QUICK review
+boundary with server-pinned Luna metadata and Redis admission; deterministic
+tests do not prove live Redis quota or external Luna execution. The lock TTL
+is consumed by the authenticated processing lease and is not live deployment
+evidence.
 
 The Luna provider boundary is server-side only. Keep `LUNA_API_KEY` in the API
 runtime and never expose it to clients. `LUNA_API_BASE_URL` is fixed to
@@ -431,7 +433,8 @@ reasoning. It enforces bounded structured results, source/instruction prompt
 isolation, typed retry/timeout/cancellation/provider errors, and safe handling
 that does not log source or secrets. `LUNA_API_KEY` is server-only and
 `LUNA_API_BASE_URL` is the fixed HTTPS allowlisted endpoint
-`https://api.openai.com/v1`. The review API still makes no live AI call.
+`https://api.openai.com/v1`. The live provider path exists server-side, but the
+current deterministic validation evidence includes no external AI request.
 
 Optional DeepSeek RAG suggestions remain disabled and deferred by
 [ADR-001](docs/architecture/adr-001-optional-rag-suggestion-provider.md); no
