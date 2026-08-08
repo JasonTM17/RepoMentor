@@ -100,6 +100,27 @@ describe("health metrics RBAC", () => {
     assert.equal(anonymous.status, 401);
     assert.equal(user.status, 403);
     assert.equal(admin.status, 200);
-    assert.equal(metricsHealthPayloadSchema.safeParse(admin.body.data).success, true);
+
+    const payload = admin.body.data;
+    assert.equal(metricsHealthPayloadSchema.safeParse(payload).success, true);
+    assert.ok(Number.isInteger(payload.requests.total));
+    assert.ok(Number.isInteger(payload.requests.inFlight));
+    assert.ok(Number.isInteger(payload.requests.completed));
+    assert.ok(payload.requests.total >= payload.requests.inFlight);
+    assert.ok(payload.requests.completed >= 0);
+
+    const serializedPayload = JSON.stringify(payload);
+    for (const forbiddenValue of [
+      "source",
+      "result",
+      "provider",
+      "model",
+      "authorization",
+      "DATABASE_URL",
+      "REDIS_URL",
+      "OPENAI_API_KEY",
+    ]) {
+      assert.equal(serializedPayload.includes(forbiddenValue), false);
+    }
   });
 });
