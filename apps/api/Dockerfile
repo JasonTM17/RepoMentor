@@ -24,7 +24,7 @@ RUN apk add --no-cache \
 
 WORKDIR /workspace
 
-FROM base AS build
+FROM base AS workspace
 
 RUN apk add --no-cache \
       build-base=0.5-r3 \
@@ -42,10 +42,21 @@ RUN --mount=type=cache,id=repomentor-pnpm-store,target=/pnpm/store \
 
 COPY . .
 
+FROM workspace AS migration
+
+# This one-shot target intentionally retains the Prisma CLI, schema, and
+# checked-in migrations. DATABASE_URL is supplied only when the container runs.
+CMD ["pnpm", "db:migrate"]
+
+FROM workspace AS build
+
 RUN pnpm rebuild argon2 \
   && pnpm exec prisma generate --schema prisma/schema.prisma \
-  && pnpm --filter @repomentor/api... run build \
-  && pnpm deploy --legacy --filter @repomentor/api --prod --ignore-scripts /prod/api \
+  && pnpm --filter @repomentor/api... run build
+
+FROM build AS production
+
+RUN pnpm deploy --legacy --filter @repomentor/api --prod --ignore-scripts /prod/api \
   && source_prisma_dir="$(dirname "$(dirname "$(readlink -f node_modules/@prisma/client)")")/.prisma" \
   && target_prisma_dir="$(dirname "$(dirname "$(readlink -f /prod/api/node_modules/@prisma/client)")")/.prisma" \
   && mkdir -p "$target_prisma_dir" \
@@ -72,7 +83,7 @@ ENV PORT=3000
 
 WORKDIR /app
 
-COPY --from=build --chown=node:node /prod/api/ ./
+COPY --from=production --chown=node:node /prod/api/ ./
 
 USER node
 
