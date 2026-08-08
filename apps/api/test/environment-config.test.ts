@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { EnvironmentConfigError, parseEnvironment } from "../src/config/environment.js";
+import {
+  DEFAULT_CORS_ORIGINS,
+  EnvironmentConfigError,
+  parseEnvironment,
+} from "../src/config/environment.js";
 
 function expectEnvironmentError(
   environment: NodeJS.ProcessEnv,
@@ -26,6 +30,7 @@ function expectEnvironmentError(
 describe("environment configuration", () => {
   it("accepts test fixtures without live service URLs", () => {
     assert.deepEqual(parseEnvironment({ NODE_ENV: "test", APP_PORT: "3100" }), {
+      corsOrigins: DEFAULT_CORS_ORIGINS,
       nodeEnv: "test",
       port: 3100,
     });
@@ -50,6 +55,7 @@ describe("environment configuration", () => {
       {
         NODE_ENV: "production",
         APP_PORT: "3000",
+        CORS_ORIGINS: "https://web.example",
         DATABASE_URL: databaseUrl,
         REDIS_URL: redisUrl,
       },
@@ -88,5 +94,34 @@ describe("environment configuration", () => {
         [invalidPort],
       );
     }
+  });
+
+  it("normalizes and de-duplicates explicit CORS origins", () => {
+    const config = parseEnvironment({
+      NODE_ENV: "test",
+      CORS_ORIGINS: " https://Web.Example.com/ , http://localhost:3000,https://web.example.com ",
+    });
+
+    assert.deepEqual(config.corsOrigins, ["https://web.example.com", "http://localhost:3000"]);
+  });
+
+  it("requires a non-wildcard production CORS allowlist without echoing raw origins", () => {
+    const baseEnvironment = {
+      NODE_ENV: "production",
+      DATABASE_URL: "postgresql://localhost:5432/repomentor",
+      REDIS_URL: "redis://localhost:6379",
+    };
+
+    expectEnvironmentError({ ...baseEnvironment }, ["CORS_ORIGINS"]);
+    expectEnvironmentError({ ...baseEnvironment, CORS_ORIGINS: "*" }, ["CORS_ORIGINS"], [
+      "*",
+    ] as const);
+
+    const invalidOrigin = "https://evil.example/path";
+    expectEnvironmentError(
+      { ...baseEnvironment, CORS_ORIGINS: invalidOrigin },
+      ["CORS_ORIGINS"],
+      [invalidOrigin],
+    );
   });
 });

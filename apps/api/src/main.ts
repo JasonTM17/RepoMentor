@@ -11,7 +11,11 @@ async function bootstrap(): Promise<void> {
     parseQuotaAdmissionFingerprintConfig();
   }
 
-  const app = await createApp({ enableSwagger: config.nodeEnv !== "production" });
+  const app = await createApp({
+    corsOrigins: config.corsOrigins,
+    enableSwagger: config.nodeEnv !== "production",
+    nodeEnv: config.nodeEnv,
+  });
   await app.listen(config.port);
 }
 

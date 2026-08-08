@@ -18,7 +18,7 @@ import {
 import request from "supertest";
 
 import { AppModule } from "../src/app.module.js";
-import { configureApp } from "../src/app.js";
+import { CONTENT_SECURITY_POLICY, configureApp } from "../src/app.js";
 import { QUOTA_ADMISSION_FINGERPRINT_CONFIG } from "../src/modules/usage/quota-admission.config.js";
 
 // Test-only fixture; this is not a user or provider API key.
@@ -69,10 +69,13 @@ describe("health bootstrap", () => {
     assert.equal(response.headers["x-content-type-options"], "nosniff");
     assert.equal(response.headers["x-frame-options"], "DENY");
     assert.equal(response.headers["referrer-policy"], "no-referrer");
+    assert.equal(response.headers["content-security-policy"], CONTENT_SECURITY_POLICY);
     assert.equal(
       response.headers["permissions-policy"],
       "camera=(), geolocation=(), microphone=()",
     );
+    assert.equal(response.headers["strict-transport-security"], undefined);
+    assert.equal(response.headers["x-powered-by"], undefined);
     assert.deepEqual(response.body as ApiSuccessEnvelope<LivenessHealthPayload>, {
       data: expectedLivenessPayload,
     });

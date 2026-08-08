@@ -93,6 +93,34 @@ raw model payloads, or stack traces. This transport is covered by
 deterministic in-memory and fake-Luna tests; it does not claim live AI,
 PostgreSQL, Redis, queue, or streaming integration.
 
+## Transport security
+
+The bootstrap uses a validated `CORS_ORIGINS` comma-separated allowlist of
+absolute `http`/`https` origins. Origins are normalized before comparison;
+wildcards, `null`, paths, and credentials are rejected. Development and test
+runs use bounded localhost defaults, while production fails closed unless an
+explicit allowlist is supplied. Credentialed responses echo only a configured
+origin, expose `X-Request-Id`, and allow preflight methods and headers from the
+explicit set. Requests carrying an unlisted `Origin` receive the normal safe
+forbidden error envelope and the origin is never reflected.
+
+The API applies equivalent narrowly scoped response hardening directly in the
+bootstrap (this project does not claim to use Helmet): `nosniff`, frame and
+referrer restrictions, a Swagger-compatible CSP, a restrictive
+`Permissions-Policy`, and Express fingerprinting removal. HSTS is emitted only
+when the validated runtime environment is production. JSON and URL-encoded
+request bodies are each bounded at 128 KiB; oversized bodies receive a `413`
+safe error envelope with the request ID preserved.
+
+Refresh cookies remain `HttpOnly`, use the configured `SameSite` policy, and
+are forced `Secure` in production; `SameSite=None` is rejected unless Secure
+is enabled. This slice does not add a synchronizer or double-submit CSRF
+token. The allowlist and `Origin` rejection provide a browser-origin boundary,
+but they are not a substitute for a CSRF token when a deployment must use
+cross-site cookie authentication. Keep production deployments same-site with
+`SameSite=Lax` or `Strict` where possible, and add an explicit CSRF token
+before enabling a cross-site `SameSite=None` deployment.
+
 ## Development
 
 From the repository root, use the workspace package scripts:

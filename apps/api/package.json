@@ -17,24 +17,25 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@repomentor/contracts": "workspace:*",
-    "@prisma/client": "6.19.0",
     "@nestjs/common": "^11.1.28",
     "@nestjs/core": "^11.1.28",
     "@nestjs/platform-express": "^11.1.28",
     "@nestjs/swagger": "^11.4.6",
+    "@prisma/client": "6.19.0",
+    "@repomentor/contracts": "workspace:*",
     "argon2": "0.45.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "express": "5.2.1",
     "redis": "6.2.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@nestjs/testing": "^11.1.28",
     "@repomentor/eslint-config": "workspace:*",
     "@repomentor/typescript-config": "workspace:*",
-    "@nestjs/testing": "^11.1.28",
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.2",
     "@types/supertest": "^7.2.1",

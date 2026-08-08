@@ -4,11 +4,18 @@ const DEFAULT_PORT = 3000;
 const MIN_PORT = 1;
 const MAX_PORT = 65_535;
 const NODE_ENV_VALUES = ["development", "test", "production"] as const;
+export const DEFAULT_CORS_ORIGINS = Object.freeze([
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:3001",
+]);
 
 const environmentSchema = z.object({
   NODE_ENV: z.enum(NODE_ENV_VALUES).default("development"),
   APP_PORT: z.string().optional(),
   PORT: z.string().optional(),
+  CORS_ORIGINS: z.string().optional(),
   DATABASE_URL: z.string().optional(),
   REDIS_URL: z.string().optional(),
 });
@@ -27,6 +34,7 @@ export type NodeEnvironment = (typeof NODE_ENV_VALUES)[number];
 export interface EnvironmentConfig {
   readonly nodeEnv: NodeEnvironment;
   readonly port: number;
+  readonly corsOrigins: readonly string[];
   readonly databaseUrl?: string;
   readonly redisUrl?: string;
 }
@@ -112,6 +120,63 @@ function parseUrl(
   return result.data;
 }
 
+export function normalizeCorsOrigin(rawOrigin: string): string | undefined {
+  const candidate = rawOrigin.trim();
+
+  if (!candidate || candidate === "*" || candidate === "null") {
+    return undefined;
+  }
+
+  let parsedOrigin: URL;
+
+  try {
+    parsedOrigin = new URL(candidate);
+  } catch {
+    return undefined;
+  }
+
+  if (
+    (parsedOrigin.protocol !== "http:" && parsedOrigin.protocol !== "https:") ||
+    parsedOrigin.origin === "null" ||
+    parsedOrigin.username !== "" ||
+    parsedOrigin.password !== "" ||
+    parsedOrigin.pathname !== "/" ||
+    parsedOrigin.search !== "" ||
+    parsedOrigin.hash !== ""
+  ) {
+    return undefined;
+  }
+
+  return parsedOrigin.origin;
+}
+
+export function normalizeCorsOrigins(origins: readonly string[]): readonly string[] {
+  const normalizedOrigins = origins.map(normalizeCorsOrigin);
+
+  if (normalizedOrigins.length === 0 || normalizedOrigins.some((origin) => origin === undefined)) {
+    throw new EnvironmentConfigError(["CORS_ORIGINS"]);
+  }
+
+  return [...new Set(normalizedOrigins)] as string[];
+}
+
+export function parseCorsOrigins(
+  environment: NodeJS.ProcessEnv = process.env,
+  nodeEnv: NodeEnvironment = "development",
+): readonly string[] {
+  const rawValue = environment.CORS_ORIGINS;
+
+  if (rawValue === undefined || rawValue.trim() === "") {
+    if (nodeEnv === "production") {
+      throw new EnvironmentConfigError(["CORS_ORIGINS"]);
+    }
+
+    return DEFAULT_CORS_ORIGINS;
+  }
+
+  return normalizeCorsOrigins(rawValue.split(","));
+}
+
 export function parseEnvironment(environment: NodeJS.ProcessEnv = process.env): EnvironmentConfig {
   const parsedEnvironment = environmentSchema.safeParse(environment);
   const invalidVariables = new Set<string>();
@@ -125,6 +190,14 @@ export function parseEnvironment(environment: NodeJS.ProcessEnv = process.env): 
     : environment.NODE_ENV === "test"
       ? "test"
       : undefined;
+
+  let corsOrigins: readonly string[] = DEFAULT_CORS_ORIGINS;
+
+  try {
+    corsOrigins = parseCorsOrigins(environment, nodeEnv ?? "development");
+  } catch {
+    invalidVariables.add("CORS_ORIGINS");
+  }
 
   const appPort = parsePort("APP_PORT", environment.APP_PORT, invalidVariables);
   const legacyPort = parsePort("PORT", environment.PORT, invalidVariables);
@@ -150,6 +223,7 @@ export function parseEnvironment(environment: NodeJS.ProcessEnv = process.env): 
   }
 
   return {
+    corsOrigins,
     nodeEnv,
     port: appPort ?? legacyPort ?? DEFAULT_PORT,
     ...(databaseUrl ? { databaseUrl } : {}),
