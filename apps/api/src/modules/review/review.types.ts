@@ -12,6 +12,9 @@ export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 export const REVIEW_MODES = ["QUICK", "STANDARD", "DEEP"] as const;
 export type ReviewMode = (typeof REVIEW_MODES)[number];
 
+export const REVIEW_SORT_ORDERS = ["asc", "desc"] as const;
+export type ReviewSortOrder = (typeof REVIEW_SORT_ORDERS)[number];
+
 export const REVIEW_LEARNER_LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED"] as const;
 export type ReviewLearnerLevel = (typeof REVIEW_LEARNER_LEVELS)[number];
 
@@ -21,6 +24,7 @@ export const REVIEW_MAX_TITLE_LENGTH = 80;
 export const REVIEW_MAX_CONTEXT_LENGTH = 500;
 export const REVIEW_MAX_PAGE_SIZE = 50;
 export const REVIEW_MAX_PAGE_NUMBER = 10_000;
+export const REVIEW_MAX_BULK_DELETE_IDS = 100;
 // Keep the persisted counter below PostgreSQL's signed INTEGER maximum so a
 // claim can always advance without overflowing the database column.
 export const REVIEW_MAX_PROCESSING_GENERATION = 2_147_483_646;
@@ -59,7 +63,11 @@ export interface CreateReviewInput {
 export interface ReviewListQuery {
   readonly page: number;
   readonly limit: number;
+  readonly title?: string;
+  readonly language?: string;
+  readonly mode?: ReviewMode;
   readonly status?: ReviewStatus;
+  readonly sort?: ReviewSortOrder;
 }
 
 export interface ReviewListInput extends ReviewListQuery {
@@ -69,6 +77,10 @@ export interface ReviewListInput extends ReviewListQuery {
 export interface ReviewListResult {
   readonly items: readonly ReviewRecord[];
   readonly total: number;
+}
+
+export interface ReviewBulkDeleteResult {
+  readonly deletedCount: number;
 }
 
 export interface ReviewStatusTransition {
@@ -95,6 +107,7 @@ export interface ReviewRepository {
   findByIdForUser(userId: string, id: string): Promise<ReviewRecord | null>;
   listForUser(input: ReviewListInput): Promise<ReviewListResult>;
   softDeleteForUser(userId: string, id: string, deletedAt: Date): Promise<boolean>;
+  softDeleteManyForUser(userId: string, ids: readonly string[], deletedAt: Date): Promise<number>;
   transitionForUser(
     userId: string,
     id: string,

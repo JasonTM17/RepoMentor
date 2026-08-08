@@ -100,16 +100,26 @@ export class InMemoryReviewRepository implements ReviewRepository {
   }
 
   async listForUser(input: ReviewListInput): Promise<ReviewListResult> {
+    const title = input.title?.toLowerCase();
+    const sort = input.sort ?? "desc";
     const filtered = [...this.reviews.values()]
       .filter(
         (review) =>
           review.userId === input.userId &&
           review.deletedAt === null &&
+          (title === undefined || (review.title?.toLowerCase().includes(title) ?? false)) &&
+          (input.language === undefined || review.language === input.language) &&
+          (input.mode === undefined || review.mode === input.mode) &&
           (input.status === undefined || review.status === input.status),
       )
       .sort((left, right) => {
-        const createdAt = right.createdAt.getTime() - left.createdAt.getTime();
-        return createdAt === 0 ? right.id.localeCompare(left.id) : createdAt;
+        const createdAt = left.createdAt.getTime() - right.createdAt.getTime();
+
+        if (createdAt !== 0) {
+          return sort === "asc" ? createdAt : -createdAt;
+        }
+
+        return sort === "asc" ? left.id.localeCompare(right.id) : right.id.localeCompare(left.id);
       });
     const start = (input.page - 1) * input.limit;
 
@@ -132,6 +142,31 @@ export class InMemoryReviewRepository implements ReviewRepository {
       updatedAt: new Date(deletedAt),
     });
     return true;
+  }
+
+  async softDeleteManyForUser(
+    userId: string,
+    ids: readonly string[],
+    deletedAt: Date,
+  ): Promise<number> {
+    let deletedCount = 0;
+
+    for (const id of new Set(ids)) {
+      const review = this.reviews.get(id);
+
+      if (!review || review.userId !== userId || review.deletedAt !== null) {
+        continue;
+      }
+
+      this.reviews.set(id, {
+        ...review,
+        deletedAt: new Date(deletedAt),
+        updatedAt: new Date(deletedAt),
+      });
+      deletedCount += 1;
+    }
+
+    return deletedCount;
   }
 
   async transitionForUser(

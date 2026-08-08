@@ -78,6 +78,28 @@ type PrismaReviewResultWithUsage = PrismaReviewResult & {
   usage: PrismaReviewUsage | null;
 };
 
+function escapePrismaLikeSearch(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_");
+}
+
+function getReviewListWhere(input: ReviewListInput): Prisma.ReviewWhereInput {
+  return {
+    deletedAt: null,
+    userId: input.userId,
+    ...(input.title
+      ? {
+          title: {
+            contains: escapePrismaLikeSearch(input.title),
+            mode: "insensitive" as const,
+          },
+        }
+      : {}),
+    ...(input.language ? { language: input.language } : {}),
+    ...(input.mode ? { mode: input.mode } : {}),
+    ...(input.status ? { status: input.status } : {}),
+  };
+}
+
 function mapReviewResult(row: PrismaReviewResultWithUsage): ReviewResultRecord {
   return {
     attempts: row.attempts,
@@ -147,15 +169,12 @@ export class PrismaReviewRepository implements ReviewRepository {
   }
 
   async listForUser(input: ReviewListInput): Promise<ReviewListResult> {
-    const where: Prisma.ReviewWhereInput = {
-      deletedAt: null,
-      userId: input.userId,
-      ...(input.status ? { status: input.status } : {}),
-    };
+    const where = getReviewListWhere(input);
+    const sort = input.sort ?? "desc";
     const [total, reviews] = await Promise.all([
       this.prisma.review.count({ where }),
       this.prisma.review.findMany({
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        orderBy: [{ createdAt: sort }, { id: sort }],
         skip: (input.page - 1) * input.limit,
         take: input.limit,
         where,
@@ -175,6 +194,25 @@ export class PrismaReviewRepository implements ReviewRepository {
     });
 
     return result.count === 1;
+  }
+
+  async softDeleteManyForUser(
+    userId: string,
+    ids: readonly string[],
+    deletedAt: Date,
+  ): Promise<number> {
+    const uniqueIds = [...new Set(ids)];
+
+    if (uniqueIds.length === 0) {
+      return 0;
+    }
+
+    const result = await this.prisma.review.updateMany({
+      data: { deletedAt },
+      where: { deletedAt: null, id: { in: uniqueIds }, userId },
+    });
+
+    return result.count;
   }
 
   async transitionForUser(

@@ -1,6 +1,10 @@
 import { Transform } from "class-transformer";
 import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
+  ArrayUnique,
   IsIn,
+  IsArray,
   IsInt,
   IsOptional,
   IsString,
@@ -15,15 +19,18 @@ import {
 import {
   REVIEW_LEARNER_LEVELS,
   REVIEW_MAX_CONTEXT_LENGTH,
+  REVIEW_MAX_BULK_DELETE_IDS,
   REVIEW_MAX_LANGUAGE_LENGTH,
   REVIEW_MAX_PAGE_NUMBER,
   REVIEW_MAX_PAGE_SIZE,
   REVIEW_MAX_SOURCE_LENGTH,
   REVIEW_MAX_TITLE_LENGTH,
   REVIEW_MODES,
+  REVIEW_SORT_ORDERS,
   REVIEW_STATUSES,
   type ReviewLearnerLevel,
   type ReviewMode,
+  type ReviewSortOrder,
   type ReviewStatus,
 } from "./review.types.js";
 
@@ -31,12 +38,17 @@ const trimLowercase = ({ value }: { readonly value: unknown }): unknown =>
   typeof value === "string" ? value.trim().toLowerCase() : value;
 
 const toInteger = ({ value }: { readonly value: unknown }): unknown => {
-  if (typeof value !== "string" || value.trim() === "") {
+  if (typeof value !== "string") {
     return value;
   }
 
-  return Number(value);
+  const normalizedValue = value.trim();
+
+  return /^\d+$/u.test(normalizedValue) ? Number(normalizedValue) : value;
 };
+
+const trim = ({ value }: { readonly value: unknown }): unknown =>
+  typeof value === "string" ? value.trim() : value;
 
 export class CreateReviewDto {
   @IsString()
@@ -88,8 +100,43 @@ export class ReviewListQueryDto {
   limit = 20;
 
   @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(REVIEW_MAX_TITLE_LENGTH)
+  @Matches(/\S/u)
+  title?: string;
+
+  @IsOptional()
+  @Transform(trimLowercase)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(REVIEW_MAX_LANGUAGE_LENGTH)
+  @Matches(/^[a-z0-9#+._-]+$/u)
+  language?: string;
+
+  @IsOptional()
+  @IsIn(REVIEW_MODES)
+  mode?: ReviewMode;
+
+  @IsOptional()
   @IsIn(REVIEW_STATUSES)
   status?: ReviewStatus;
+
+  @IsIn(REVIEW_SORT_ORDERS)
+  sort: ReviewSortOrder = "desc";
+}
+
+export class ReviewBulkDeleteDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(REVIEW_MAX_BULK_DELETE_IDS)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  @MaxLength(25, { each: true })
+  @Matches(/\S/u, { each: true })
+  ids!: string[];
 }
 
 export class ReviewIdParamDto {

@@ -59,7 +59,12 @@ import {
   ReviewFinalizerNotFoundError,
   ReviewFinalizerUnavailableError,
 } from "../usage/review-finalizer.errors.js";
-import { CreateReviewDto, ReviewIdParamDto, ReviewListQueryDto } from "./review.dto.js";
+import {
+  CreateReviewDto,
+  ReviewBulkDeleteDto,
+  ReviewIdParamDto,
+  ReviewListQueryDto,
+} from "./review.dto.js";
 import {
   assertEmptyProcessBody,
   mapReviewProcessingError,
@@ -232,8 +237,44 @@ export class ReviewController {
     return this.reviews.list(getUserId(request), {
       limit: query.limit,
       page: query.page,
+      ...(query.title === undefined ? {} : { title: query.title }),
+      ...(query.language === undefined ? {} : { language: query.language }),
+      ...(query.mode === undefined ? {} : { mode: query.mode }),
       ...(query.status ? { status: query.status } : {}),
+      sort: query.sort,
     });
+  }
+
+  @Delete()
+  @ApiBody({
+    description:
+      "Soft-delete up to 100 unique owned review IDs. Missing and other-user IDs are ignored.",
+    schema: {
+      additionalProperties: false,
+      properties: {
+        ids: {
+          items: { maxLength: 25, minLength: 1, type: "string" },
+          maxItems: 100,
+          minItems: 1,
+          type: "array",
+          uniqueItems: true,
+        },
+      },
+      required: ["ids"],
+      type: "object",
+    },
+  })
+  @ApiOkResponse({
+    description: "The count of active reviews soft-deleted for the authenticated user.",
+    schema: {
+      properties: { data: { properties: { deletedCount: { minimum: 0, type: "integer" } } } },
+      required: ["data"],
+      type: "object",
+    },
+  })
+  @ApiBadRequestResponse({ description: "The body contains invalid, duplicate, or too many IDs." })
+  async removeMany(@Req() request: AuthenticatedRequest, @Body() body: ReviewBulkDeleteDto) {
+    return this.reviews.removeMany(getUserId(request), body.ids);
   }
 
   @Get(":id/events")

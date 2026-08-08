@@ -14,6 +14,7 @@ import {
   REVIEW_MAX_TITLE_LENGTH,
   REVIEW_LEARNER_LEVELS,
   REVIEW_REPOSITORY,
+  type ReviewBulkDeleteResult,
   type ReviewListQuery,
   type ReviewLearnerLevel,
   type ReviewMode,
@@ -178,6 +179,16 @@ export class ReviewService {
     if (!deleted) {
       throw notFound();
     }
+  }
+
+  async removeMany(
+    userId: string,
+    ids: readonly string[],
+    now = new Date(),
+  ): Promise<ReviewBulkDeleteResult> {
+    return {
+      deletedCount: await this.repository.softDeleteManyForUser(userId, ids, now),
+    };
   }
 
   async retry(userId: string, id: string, now = new Date()): Promise<ReviewSummary> {
