@@ -1,5 +1,20 @@
 # Local-only application and infrastructure services. Required values come from .env.
 services:
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migration
+    image: repomentor-api-migration:local
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set to a URL using the postgres service name}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - local-infrastructure
+    restart: "no"
+
   api:
     build:
       context: .
@@ -19,6 +34,8 @@ services:
     ports:
       - "127.0.0.1:${API_HOST_PORT:?API_HOST_PORT must be set}:3000"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:

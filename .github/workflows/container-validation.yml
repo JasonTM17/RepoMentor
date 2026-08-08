@@ -13,6 +13,7 @@ on:
       - apps/**
       - packages/**
       - prisma/schema.prisma
+      - prisma/migrations/**
       - .github/workflows/container-release.yml
       - .github/workflows/container-validation.yml
       - .github/workflows/application-gates.yml
@@ -30,6 +31,7 @@ on:
       - apps/**
       - packages/**
       - prisma/schema.prisma
+      - prisma/migrations/**
       - .github/workflows/container-release.yml
       - .github/workflows/container-validation.yml
       - .github/workflows/application-gates.yml
@@ -83,6 +85,15 @@ jobs:
               exit 1
             fi
           done
+          if grep -Eq '(^|/)(\*\*/)?prisma/migrations(/|\*|$)' .dockerignore; then
+            echo "::error::Checked-in Prisma migrations must be available in the Docker build context"
+            exit 1
+          fi
+          grep -q '^FROM workspace AS migration$' apps/api/Dockerfile
+          grep -q '^CMD \["pnpm", "db:migrate"\]$' apps/api/Dockerfile
+          grep -q '^      target: migration$' docker-compose.yml
+          grep -q '^        condition: service_completed_successfully$' docker-compose.yml
+          grep -q '^    restart: "no"$' docker-compose.yml
           grep -q '^ARG NEXT_PUBLIC_API_ORIGIN=' apps/web/Dockerfile
           grep -q '^ENV NEXT_PUBLIC_API_ORIGIN=' apps/web/Dockerfile
           grep -q '^\.env$' .dockerignore
@@ -120,8 +131,13 @@ jobs:
         include:
           - name: api
             dockerfile: apps/api/Dockerfile
+            target: runtime
+          - name: migration
+            dockerfile: apps/api/Dockerfile
+            target: migration
           - name: web
             dockerfile: apps/web/Dockerfile
+            target: runtime
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -134,6 +150,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
           platforms: linux/amd64
           tags: repomentor/${{ matrix.name }}:validation-${{ github.sha }}
           load: true

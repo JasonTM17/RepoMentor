@@ -8,17 +8,20 @@ deployment.
 
 ## Local Compose
 
-[`docker-compose.yml`](../docker-compose.yml) defines four local services:
+[`docker-compose.yml`](../docker-compose.yml) defines five local services:
 
+- `migrate`: a one-shot Prisma migration runner with no published port;
 - `api`: the NestJS API image, bound to a chosen localhost host port;
 - `web`: the Next.js image, bound to a chosen localhost host port;
 - `postgres`: PostgreSQL 16.4 Alpine with a local named volume;
 - `redis`: Redis 7.4.1 Alpine with append-only persistence and a password.
 
-The API depends on healthy PostgreSQL and Redis containers; the web depends on
-the API process-liveness check. The network is internal and service ports are
-bound to `127.0.0.1`. The API and web health checks prove HTTP process/shell
-liveness only; API `/health/ready` remains application-only.
+The migration service waits for healthy PostgreSQL and applies the checked-in
+migrations. The API starts only after migration succeeds and PostgreSQL and
+Redis are healthy; the web depends on the API process-liveness check. The
+network is internal and service ports are bound to `127.0.0.1`. The API and web
+health checks prove HTTP process/shell liveness only; API `/health/ready`
+remains application-only.
 
 For a local setup, copy `.env.example` to an untracked `.env`, choose unused
 localhost ports, URL-encode credentials in `DATABASE_URL`/`REDIS_URL`, set the
@@ -33,9 +36,15 @@ docker compose config --quiet
 docker compose up --build
 ```
 
-The first command is configuration-only. A live startup, dependency check,
-HTTP smoke, and migration run must be recorded separately; they are not implied
-by the repository's unit tests.
+The first command is configuration-only. `docker compose up --build` builds the
+dedicated migration target, waits for PostgreSQL health, applies migrations,
+and starts the API only after the migration container exits successfully. A
+migration failure therefore prevents the API and web from starting. To run the
+one-shot migration service explicitly, use `docker compose run --rm migrate`.
+The API runtime image is production-pruned and non-root; it is not the
+migration runner and intentionally does not contain the Prisma CLI, schema, or
+checked-in migrations. A live startup, dependency check, and HTTP smoke still
+need separate runtime evidence and are not implied by static checks.
 
 ## CI workflows
 
@@ -45,8 +54,10 @@ by the repository's unit tests.
   web gates, formats/lints/typechecks/builds/packages, and fails on high audit
   findings.
 - [`container-validation.yml`](../.github/workflows/container-validation.yml)
-  validates workflow/Dockerfile/Compose contracts and builds API/web images
-  with `push: false`; it has no registry credentials.
+  validates workflow/Dockerfile/Compose contracts and builds the API runtime,
+  API migration target, and web images with `push: false`; it has no registry
+  credentials. Its migration-target build is credential-free and does not
+  connect to PostgreSQL.
 - [`container-release.yml`](../.github/workflows/container-release.yml) is
   triggered by `v*.*.*` tags and then validates a strict semantic version. It
   requires configured Docker Hub
@@ -62,8 +73,14 @@ workflow evidence, SBOM/provenance attestations, and the GitHub Release.
 
 Apply schema changes as forward-only, append-only Prisma migrations according to
 the [migration ownership ADR](architecture/database-migration-ownership.md).
-`pnpm db:validate` and `pnpm db:generate` do not connect to PostgreSQL. After
-the database is healthy, apply the checked-in migrations with:
+`pnpm db:validate` and `pnpm db:generate` do not connect to PostgreSQL. For the
+local Compose stack, the `migrate` service is the migration runner: after
+PostgreSQL is healthy it applies the checked-in migrations, and migration
+success is a prerequisite for starting the API. Its only runtime input is
+`DATABASE_URL`.
+
+To apply migrations from the workspace instead of Compose, after the database
+is healthy run:
 
 ```bash
 pnpm db:migrate
