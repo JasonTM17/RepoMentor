@@ -422,7 +422,8 @@ fail-closed audit behavior are recorded in [docs/ci.md](docs/ci.md).
 
 Never commit `.env`, API keys, database credentials, JWT secrets, private
 keys, cookies, access tokens, refresh tokens, or user source code. The
-committed `.env.example` contains names and empty placeholders only.
+committed `.env.example` keeps secrets empty and carries only the fixed,
+non-secret Luna endpoint as a default.
 
 The integrated code-review boundary is Luna-only by project policy: provider
 `luna`, model `gpt-5.6-luna`, with QUICK/STANDARD/DEEP mapped to low/medium/max
