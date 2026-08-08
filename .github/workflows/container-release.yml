@@ -156,12 +156,27 @@ jobs:
           DOCKERHUB_STAGING_REF: ${{ steps.release.outputs.dockerhub_staging_ref }}
         run: |
           set -euo pipefail
-          ghcr_digest="$(docker buildx imagetools inspect "$GHCR_STAGING_REF" | awk '$1 == "Digest:" { print $2; exit }')"
-          dockerhub_digest="$(docker buildx imagetools inspect "$DOCKERHUB_STAGING_REF" | awk '$1 == "Digest:" { print $2; exit }')"
-          if [[ -z "$ghcr_digest" || -z "$dockerhub_digest" ]]; then
-            echo "::error::A staging registry digest could not be resolved"
-            exit 1
-          fi
+          resolve_digest() {
+            local ref="$1"
+            local digest=""
+
+            for attempt in {1..12}; do
+              if digest="$(docker buildx imagetools inspect "$ref" 2>/dev/null | awk '$1 == "Digest:" { print $2; exit }')"; then
+                if [[ "$digest" == sha256:* ]]; then
+                  printf '%s\n' "$digest"
+                  return 0
+                fi
+              fi
+              echo "::debug::Waiting for registry propagation (attempt ${attempt}/12) for ${ref}" >&2
+              sleep 10
+            done
+
+            echo "::error::A staging registry digest could not be resolved for ${ref} after bounded retries" >&2
+            return 1
+          }
+
+          ghcr_digest="$(resolve_digest "$GHCR_STAGING_REF")"
+          dockerhub_digest="$(resolve_digest "$DOCKERHUB_STAGING_REF")"
           if [[ "$ghcr_digest" != "$dockerhub_digest" ]]; then
             echo "::error::GHCR and Docker Hub staging digests differ"
             exit 1
@@ -219,16 +234,29 @@ jobs:
           SOURCE_DIGEST: ${{ steps.staging.outputs.source_digest }}
         run: |
           set -euo pipefail
-          ghcr_semver="$(docker buildx imagetools inspect "${GHCR_IMAGE}:${VERSION}" | awk '$1 == "Digest:" { print $2; exit }')"
-          ghcr_sha="$(docker buildx imagetools inspect "${GHCR_IMAGE}:${SHA_TAG}" | awk '$1 == "Digest:" { print $2; exit }')"
-          dockerhub_semver="$(docker buildx imagetools inspect "${DOCKERHUB_IMAGE}:${VERSION}" | awk '$1 == "Digest:" { print $2; exit }')"
-          dockerhub_sha="$(docker buildx imagetools inspect "${DOCKERHUB_IMAGE}:${SHA_TAG}" | awk '$1 == "Digest:" { print $2; exit }')"
-          for digest in "$ghcr_semver" "$ghcr_sha" "$dockerhub_semver" "$dockerhub_sha"; do
-            if [[ -z "$digest" ]]; then
-              echo "::error::A promoted registry digest could not be resolved"
-              exit 1
-            fi
-          done
+          resolve_digest() {
+            local ref="$1"
+            local digest=""
+
+            for attempt in {1..12}; do
+              if digest="$(docker buildx imagetools inspect "$ref" 2>/dev/null | awk '$1 == "Digest:" { print $2; exit }')"; then
+                if [[ "$digest" == sha256:* ]]; then
+                  printf '%s\n' "$digest"
+                  return 0
+                fi
+              fi
+              echo "::debug::Waiting for registry propagation (attempt ${attempt}/12) for ${ref}" >&2
+              sleep 10
+            done
+
+            echo "::error::A promoted registry digest could not be resolved for ${ref} after bounded retries" >&2
+            return 1
+          }
+
+          ghcr_semver="$(resolve_digest "${GHCR_IMAGE}:${VERSION}")"
+          ghcr_sha="$(resolve_digest "${GHCR_IMAGE}:${SHA_TAG}")"
+          dockerhub_semver="$(resolve_digest "${DOCKERHUB_IMAGE}:${VERSION}")"
+          dockerhub_sha="$(resolve_digest "${DOCKERHUB_IMAGE}:${SHA_TAG}")"
           if [[ "$ghcr_semver" == "$ghcr_sha" && "$ghcr_semver" == "$dockerhub_semver" && "$ghcr_semver" == "$dockerhub_sha" ]]; then
             :
           else
