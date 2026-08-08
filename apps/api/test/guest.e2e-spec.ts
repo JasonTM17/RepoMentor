@@ -30,6 +30,12 @@ const TEST_GUEST_IDENTITY_SECRET = "guest-identity-fixture-value-0123456789abcde
 const TEST_QUOTA_FINGERPRINT = "guest-quota-fixture-value-0123456789abcdef";
 const source = "const responseMustRemainSourceFree = true;";
 const validResult = {
+  education: {
+    diff: null,
+    generatedTests: [],
+    improvedSource: null,
+    learningQuestions: [],
+  },
   findings: [],
   schemaVersion: "v1",
   summary: "No actionable findings were detected.",

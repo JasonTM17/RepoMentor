@@ -64,6 +64,12 @@ const validExecution: AiReviewExecution<ReviewResult> = {
   provider: "luna",
   reasoningEffort: "medium",
   result: {
+    education: {
+      diff: null,
+      generatedTests: [],
+      improvedSource: null,
+      learningQuestions: [],
+    },
     findings: [],
     schemaVersion: "v1",
     summary: "No actionable findings were detected.",

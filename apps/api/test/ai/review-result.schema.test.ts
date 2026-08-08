@@ -9,6 +9,12 @@ import {
 } from "../../src/modules/ai/review-result.schema.js";
 
 const validResult = {
+  education: {
+    diff: "@@ -1 +1 @@\n-const answer = 41;\n+const answer = 42;",
+    generatedTests: ["test(\"answer\", () => assert.equal(answer, 42));"],
+    improvedSource: "const answer = 42;",
+    learningQuestions: ["Which invariant makes this value safe to change?"],
+  },
   schemaVersion: "v1",
   summary: "One actionable issue was found.",
   findings: [
@@ -44,6 +50,20 @@ describe("structured AI review result", () => {
     assert.throws(() => parseReviewResult(validResult, "only one line"), AiValidationError);
   });
 
+  it("normalizes legacy persisted results without education output", () => {
+    const { education: _education, ...legacyResult } = validResult;
+
+    assert.deepEqual(parseReviewResult(legacyResult), {
+      ...legacyResult,
+      education: {
+        diff: null,
+        generatedTests: [],
+        improvedSource: null,
+        learningQuestions: [],
+      },
+    });
+  });
+
   it("enforces finding and text bounds before accepting model output", () => {
     assert.throws(
       () =>
@@ -63,6 +83,28 @@ describe("structured AI review result", () => {
               title: "x".repeat(AI_MAX_FINDING_TITLE_LENGTH + 1),
             },
           ],
+        }),
+      AiValidationError,
+    );
+    assert.throws(
+      () =>
+        parseReviewResult({
+          ...validResult,
+          education: {
+            ...validResult.education,
+            generatedTests: ["x".repeat(8_001)],
+          },
+        }),
+      AiValidationError,
+    );
+    assert.throws(
+      () =>
+        parseReviewResult({
+          ...validResult,
+          education: {
+            ...validResult.education,
+            learningQuestions: ["x".repeat(501)],
+          },
         }),
       AiValidationError,
     );

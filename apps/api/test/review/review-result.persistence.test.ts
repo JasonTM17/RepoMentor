@@ -20,6 +20,12 @@ const EXECUTION: AiReviewExecution<ReviewResult> = {
   provider: "luna",
   reasoningEffort: "max",
   result: {
+    education: {
+      diff: null,
+      generatedTests: [],
+      improvedSource: null,
+      learningQuestions: [],
+    },
     findings: [],
     schemaVersion: "v1",
     summary: "No actionable findings were detected.",

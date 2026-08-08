@@ -24,6 +24,12 @@ const validSecret = "guest-identity-fixture-value-0123456789abcdef";
 const now = new Date("2026-08-07T12:00:00.000Z");
 const source = "const privateValue = 42;";
 const validResult: ReviewResult = {
+  education: {
+    diff: null,
+    generatedTests: [],
+    improvedSource: null,
+    learningQuestions: [],
+  },
   findings: [],
   schemaVersion: "v1",
   summary: "No actionable findings were detected.",

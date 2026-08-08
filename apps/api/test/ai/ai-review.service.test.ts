@@ -6,6 +6,12 @@ import { AiReviewService } from "../../src/modules/ai/ai-review.service.js";
 import { FakeAiReviewProvider } from "../../src/modules/ai/fake-ai.provider.js";
 
 const validResult = {
+  education: {
+    diff: null,
+    generatedTests: [],
+    improvedSource: null,
+    learningQuestions: [],
+  },
   schemaVersion: "v1",
   summary: "No actionable findings were detected.",
   findings: [],

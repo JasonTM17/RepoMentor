@@ -2,6 +2,12 @@ import type { AiProviderRequest, AiProviderResult, AiReviewProvider } from "./ai
 import type { ReviewResult } from "./review-result.schema.js";
 
 const DEFAULT_FAKE_RESULT: ReviewResult = {
+  education: {
+    diff: null,
+    generatedTests: [],
+    improvedSource: null,
+    learningQuestions: [],
+  },
   schemaVersion: "v1",
   summary: "No actionable findings were detected.",
   findings: [],

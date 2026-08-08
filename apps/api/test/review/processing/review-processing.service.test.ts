@@ -45,16 +45,34 @@ const REVIEW_ID = "review-processing-1";
 const USER_ID = "user-processing-1";
 const FIXED_NOW = new Date("2026-08-06T00:00:00.000Z");
 const VALID_RESULT = {
+  education: {
+    diff: null,
+    generatedTests: [],
+    improvedSource: null,
+    learningQuestions: [],
+  },
   findings: [],
   schemaVersion: "v1",
   summary: "No actionable findings were detected.",
 } as const;
 const STALE_RESULT = {
+  education: {
+    diff: null,
+    generatedTests: [],
+    improvedSource: null,
+    learningQuestions: [],
+  },
   findings: [],
   schemaVersion: "v1",
   summary: "Stale run must never persist this result.",
 } as const;
 const LIVE_RESULT = {
+  education: {
+    diff: null,
+    generatedTests: [],
+    improvedSource: null,
+    learningQuestions: [],
+  },
   findings: [],
   schemaVersion: "v1",
   summary: "The retried run owns this result.",
